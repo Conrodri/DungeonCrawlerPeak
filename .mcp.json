@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "unity-editor-mcp": {
+      "command": "C:\\Program Files\\Unity Hub\\resources\\cli\\unity.exe",
+      "args": ["mcp", "--project-path", "C:\\Users\\const\\Documents\\DungeonCrawlerPeak"]
+    }
+  }
+}
