@@ -1,1 +1,1 @@
-public enum ItemType { Gold, Shuriken, Caillou, Baton }
+public enum ItemType { Gold, Shuriken, Caillou, Baton, Bomb }

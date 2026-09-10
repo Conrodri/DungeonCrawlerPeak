@@ -10,6 +10,7 @@ public class PlayerInventory : MonoBehaviour
     public int shuriken;
     public int caillou;
     public int baton;
+    public int bomb;
 
     public event Action OnInventoryChanged;
 
@@ -22,8 +23,9 @@ public class PlayerInventory : MonoBehaviour
             case ItemType.Shuriken: shuriken = Mathf.Min(MaxThrowable, shuriken + amount); break;
             case ItemType.Caillou: caillou = Mathf.Min(MaxThrowable, caillou + amount); break;
             case ItemType.Baton: baton = Mathf.Min(MaxThrowable, baton + amount); break;
+            case ItemType.Bomb: bomb = Mathf.Min(MaxThrowable, bomb + amount); break;
         }
-        Debug.Log("Picked up " + type + " - gold:" + gold + " shuriken:" + shuriken + " caillou:" + caillou + " baton:" + baton);
+        Debug.Log("Picked up " + type + " - gold:" + gold + " shuriken:" + shuriken + " caillou:" + caillou + " baton:" + baton + " bomb:" + bomb);
         OnInventoryChanged?.Invoke();
     }
 
@@ -35,6 +37,7 @@ public class PlayerInventory : MonoBehaviour
             case ItemType.Shuriken: return shuriken;
             case ItemType.Caillou: return caillou;
             case ItemType.Baton: return baton;
+            case ItemType.Bomb: return bomb;
             default: return 0;
         }
     }
@@ -46,6 +49,7 @@ public class PlayerInventory : MonoBehaviour
             case ItemType.Shuriken: if (shuriken <= 0) return false; shuriken--; break;
             case ItemType.Caillou: if (caillou <= 0) return false; caillou--; break;
             case ItemType.Baton: if (baton <= 0) return false; baton--; break;
+            case ItemType.Bomb: if (bomb <= 0) return false; bomb--; break;
             default: return false;
         }
         OnInventoryChanged?.Invoke();

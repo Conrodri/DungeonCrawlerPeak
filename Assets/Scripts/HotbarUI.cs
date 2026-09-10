@@ -9,11 +9,12 @@ public class HotbarUI : MonoBehaviour
     public Sprite shurikenSprite;
     public Sprite caillouSprite;
     public Sprite batonSprite;
+    public Sprite bombSprite;
     public float slotSize = 40f;
     public float spacing = 48f;
 
-    // Slots 4 and 5 are reserved for bombs and future items - not implemented yet.
-    readonly ItemType?[] slotTypes = { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, null, null };
+    // Slot 5 is reserved for a future item.
+    readonly ItemType?[] slotTypes = { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, ItemType.Bomb, null };
 
     Text[] slotTexts;
 
@@ -34,7 +35,7 @@ public class HotbarUI : MonoBehaviour
 
     void BuildSlots()
     {
-        Sprite[] sprites = { shurikenSprite, caillouSprite, batonSprite, null, null };
+        Sprite[] sprites = { shurikenSprite, caillouSprite, batonSprite, bombSprite, null };
         slotTexts = new Text[SlotCount];
         Font font = Font.CreateDynamicFontFromOSFont("Arial", 14);
 

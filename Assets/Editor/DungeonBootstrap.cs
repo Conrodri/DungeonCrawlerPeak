@@ -67,6 +67,9 @@ public static class DungeonBootstrap
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
 
+        Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
+        Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
         Sprite fullHeart = CreateHeartSprite("Assets/Art/UI/HeartFull.png", heartRed, heartRed);
@@ -151,6 +154,8 @@ public static class DungeonBootstrap
         playerController.shurikenSprite = shurikenSprite;
         playerController.caillouSprite = caillouSprite;
         playerController.batonSprite = batonSprite;
+        playerController.bombSprite = bombSprite;
+        playerController.explosionSprite = explosionSprite;
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         Health playerHealth = player.GetComponent<Health>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
@@ -159,17 +164,17 @@ public static class DungeonBootstrap
         playerHealth.currentHealth = playerHealth.maxHealth;
 
         // --- Room content (enemies / special-room markers) ---
-        var roomBounds = new List<Rect>();
+        var roomEntries = new List<RoomCameraController.RoomEntry>();
         int eliteRoomCount = 0;
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             int originX = kv.Key.x * StepX;
             int originY = kv.Key.y * StepY;
-            roomBounds.Add(new Rect(originX, originY, RoomWidth, RoomHeight));
+            roomEntries.Add(new RoomCameraController.RoomEntry { gridPos = kv.Key, rect = new Rect(originX, originY, RoomWidth, RoomHeight) });
 
             bool spawnedElite = PopulateRoom(kv.Value, originX, originY, root.transform, player.transform, enemySprite, eliteSprite,
                 shopMarker, treasureMarker, secretMarker, gambleMarker,
-                swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite);
+                swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
             if (spawnedElite) eliteRoomCount++;
         }
 
@@ -188,7 +193,7 @@ public static class DungeonBootstrap
             RoomCameraController roomCam = cam.GetComponent<RoomCameraController>();
             if (roomCam == null) roomCam = cam.gameObject.AddComponent<RoomCameraController>();
             roomCam.target = player.transform;
-            roomCam.roomBounds = roomBounds.ToArray();
+            roomCam.rooms = roomEntries.ToArray();
 
             // Sort same-order sprites by world Y (further up the screen = further away) so the
             // player correctly passes behind tall wall tops and in front of near ones, Isaac-style.
@@ -230,6 +235,20 @@ public static class DungeonBootstrap
         hotbar.shurikenSprite = shurikenSprite;
         hotbar.caillouSprite = caillouSprite;
         hotbar.batonSprite = batonSprite;
+        hotbar.bombSprite = bombSprite;
+
+        // --- Minimap (top-right): adjacent rooms half-reveal, entered rooms fully reveal ---
+        GameObject minimapGO = new GameObject("Minimap", typeof(RectTransform), typeof(MinimapController));
+        minimapGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform minimapRect = minimapGO.GetComponent<RectTransform>();
+        minimapRect.anchorMin = minimapRect.anchorMax = new Vector2(1f, 1f);
+        minimapRect.pivot = new Vector2(1f, 1f);
+        minimapRect.anchoredPosition = new Vector2(-20f, -20f);
+        minimapRect.sizeDelta = new Vector2(160f, 160f);
+
+        MinimapController minimap = minimapGO.GetComponent<MinimapController>();
+        minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
+        minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -374,7 +393,7 @@ public static class DungeonBootstrap
 
     static bool PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
         Sprite enemySprite, Sprite eliteSprite, Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker,
-        Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite)
+        Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite, Sprite bombSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
 
@@ -402,6 +421,7 @@ public static class DungeonBootstrap
                 SpawnItemPickup("ShurikenPickup", center + new Vector2(-0.7f, 1.5f), shurikenSprite, ItemType.Shuriken, 3, parent);
                 SpawnItemPickup("CaillouPickup", center + new Vector2(0.7f, 1.5f), caillouSprite, ItemType.Caillou, 3, parent);
                 SpawnItemPickup("BatonPickup", center + new Vector2(2f, 1.5f), batonSprite, ItemType.Baton, 3, parent);
+                SpawnItemPickup("BombPickup", center + new Vector2(0f, 2.7f), bombSprite, ItemType.Bomb, 3, parent);
                 return false;
             default:
                 return false;

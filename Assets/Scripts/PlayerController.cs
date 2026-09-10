@@ -44,6 +44,14 @@ public class PlayerController : MonoBehaviour
     public float throwCooldown = 0.3f;
     public float throwRangeMultiplier = 2f;
 
+    [Header("Bomb")]
+    public Sprite bombSprite;
+    public Sprite explosionSprite;
+    public int bombDamage = 3;
+    public float bombExplosionRadius = 2f;
+    public float bombFuseTime = 1.2f;
+    public float bombSpeed = 6f;
+
     // A weapon's total reach: how far from the player its hit area extends.
     float SwordReach => swordOffset + swordRange;
     float StaffMaxRange => SwordReach * staffRangeMultiplier;
@@ -101,10 +109,11 @@ public class PlayerController : MonoBehaviour
             TryAttack();
         }
 
-        // Hotbar: slots 1-3 throw a stocked consumable; 4-5 are reserved (bombs, later).
+        // Hotbar: slots 1-3 throw a stocked consumable, slot 4 drops a bomb. Slot 5 is reserved.
         if (kb.digit1Key.wasPressedThisFrame) TryThrow(ItemType.Shuriken, shurikenSprite);
         if (kb.digit2Key.wasPressedThisFrame) TryThrow(ItemType.Caillou, caillouSprite);
         if (kb.digit3Key.wasPressedThisFrame) TryThrow(ItemType.Baton, batonSprite);
+        if (kb.digit4Key.wasPressedThisFrame) TryThrowBomb();
     }
 
     void FixedUpdate()
@@ -144,6 +153,46 @@ public class PlayerController : MonoBehaviour
         LaunchProjectile(sprite, throwDamage, throwSpeed, ThrowMaxRange);
     }
 
+    void TryThrowBomb()
+    {
+        if (Time.time - lastThrowTime < throwCooldown) return;
+        if (!inventory.TryConsume(ItemType.Bomb)) return;
+
+        lastThrowTime = Time.time;
+
+        Vector2 direction = AimWithInertia();
+        Vector2 spawnPos = (Vector2)transform.position + aimDirection * 0.6f;
+
+        GameObject go = new GameObject("Bomb", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Bomb));
+        go.transform.position = spawnPos;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = bombSprite;
+        renderer.sortingOrder = 0;
+
+        Rigidbody2D bombBody = go.GetComponent<Rigidbody2D>();
+        bombBody.gravityScale = 0f;
+
+        CircleCollider2D bombCollider = go.GetComponent<CircleCollider2D>();
+        bombCollider.radius = 0.2f;
+        if (bodyCollider != null) Physics2D.IgnoreCollision(bombCollider, bodyCollider);
+
+        Bomb bomb = go.GetComponent<Bomb>();
+        bomb.damage = bombDamage;
+        bomb.explosionRadius = bombExplosionRadius;
+        bomb.fuseTime = bombFuseTime;
+        bomb.explosionSprite = explosionSprite;
+        bomb.Launch(direction, bombSpeed, ThrowMaxRange);
+    }
+
+    // Base direction is the chosen cardinal aim, but the player's current movement blends in:
+    // aiming right while walking up-right sends the shot right-and-up, not purely right.
+    Vector2 AimWithInertia()
+    {
+        Vector2 direction = aimDirection + moveInput;
+        return direction.sqrMagnitude < 0.01f ? aimDirection : direction.normalized;
+    }
+
     void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
     {
         Vector2 origin = (Vector2)transform.position + aimDirection * offset;
@@ -174,11 +223,7 @@ public class PlayerController : MonoBehaviour
 
     void LaunchProjectile(Sprite sprite, int damage, float speed, float maxDistance)
     {
-        // Base direction is the chosen cardinal aim, but the player's current movement blends
-        // in: aiming right while walking up-right sends the shot right-and-up, not purely right.
-        Vector2 direction = aimDirection + moveInput;
-        if (direction.sqrMagnitude < 0.01f) direction = aimDirection;
-
+        Vector2 direction = AimWithInertia();
         Vector2 spawnPos = (Vector2)transform.position + aimDirection * 0.6f;
 
         GameObject go = new GameObject("Projectile", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Projectile));
