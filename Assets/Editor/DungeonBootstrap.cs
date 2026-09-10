@@ -15,7 +15,9 @@ public static class DungeonBootstrap
     // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
     const int RoomWidth = 22;
     const int RoomHeight = 12;
-    const int Gap = 6;
+    // No walkable corridor lives in this gap anymore - crossing a doorway teleports straight to
+    // the connected room, so it only needs to keep the two rooms' walls from touching.
+    const int Gap = 3;
     const int DoorWidth = 2;
     const int DoorMargin = 2; // keep doors at least this far from a room's corners
     const int StepX = RoomWidth + Gap;
@@ -131,19 +133,25 @@ public static class DungeonBootstrap
                 // entered near one corner can open into its neighbor near the opposite one.
                 int leftDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
                 int rightDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
-                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, leftDoorY, rightDoorY, floorMap, wallsMap, floorTile, wallTile);
+                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, leftDoorY, rightDoorY, floorMap, wallsMap, floorTile);
 
-                AddDoorInfo(doorsByRoom, cell, new Vector2(cell.x * StepX + RoomWidth - 0.5f, leftDoorY + DoorWidth / 2f), true);
-                AddDoorInfo(doorsByRoom, cell + Vector2Int.right, new Vector2((cell.x + 1) * StepX + 0.5f, rightDoorY + DoorWidth / 2f), true);
+                Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, leftDoorY + DoorWidth / 2f);
+                Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, rightDoorY + DoorWidth / 2f);
+                AddDoorInfo(doorsByRoom, cell, leftPos, true);
+                AddDoorInfo(doorsByRoom, cell + Vector2Int.right, rightPos, true);
+                CreateDoorLink(leftPos, Vector2.left, rightPos, Vector2.right, root.transform);
             }
             if (layout.ContainsKey(cell + Vector2Int.up))
             {
                 int bottomDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
                 int topDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
-                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, bottomDoorX, topDoorX, floorMap, wallsMap, floorTile, wallTile);
+                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, bottomDoorX, topDoorX, floorMap, wallsMap, floorTile);
 
-                AddDoorInfo(doorsByRoom, cell, new Vector2(bottomDoorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f), false);
-                AddDoorInfo(doorsByRoom, cell + Vector2Int.up, new Vector2(topDoorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f), false);
+                Vector2 bottomPos = new Vector2(bottomDoorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
+                Vector2 topPos = new Vector2(topDoorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
+                AddDoorInfo(doorsByRoom, cell, bottomPos, false);
+                AddDoorInfo(doorsByRoom, cell + Vector2Int.up, topPos, false);
+                CreateDoorLink(bottomPos, Vector2.down, topPos, Vector2.up, root.transform);
             }
         }
 
@@ -393,52 +401,20 @@ public static class DungeonBootstrap
         return Random.Range(DoorMargin, maxOffset + 1);
     }
 
-    // Connects two rooms sharing a vertical boundary. Each side's door row is independent, so the
-    // corridor jogs (an L-shape) instead of running perfectly straight when they don't line up.
-    static void CarveHorizontalDoor(int leftOriginX, int rightOriginX, int leftDoorY, int rightDoorY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    // Opens each room's own threshold on a shared vertical boundary. No corridor connects them -
+    // DoorTrigger teleports the player straight across instead.
+    static void CarveHorizontalDoor(int leftOriginX, int rightOriginX, int leftDoorY, int rightDoorY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile)
     {
-        int leftBorderX = leftOriginX + RoomWidth - 1;
-        int rightBorderX = rightOriginX;
-        int gapStartX = leftOriginX + RoomWidth;
-        int gapEndX = rightOriginX - 1;
-
-        OpenBorder(leftBorderX, leftDoorY, true, floorMap, wallsMap, floorTile);
-        OpenBorder(rightBorderX, rightDoorY, true, floorMap, wallsMap, floorTile);
-
-        int boxYMin = Mathf.Min(leftDoorY, rightDoorY);
-        int boxYMax = Mathf.Max(leftDoorY, rightDoorY) + DoorWidth - 1;
-        for (int x = gapStartX; x <= gapEndX; x++)
-            for (int y = boxYMin; y <= boxYMax; y++)
-                wallsMap.SetTile(new Vector3Int(x, y, 0), wallTile);
-
-        int midX = (gapStartX + gapEndX) / 2;
-        CarveFloorRect(gapStartX, midX, leftDoorY, leftDoorY + DoorWidth - 1, floorMap, wallsMap, floorTile);
-        CarveFloorRect(midX, gapEndX, rightDoorY, rightDoorY + DoorWidth - 1, floorMap, wallsMap, floorTile);
-        CarveFloorRect(midX, midX + DoorWidth - 1, boxYMin, boxYMax, floorMap, wallsMap, floorTile);
+        OpenBorder(leftOriginX + RoomWidth - 1, leftDoorY, true, floorMap, wallsMap, floorTile);
+        OpenBorder(rightOriginX, rightDoorY, true, floorMap, wallsMap, floorTile);
     }
 
-    // Connects two rooms sharing a horizontal boundary (bottom room's top edge to top room's
-    // bottom edge), with the same independent-door jogging as the horizontal case.
-    static void CarveVerticalDoor(int bottomOriginY, int topOriginY, int bottomDoorX, int topDoorX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    // Opens each room's own threshold on a shared horizontal boundary (bottom room's top edge,
+    // top room's bottom edge) - same teleport-only connection as the horizontal case.
+    static void CarveVerticalDoor(int bottomOriginY, int topOriginY, int bottomDoorX, int topDoorX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile)
     {
-        int bottomBorderY = bottomOriginY + RoomHeight - 1;
-        int topBorderY = topOriginY;
-        int gapStartY = bottomOriginY + RoomHeight;
-        int gapEndY = topOriginY - 1;
-
-        OpenBorder(bottomBorderY, bottomDoorX, false, floorMap, wallsMap, floorTile);
-        OpenBorder(topBorderY, topDoorX, false, floorMap, wallsMap, floorTile);
-
-        int boxXMin = Mathf.Min(bottomDoorX, topDoorX);
-        int boxXMax = Mathf.Max(bottomDoorX, topDoorX) + DoorWidth - 1;
-        for (int y = gapStartY; y <= gapEndY; y++)
-            for (int x = boxXMin; x <= boxXMax; x++)
-                wallsMap.SetTile(new Vector3Int(x, y, 0), wallTile);
-
-        int midY = (gapStartY + gapEndY) / 2;
-        CarveFloorRect(bottomDoorX, bottomDoorX + DoorWidth - 1, gapStartY, midY, floorMap, wallsMap, floorTile);
-        CarveFloorRect(topDoorX, topDoorX + DoorWidth - 1, midY, gapEndY, floorMap, wallsMap, floorTile);
-        CarveFloorRect(boxXMin, boxXMax, midY, midY + DoorWidth - 1, floorMap, wallsMap, floorTile);
+        OpenBorder(bottomOriginY + RoomHeight - 1, bottomDoorX, false, floorMap, wallsMap, floorTile);
+        OpenBorder(topOriginY, topDoorX, false, floorMap, wallsMap, floorTile);
     }
 
     // Opens a DoorWidth-wide gap in a room's own border wall at the given fixed coordinate.
@@ -452,16 +428,28 @@ public static class DungeonBootstrap
         }
     }
 
-    static void CarveFloorRect(int xMin, int xMax, int yMin, int yMax, Tilemap floorMap, Tilemap wallsMap, Tile floorTile)
+    // Wires both directions of a door-to-door teleport: fully crossing either threshold lands
+    // the player just inside the other room, past its own threshold.
+    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, Vector2 posB, Vector2 inwardB, Transform parent)
     {
-        for (int x = xMin; x <= xMax; x++)
-        {
-            for (int y = yMin; y <= yMax; y++)
-            {
-                wallsMap.SetTile(new Vector3Int(x, y, 0), null);
-                floorMap.SetTile(new Vector3Int(x, y, 0), floorTile);
-            }
-        }
+        const float landingDepth = 1.5f;
+        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, parent);
+        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, parent);
+    }
+
+    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, Transform parent)
+    {
+        GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
+        go.transform.SetParent(parent);
+        // Sits a little toward the void side of the threshold, so the player has to step fully
+        // through the opening (not just graze its edge) before teleporting.
+        go.transform.position = pos - inward * 0.4f;
+
+        BoxCollider2D collider = go.GetComponent<BoxCollider2D>();
+        collider.isTrigger = true;
+        collider.size = new Vector2(DoorWidth, DoorWidth);
+
+        go.GetComponent<DoorTrigger>().destination = destination;
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
