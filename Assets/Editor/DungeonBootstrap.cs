@@ -56,6 +56,14 @@ public static class DungeonBootstrap
         Sprite secretMarker = CreateSolidSprite("Assets/Art/Markers/Secret.png", new Color(0.55f, 0.35f, 0.75f));
         Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
 
+        Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
+        Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
+        Sprite staffPickupSprite = CreateSolidSprite("Assets/Art/Items/Staff.png", new Color(0.5f, 0.25f, 0.65f));
+        Sprite goldSprite = CreateCircleSprite("Assets/Art/Items/Gold.png", new Color(0.95f, 0.82f, 0.15f));
+        Sprite shurikenSprite = CreateSolidSprite("Assets/Art/Items/Shuriken.png", new Color(0.6f, 0.6f, 0.65f));
+        Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
+        Sprite batonSprite = CreateSolidSprite("Assets/Art/Items/Baton.png", new Color(0.5f, 0.35f, 0.2f));
+
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
         Sprite fullHeart = CreateHeartSprite("Assets/Art/UI/HeartFull.png", heartRed, heartRed);
@@ -119,7 +127,7 @@ public static class DungeonBootstrap
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(PlayerInventory), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -133,6 +141,7 @@ public static class DungeonBootstrap
         playerBody.constraints = RigidbodyConstraints2D.FreezeRotation;
 
         player.GetComponent<CircleCollider2D>().radius = 0.4f;
+        player.GetComponent<PlayerController>().projectileSprite = projectileSprite;
         Health playerHealth = player.GetComponent<Health>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
         // heart), elite hits cost 2 (a full heart).
@@ -148,7 +157,9 @@ public static class DungeonBootstrap
             int originY = kv.Key.y * StepY;
             roomBounds.Add(new Rect(originX, originY, RoomWidth, RoomHeight));
 
-            bool spawnedElite = PopulateRoom(kv.Value, originX, originY, root.transform, player.transform, enemySprite, eliteSprite, shopMarker, treasureMarker, secretMarker, gambleMarker);
+            bool spawnedElite = PopulateRoom(kv.Value, originX, originY, root.transform, player.transform, enemySprite, eliteSprite,
+                shopMarker, treasureMarker, secretMarker, gambleMarker,
+                swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite);
             if (spawnedElite) eliteRoomCount++;
         }
 
@@ -337,7 +348,8 @@ public static class DungeonBootstrap
     }
 
     static bool PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
-        Sprite enemySprite, Sprite eliteSprite, Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker)
+        Sprite enemySprite, Sprite eliteSprite, Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker,
+        Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
 
@@ -350,6 +362,9 @@ public static class DungeonBootstrap
                 return false;
             case RoomType.Treasure:
                 SpawnMarker("TreasureMarker", center, treasureMarker, parent);
+                // The treasure room guarantees both weapons are reachable on every floor.
+                SpawnWeaponPickup("SwordPickup", center + new Vector2(-1.5f, 0f), swordSprite, PlayerController.WeaponType.Sword, parent);
+                SpawnWeaponPickup("StaffPickup", center + new Vector2(1.5f, 0f), staffSprite, PlayerController.WeaponType.Staff, parent);
                 return false;
             case RoomType.Secret:
                 SpawnMarker("SecretMarker", center, secretMarker, parent);
@@ -357,9 +372,53 @@ public static class DungeonBootstrap
             case RoomType.Gamble:
                 SpawnMarker("GambleMarker", center, gambleMarker, parent);
                 return false;
+            case RoomType.Start:
+                SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), goldSprite, ItemType.Gold, 5, parent);
+                SpawnItemPickup("ShurikenPickup", center + new Vector2(-0.7f, 1.5f), shurikenSprite, ItemType.Shuriken, 3, parent);
+                SpawnItemPickup("CaillouPickup", center + new Vector2(0.7f, 1.5f), caillouSprite, ItemType.Caillou, 3, parent);
+                SpawnItemPickup("BatonPickup", center + new Vector2(2f, 1.5f), batonSprite, ItemType.Baton, 3, parent);
+                return false;
             default:
                 return false;
         }
+    }
+
+    static void SpawnItemPickup(string name, Vector2 position, Sprite sprite, ItemType type, int amount, Transform parent)
+    {
+        GameObject pickup = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(ItemPickup));
+        pickup.transform.SetParent(parent);
+        pickup.transform.position = position;
+        pickup.transform.localScale = Vector3.one * 0.5f;
+
+        SpriteRenderer renderer = pickup.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        CircleCollider2D collider = pickup.GetComponent<CircleCollider2D>();
+        collider.isTrigger = true;
+        collider.radius = 0.4f;
+
+        ItemPickup itemPickup = pickup.GetComponent<ItemPickup>();
+        itemPickup.itemType = type;
+        itemPickup.amount = amount;
+    }
+
+    static void SpawnWeaponPickup(string name, Vector2 position, Sprite sprite, PlayerController.WeaponType weapon, Transform parent)
+    {
+        GameObject pickup = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(WeaponPickup));
+        pickup.transform.SetParent(parent);
+        pickup.transform.position = position;
+        pickup.transform.localScale = Vector3.one * 0.7f;
+
+        SpriteRenderer renderer = pickup.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        CircleCollider2D collider = pickup.GetComponent<CircleCollider2D>();
+        collider.isTrigger = true;
+        collider.radius = 0.4f;
+
+        pickup.GetComponent<WeaponPickup>().weapon = weapon;
     }
 
     static void SpawnMarker(string name, Vector2 position, Sprite sprite, Transform parent)
