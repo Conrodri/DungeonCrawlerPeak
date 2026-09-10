@@ -1,23 +1,66 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
+using UnityEngine.UI;
 
 public static class DungeonBootstrap
 {
+    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble }
+
     const int RoomWidth = 14;
     const int RoomHeight = 9;
+    const int Gap = 4;
+    const int DoorWidth = 2;
+    const int StepX = RoomWidth + Gap;
+    const int StepY = RoomHeight + Gap;
+    const int TargetNormalRooms = 8; // includes the Start room
+    const float EliteChance = 0.05f;
+
     const int TilePixelSize = 16;
     const int WallExtraHeight = 8;
 
-    [MenuItem("Dungeon/Build Starter Room")]
+    static readonly Vector2Int[] EnemySpawnOffsets =
+    {
+        new Vector2Int(3, 4), new Vector2Int(10, 4), new Vector2Int(7, 2),
+        new Vector2Int(7, 6), new Vector2Int(5, 6), new Vector2Int(9, 2),
+    };
+
+    static readonly string[] HeartMask =
+    {
+        "  XX  XX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+
+    [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
     {
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
         Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
+        Sprite enemySprite = CreateCircleSprite("Assets/Art/Enemy.png", new Color(0.75f, 0.15f, 0.15f));
+        Sprite eliteSprite = CreateCircleSprite("Assets/Art/EnemyElite.png", new Color(0.95f, 0.55f, 0.05f));
+
+        Sprite shopMarker = CreateSolidSprite("Assets/Art/Markers/Shop.png", new Color(0.2f, 0.7f, 0.75f));
+        Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
+        Sprite secretMarker = CreateSolidSprite("Assets/Art/Markers/Secret.png", new Color(0.55f, 0.35f, 0.75f));
+        Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
+
+        Color heartRed = new Color(0.85f, 0.15f, 0.2f);
+        Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
+        Sprite fullHeart = CreateHeartSprite("Assets/Art/UI/HeartFull.png", heartRed, heartRed);
+        Sprite halfHeart = CreateHeartSprite("Assets/Art/UI/HeartHalf.png", heartRed, heartEmpty);
+        Sprite emptyHeart = CreateHeartSprite("Assets/Art/UI/HeartEmpty.png", heartEmpty, heartEmpty);
 
         Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
         Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
@@ -52,28 +95,37 @@ public static class DungeonBootstrap
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        int halfW = RoomWidth / 2;
-        int halfH = RoomHeight / 2;
-        for (int x = 0; x < RoomWidth; x++)
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout();
+
+        // Carve the room geometry and cut door openings for every adjacent pair.
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
-            for (int y = 0; y < RoomHeight; y++)
+            BuildRoomGeometry(kv.Key.x * StepX, kv.Key.y * StepY, floorMap, wallsMap, floorTile, wallTile);
+        }
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
+        {
+            Vector2Int cell = kv.Key;
+            if (layout.ContainsKey(cell + Vector2Int.right))
             {
-                Vector3Int pos = new Vector3Int(x - halfW, y - halfH, 0);
-                bool isWall = x == 0 || y == 0 || x == RoomWidth - 1 || y == RoomHeight - 1;
-                wallsMap.SetTile(pos, isWall ? wallTile : null);
-                floorMap.SetTile(pos, isWall ? null : floorTile);
+                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, cell.y * StepY, floorMap, wallsMap, floorTile, wallTile);
+            }
+            if (layout.ContainsKey(cell + Vector2Int.up))
+            {
+                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, cell.x * StepX, floorMap, wallsMap, floorTile, wallTile);
             }
         }
 
+        // --- Player ---
+        Vector2Int startCell = Vector2Int.zero;
+        Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
+
         GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(PlayerController));
         player.transform.SetParent(root.transform);
-        player.transform.position = Vector3.zero;
+        player.transform.position = startWorld;
         player.tag = "Player";
 
         SpriteRenderer playerRenderer = player.GetComponent<SpriteRenderer>();
         playerRenderer.sprite = playerSprite;
-        // Same sorting order as the walls: with the camera's Y-axis custom sort below, draw
-        // order between the player and any wall tile is resolved by world Y position instead.
         playerRenderer.sortingOrder = 0;
 
         Rigidbody2D playerBody = player.GetComponent<Rigidbody2D>();
@@ -82,50 +134,40 @@ public static class DungeonBootstrap
 
         player.GetComponent<CircleCollider2D>().radius = 0.4f;
         Health playerHealth = player.GetComponent<Health>();
-        playerHealth.maxHealth = 5;
-        // Awake() (which normally sets this) only runs once Play mode starts, so set it
-        // explicitly here too - otherwise the Inspector shows 0/5 while still in Edit mode.
+        // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
+        // heart), elite hits cost 2 (a full heart).
+        playerHealth.maxHealth = 6;
         playerHealth.currentHealth = playerHealth.maxHealth;
 
-        Sprite enemySprite = CreateCircleSprite("Assets/Art/Enemy.png", new Color(0.75f, 0.15f, 0.15f));
-        Vector2[] enemySpawns = new Vector2[]
+        // --- Room content (enemies / special-room markers) ---
+        var roomBounds = new List<Rect>();
+        int eliteRoomCount = 0;
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
-            new Vector2(-4f, 2f),
-            new Vector2(4f, 2f),
-            new Vector2(0f, -2f),
-        };
-        foreach (Vector2 spawn in enemySpawns)
-        {
-            GameObject enemy = new GameObject("Enemy", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
-            enemy.transform.SetParent(root.transform);
-            enemy.transform.position = spawn;
+            int originX = kv.Key.x * StepX;
+            int originY = kv.Key.y * StepY;
+            roomBounds.Add(new Rect(originX, originY, RoomWidth, RoomHeight));
 
-            SpriteRenderer enemyRenderer = enemy.GetComponent<SpriteRenderer>();
-            enemyRenderer.sprite = enemySprite;
-            enemyRenderer.sortingOrder = 0;
-
-            Rigidbody2D enemyBody = enemy.GetComponent<Rigidbody2D>();
-            enemyBody.gravityScale = 0f;
-            enemyBody.constraints = RigidbodyConstraints2D.FreezeRotation;
-
-            enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
-            Health enemyHealth = enemy.GetComponent<Health>();
-            enemyHealth.maxHealth = 2;
-            enemyHealth.currentHealth = enemyHealth.maxHealth;
-            enemy.GetComponent<EnemyController>().SetTarget(player.transform);
+            bool spawnedElite = PopulateRoom(kv.Value, originX, originY, root.transform, player.transform, enemySprite, eliteSprite, shopMarker, treasureMarker, secretMarker, gambleMarker);
+            if (spawnedElite) eliteRoomCount++;
         }
 
+        // --- Camera: locked per-room instead of following the player continuously ---
         Camera cam = Camera.main;
         if (cam != null)
         {
             cam.orthographic = true;
             cam.orthographicSize = 6f;
-            Vector3 camPos = cam.transform.position;
-            cam.transform.position = new Vector3(0f, 0f, camPos.z);
+            cam.transform.position = new Vector3(startWorld.x, startWorld.y, cam.transform.position.z);
 
-            CameraFollow2D follow = cam.GetComponent<CameraFollow2D>();
-            if (follow == null) follow = cam.gameObject.AddComponent<CameraFollow2D>();
-            follow.target = player.transform;
+            // The old CameraFollow2D script was removed in favor of RoomCameraController; drop
+            // any leftover "missing script" component before attaching the new one.
+            GameObjectUtility.RemoveMonoBehavioursWithMissingScript(cam.gameObject);
+
+            RoomCameraController roomCam = cam.GetComponent<RoomCameraController>();
+            if (roomCam == null) roomCam = cam.gameObject.AddComponent<RoomCameraController>();
+            roomCam.target = player.transform;
+            roomCam.roomBounds = roomBounds.ToArray();
 
             // Sort same-order sprites by world Y (further up the screen = further away) so the
             // player correctly passes behind tall wall tops and in front of near ones, Isaac-style.
@@ -133,12 +175,249 @@ public static class DungeonBootstrap
             cam.transparencySortAxis = new Vector3(0f, 1f, 0f);
         }
 
+        // --- Heart HUD ---
+        GameObject canvasGO = new GameObject("Canvas", typeof(Canvas), typeof(GraphicRaycaster));
+        canvasGO.transform.SetParent(root.transform);
+        canvasGO.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+
+        GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
+        hudGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform hudRect = hudGO.GetComponent<RectTransform>();
+        hudRect.anchorMin = Vector2.zero;
+        hudRect.anchorMax = Vector2.one;
+        hudRect.offsetMin = Vector2.zero;
+        hudRect.offsetMax = Vector2.zero;
+
+        HeartHUD hud = hudGO.GetComponent<HeartHUD>();
+        hud.target = playerHealth;
+        hud.fullHeart = fullHeart;
+        hud.halfHeart = halfHeart;
+        hud.emptyHeart = emptyHeart;
+        hud.maxHeartSlots = playerHealth.maxHealth / 2;
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log("DungeonBootstrap: starter room built (" + RoomWidth + "x" + RoomHeight + ") with " + enemySpawns.Length + " enemies.");
+        Debug.Log("DungeonBootstrap: floor generated with " + layout.Count + " rooms (" + eliteRoomCount + " with an elite).");
+    }
+
+    static Dictionary<Vector2Int, RoomType> GenerateLayout()
+    {
+        var rooms = new Dictionary<Vector2Int, RoomType>();
+        Vector2Int start = Vector2Int.zero;
+        rooms[start] = RoomType.Start;
+
+        var frontier = new List<Vector2Int> { start };
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        int guard = 0;
+        while (rooms.Count < TargetNormalRooms && guard < 2000)
+        {
+            guard++;
+            Vector2Int current = frontier[Random.Range(0, frontier.Count)];
+            Vector2Int dir = dirs[Random.Range(0, dirs.Length)];
+            Vector2Int next = current + dir;
+            if (rooms.ContainsKey(next)) continue;
+
+            int neighborCount = 0;
+            foreach (Vector2Int d in dirs) if (rooms.ContainsKey(next + d)) neighborCount++;
+            if (neighborCount > 1) continue; // keep the layout tree-like, no merged loops
+
+            rooms[next] = RoomType.Monster; // placeholder, reclassified below
+            frontier.Add(next);
+        }
+
+        foreach (Vector2Int cell in new List<Vector2Int>(rooms.Keys))
+        {
+            if (rooms[cell] == RoomType.Start) continue;
+            rooms[cell] = Random.value < 0.25f ? RoomType.Empty : RoomType.Monster;
+        }
+
+        PlaceSpecialRoom(rooms, RoomType.Treasure);
+        PlaceSpecialRoom(rooms, RoomType.Shop);
+        PlaceSpecialRoom(rooms, RoomType.Secret);
+        PlaceSpecialRoom(rooms, RoomType.Gamble);
+
+        return rooms;
+    }
+
+    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        var candidates = new List<Vector2Int>();
+
+        foreach (Vector2Int cell in rooms.Keys)
+        {
+            foreach (Vector2Int d in dirs)
+            {
+                Vector2Int next = cell + d;
+                if (rooms.ContainsKey(next)) continue;
+
+                int neighborCount = 0;
+                foreach (Vector2Int d2 in dirs) if (rooms.ContainsKey(next + d2)) neighborCount++;
+                if (neighborCount == 1) candidates.Add(next);
+            }
+        }
+
+        if (candidates.Count == 0) return;
+        Vector2Int chosen = candidates[Random.Range(0, candidates.Count)];
+        rooms[chosen] = type;
+    }
+
+    static void BuildRoomGeometry(int originX, int originY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        for (int x = 0; x < RoomWidth; x++)
+        {
+            for (int y = 0; y < RoomHeight; y++)
+            {
+                Vector3Int pos = new Vector3Int(originX + x, originY + y, 0);
+                bool isWall = x == 0 || y == 0 || x == RoomWidth - 1 || y == RoomHeight - 1;
+                wallsMap.SetTile(pos, isWall ? wallTile : null);
+                floorMap.SetTile(pos, isWall ? null : floorTile);
+            }
+        }
+    }
+
+    static void CarveHorizontalDoor(int leftOriginX, int rightOriginX, int commonOriginY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        int doorY0 = commonOriginY + RoomHeight / 2 - 1;
+        int leftBorderX = leftOriginX + RoomWidth - 1;
+        int rightBorderX = rightOriginX;
+        int corridorStartX = leftOriginX + RoomWidth;
+        int corridorEndX = rightOriginX - 1;
+
+        for (int dy = 0; dy < DoorWidth; dy++)
+        {
+            int y = doorY0 + dy;
+            wallsMap.SetTile(new Vector3Int(leftBorderX, y, 0), null);
+            floorMap.SetTile(new Vector3Int(leftBorderX, y, 0), floorTile);
+            wallsMap.SetTile(new Vector3Int(rightBorderX, y, 0), null);
+            floorMap.SetTile(new Vector3Int(rightBorderX, y, 0), floorTile);
+        }
+
+        for (int x = corridorStartX; x <= corridorEndX; x++)
+        {
+            for (int dy = 0; dy < DoorWidth; dy++)
+            {
+                floorMap.SetTile(new Vector3Int(x, doorY0 + dy, 0), floorTile);
+            }
+            wallsMap.SetTile(new Vector3Int(x, doorY0 - 1, 0), wallTile);
+            wallsMap.SetTile(new Vector3Int(x, doorY0 + DoorWidth, 0), wallTile);
+        }
+    }
+
+    static void CarveVerticalDoor(int bottomOriginY, int topOriginY, int commonOriginX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        int doorX0 = commonOriginX + RoomWidth / 2 - 1;
+        int bottomBorderY = bottomOriginY + RoomHeight - 1;
+        int topBorderY = topOriginY;
+        int corridorStartY = bottomOriginY + RoomHeight;
+        int corridorEndY = topOriginY - 1;
+
+        for (int dx = 0; dx < DoorWidth; dx++)
+        {
+            int x = doorX0 + dx;
+            wallsMap.SetTile(new Vector3Int(x, bottomBorderY, 0), null);
+            floorMap.SetTile(new Vector3Int(x, bottomBorderY, 0), floorTile);
+            wallsMap.SetTile(new Vector3Int(x, topBorderY, 0), null);
+            floorMap.SetTile(new Vector3Int(x, topBorderY, 0), floorTile);
+        }
+
+        for (int y = corridorStartY; y <= corridorEndY; y++)
+        {
+            for (int dx = 0; dx < DoorWidth; dx++)
+            {
+                floorMap.SetTile(new Vector3Int(doorX0 + dx, y, 0), floorTile);
+            }
+            wallsMap.SetTile(new Vector3Int(doorX0 - 1, y, 0), wallTile);
+            wallsMap.SetTile(new Vector3Int(doorX0 + DoorWidth, y, 0), wallTile);
+        }
+    }
+
+    static bool PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
+        Sprite enemySprite, Sprite eliteSprite, Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker)
+    {
+        Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+
+        switch (type)
+        {
+            case RoomType.Monster:
+                return SpawnEnemies(originX, originY, parent, player, enemySprite, eliteSprite);
+            case RoomType.Shop:
+                SpawnMarker("ShopMarker", center, shopMarker, parent);
+                return false;
+            case RoomType.Treasure:
+                SpawnMarker("TreasureMarker", center, treasureMarker, parent);
+                return false;
+            case RoomType.Secret:
+                SpawnMarker("SecretMarker", center, secretMarker, parent);
+                return false;
+            case RoomType.Gamble:
+                SpawnMarker("GambleMarker", center, gambleMarker, parent);
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    static void SpawnMarker(string name, Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject marker = new GameObject(name, typeof(SpriteRenderer));
+        marker.transform.SetParent(parent);
+        marker.transform.position = position;
+        marker.transform.localScale = Vector3.one * 0.6f;
+        marker.GetComponent<SpriteRenderer>().sprite = sprite;
+    }
+
+    static bool SpawnEnemies(int originX, int originY, Transform parent, Transform player, Sprite enemySprite, Sprite eliteSprite)
+    {
+        List<Vector2Int> offsets = new List<Vector2Int>(EnemySpawnOffsets);
+        for (int i = offsets.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (offsets[i], offsets[j]) = (offsets[j], offsets[i]);
+        }
+
+        int count = Random.Range(2, 4);
+        bool hasElite = Random.value < EliteChance;
+        int eliteIndex = hasElite ? Random.Range(0, count) : -1;
+
+        for (int i = 0; i < count; i++)
+        {
+            bool isElite = i == eliteIndex;
+            Vector2 spawn = new Vector2(originX + offsets[i].x, originY + offsets[i].y);
+
+            GameObject enemy = new GameObject(isElite ? "EliteEnemy" : "Enemy",
+                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
+            enemy.transform.SetParent(parent);
+            enemy.transform.position = spawn;
+
+            SpriteRenderer enemyRenderer = enemy.GetComponent<SpriteRenderer>();
+            enemyRenderer.sprite = isElite ? eliteSprite : enemySprite;
+            enemyRenderer.sortingOrder = 0;
+            if (isElite) enemy.transform.localScale = Vector3.one * 1.4f;
+
+            Rigidbody2D enemyBody = enemy.GetComponent<Rigidbody2D>();
+            enemyBody.gravityScale = 0f;
+            enemyBody.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+            enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
+
+            Health enemyHealth = enemy.GetComponent<Health>();
+            enemyHealth.maxHealth = isElite ? 4 : 2;
+            enemyHealth.currentHealth = enemyHealth.maxHealth;
+
+            EnemyController controller = enemy.GetComponent<EnemyController>();
+            controller.isElite = isElite;
+            // Damage is in half-heart units on the player's Health: a normal hit costs 0.5
+            // heart (1), an elite hit costs a full heart (2).
+            controller.contactDamage = isElite ? 2 : 1;
+            controller.SetTarget(player);
+        }
+
+        return hasElite;
     }
 
     static Sprite CreateSolidSprite(string path, Color color)
@@ -181,6 +460,26 @@ public static class DungeonBootstrap
             {
                 float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
                 tex.SetPixel(x, y, dist <= radius ? color : clear);
+            }
+        }
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
+    }
+
+    static Sprite CreateHeartSprite(string path, Color leftColor, Color rightColor)
+    {
+        int w = HeartMask[0].Length;
+        int h = HeartMask.Length;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color clear = new Color(0f, 0f, 0f, 0f);
+
+        for (int y = 0; y < h; y++)
+        {
+            string row = HeartMask[h - 1 - y]; // texture row 0 is the bottom; mask row 0 is the visual top
+            for (int x = 0; x < w; x++)
+            {
+                if (row[x] != 'X') { tex.SetPixel(x, y, clear); continue; }
+                tex.SetPixel(x, y, x < w / 2 ? leftColor : rightColor);
             }
         }
         tex.Apply();

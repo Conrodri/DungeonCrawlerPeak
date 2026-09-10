@@ -7,6 +7,7 @@ public class EnemyController : MonoBehaviour
     public float moveSpeed = 2f;
     public int contactDamage = 1;
     public float contactCooldown = 1f;
+    public bool isElite;
 
     Rigidbody2D rb;
     Health health;
