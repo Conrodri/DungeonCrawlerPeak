@@ -11,10 +11,13 @@ public static class DungeonBootstrap
 {
     enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble }
 
-    const int RoomWidth = 14;
-    const int RoomHeight = 9;
-    const int Gap = 4;
+    // Sized to fill a 16:9 screen at the camera's orthographic size (RoomHeight/2) with no
+    // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
+    const int RoomWidth = 22;
+    const int RoomHeight = 12;
+    const int Gap = 6;
     const int DoorWidth = 2;
+    const int DoorMargin = 2; // keep doors at least this far from a room's corners
     const int StepX = RoomWidth + Gap;
     const int StepY = RoomHeight + Gap;
     const int TargetNormalRooms = 8; // includes the Start room
@@ -25,8 +28,8 @@ public static class DungeonBootstrap
 
     static readonly Vector2Int[] EnemySpawnOffsets =
     {
-        new Vector2Int(3, 4), new Vector2Int(10, 4), new Vector2Int(7, 2),
-        new Vector2Int(7, 6), new Vector2Int(5, 6), new Vector2Int(9, 2),
+        new Vector2Int(5, 6), new Vector2Int(16, 6), new Vector2Int(11, 3),
+        new Vector2Int(11, 9), new Vector2Int(8, 9), new Vector2Int(14, 3),
     };
 
     static readonly string[] HeartMask =
@@ -121,11 +124,17 @@ public static class DungeonBootstrap
             Vector2Int cell = kv.Key;
             if (layout.ContainsKey(cell + Vector2Int.right))
             {
-                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, cell.y * StepY, floorMap, wallsMap, floorTile, wallTile);
+                // Each side's door is positioned independently along its own wall - a room
+                // entered near one corner can open into its neighbor near the opposite one.
+                int leftDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
+                int rightDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
+                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, leftDoorY, rightDoorY, floorMap, wallsMap, floorTile, wallTile);
             }
             if (layout.ContainsKey(cell + Vector2Int.up))
             {
-                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, cell.x * StepX, floorMap, wallsMap, floorTile, wallTile);
+                int bottomDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
+                int topDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
+                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, bottomDoorX, topDoorX, floorMap, wallsMap, floorTile, wallTile);
             }
         }
 
@@ -183,7 +192,9 @@ public static class DungeonBootstrap
         if (cam != null)
         {
             cam.orthographic = true;
-            cam.orthographicSize = 6f;
+            // Matches the room's own height exactly, so it fills the screen vertically with no
+            // letterboxing (a 22-wide room then slightly overscans a 16:9 view horizontally).
+            cam.orthographicSize = RoomHeight / 2f;
             cam.transform.position = new Vector3(startWorld.x, startWorld.y, cam.transform.position.z);
 
             // The old CameraFollow2D script was removed in favor of RoomCameraController; drop
@@ -265,8 +276,9 @@ public static class DungeonBootstrap
         MinimapController minimap = minimapGO.GetComponent<MinimapController>();
         minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
         minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
-        minimap.cellSize = 18f;
-        minimap.spacing = 4f;
+        minimap.cellSize = 22f;
+        minimap.spacing = 5f;
+        minimap.maxPanelSize = 320f;
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -353,59 +365,81 @@ public static class DungeonBootstrap
         }
     }
 
-    static void CarveHorizontalDoor(int leftOriginX, int rightOriginX, int commonOriginY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    // Local (0-based) offset for a door along a wall of the given length, kept away from corners.
+    static int RandomDoorOffset(int wallLength)
     {
-        int doorY0 = commonOriginY + RoomHeight / 2 - 1;
+        int maxOffset = wallLength - DoorMargin - DoorWidth;
+        return Random.Range(DoorMargin, maxOffset + 1);
+    }
+
+    // Connects two rooms sharing a vertical boundary. Each side's door row is independent, so the
+    // corridor jogs (an L-shape) instead of running perfectly straight when they don't line up.
+    static void CarveHorizontalDoor(int leftOriginX, int rightOriginX, int leftDoorY, int rightDoorY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
         int leftBorderX = leftOriginX + RoomWidth - 1;
         int rightBorderX = rightOriginX;
-        int corridorStartX = leftOriginX + RoomWidth;
-        int corridorEndX = rightOriginX - 1;
+        int gapStartX = leftOriginX + RoomWidth;
+        int gapEndX = rightOriginX - 1;
 
-        for (int dy = 0; dy < DoorWidth; dy++)
-        {
-            int y = doorY0 + dy;
-            wallsMap.SetTile(new Vector3Int(leftBorderX, y, 0), null);
-            floorMap.SetTile(new Vector3Int(leftBorderX, y, 0), floorTile);
-            wallsMap.SetTile(new Vector3Int(rightBorderX, y, 0), null);
-            floorMap.SetTile(new Vector3Int(rightBorderX, y, 0), floorTile);
-        }
+        OpenBorder(leftBorderX, leftDoorY, true, floorMap, wallsMap, floorTile);
+        OpenBorder(rightBorderX, rightDoorY, true, floorMap, wallsMap, floorTile);
 
-        for (int x = corridorStartX; x <= corridorEndX; x++)
+        int boxYMin = Mathf.Min(leftDoorY, rightDoorY);
+        int boxYMax = Mathf.Max(leftDoorY, rightDoorY) + DoorWidth - 1;
+        for (int x = gapStartX; x <= gapEndX; x++)
+            for (int y = boxYMin; y <= boxYMax; y++)
+                wallsMap.SetTile(new Vector3Int(x, y, 0), wallTile);
+
+        int midX = (gapStartX + gapEndX) / 2;
+        CarveFloorRect(gapStartX, midX, leftDoorY, leftDoorY + DoorWidth - 1, floorMap, wallsMap, floorTile);
+        CarveFloorRect(midX, gapEndX, rightDoorY, rightDoorY + DoorWidth - 1, floorMap, wallsMap, floorTile);
+        CarveFloorRect(midX, midX + DoorWidth - 1, boxYMin, boxYMax, floorMap, wallsMap, floorTile);
+    }
+
+    // Connects two rooms sharing a horizontal boundary (bottom room's top edge to top room's
+    // bottom edge), with the same independent-door jogging as the horizontal case.
+    static void CarveVerticalDoor(int bottomOriginY, int topOriginY, int bottomDoorX, int topDoorX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        int bottomBorderY = bottomOriginY + RoomHeight - 1;
+        int topBorderY = topOriginY;
+        int gapStartY = bottomOriginY + RoomHeight;
+        int gapEndY = topOriginY - 1;
+
+        OpenBorder(bottomBorderY, bottomDoorX, false, floorMap, wallsMap, floorTile);
+        OpenBorder(topBorderY, topDoorX, false, floorMap, wallsMap, floorTile);
+
+        int boxXMin = Mathf.Min(bottomDoorX, topDoorX);
+        int boxXMax = Mathf.Max(bottomDoorX, topDoorX) + DoorWidth - 1;
+        for (int y = gapStartY; y <= gapEndY; y++)
+            for (int x = boxXMin; x <= boxXMax; x++)
+                wallsMap.SetTile(new Vector3Int(x, y, 0), wallTile);
+
+        int midY = (gapStartY + gapEndY) / 2;
+        CarveFloorRect(bottomDoorX, bottomDoorX + DoorWidth - 1, gapStartY, midY, floorMap, wallsMap, floorTile);
+        CarveFloorRect(topDoorX, topDoorX + DoorWidth - 1, midY, gapEndY, floorMap, wallsMap, floorTile);
+        CarveFloorRect(boxXMin, boxXMax, midY, midY + DoorWidth - 1, floorMap, wallsMap, floorTile);
+    }
+
+    // Opens a DoorWidth-wide gap in a room's own border wall at the given fixed coordinate.
+    static void OpenBorder(int fixedCoord, int doorStart, bool fixedIsX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile)
+    {
+        for (int d = 0; d < DoorWidth; d++)
         {
-            for (int dy = 0; dy < DoorWidth; dy++)
-            {
-                floorMap.SetTile(new Vector3Int(x, doorY0 + dy, 0), floorTile);
-            }
-            wallsMap.SetTile(new Vector3Int(x, doorY0 - 1, 0), wallTile);
-            wallsMap.SetTile(new Vector3Int(x, doorY0 + DoorWidth, 0), wallTile);
+            Vector3Int pos = fixedIsX ? new Vector3Int(fixedCoord, doorStart + d, 0) : new Vector3Int(doorStart + d, fixedCoord, 0);
+            wallsMap.SetTile(pos, null);
+            floorMap.SetTile(pos, floorTile);
         }
     }
 
-    static void CarveVerticalDoor(int bottomOriginY, int topOriginY, int commonOriginX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    static void CarveFloorRect(int xMin, int xMax, int yMin, int yMax, Tilemap floorMap, Tilemap wallsMap, Tile floorTile)
     {
-        int doorX0 = commonOriginX + RoomWidth / 2 - 1;
-        int bottomBorderY = bottomOriginY + RoomHeight - 1;
-        int topBorderY = topOriginY;
-        int corridorStartY = bottomOriginY + RoomHeight;
-        int corridorEndY = topOriginY - 1;
-
-        for (int dx = 0; dx < DoorWidth; dx++)
+        for (int x = xMin; x <= xMax; x++)
         {
-            int x = doorX0 + dx;
-            wallsMap.SetTile(new Vector3Int(x, bottomBorderY, 0), null);
-            floorMap.SetTile(new Vector3Int(x, bottomBorderY, 0), floorTile);
-            wallsMap.SetTile(new Vector3Int(x, topBorderY, 0), null);
-            floorMap.SetTile(new Vector3Int(x, topBorderY, 0), floorTile);
-        }
-
-        for (int y = corridorStartY; y <= corridorEndY; y++)
-        {
-            for (int dx = 0; dx < DoorWidth; dx++)
+            for (int y = yMin; y <= yMax; y++)
             {
-                floorMap.SetTile(new Vector3Int(doorX0 + dx, y, 0), floorTile);
+                wallsMap.SetTile(new Vector3Int(x, y, 0), null);
+                floorMap.SetTile(new Vector3Int(x, y, 0), floorTile);
             }
-            wallsMap.SetTile(new Vector3Int(doorX0 - 1, y, 0), wallTile);
-            wallsMap.SetTile(new Vector3Int(doorX0 + DoorWidth, y, 0), wallTile);
         }
     }
 

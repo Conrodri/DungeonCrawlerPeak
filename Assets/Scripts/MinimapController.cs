@@ -8,6 +8,7 @@ public class MinimapController : MonoBehaviour
     public List<Vector2Int> allRoomGridPositions = new List<Vector2Int>();
     public float cellSize = 12f;
     public float spacing = 3f;
+    public float maxPanelSize = 240f;
 
     public Color undiscoveredColor = new Color(0f, 0f, 0f, 0f);
     public Color halfDiscoveredColor = new Color(0.35f, 0.33f, 0.4f, 0.9f);
@@ -95,6 +96,7 @@ public class MinimapController : MonoBehaviour
         }
 
         Refresh();
+        UpdateLayout();
     }
 
     void Refresh()
@@ -107,6 +109,38 @@ public class MinimapController : MonoBehaviour
             else if (halfDiscovered.Contains(kv.Key)) c = halfDiscoveredColor;
             else c = undiscoveredColor;
             kv.Value.color = c;
+        }
+    }
+
+    // The map's own footprint grows (and its content recenters) to match the bounding box of
+    // everything revealed so far: a single room at floor start, more as exploration continues.
+    void UpdateLayout()
+    {
+        int minX = int.MaxValue, maxX = int.MinValue, minY = int.MaxValue, maxY = int.MinValue;
+        foreach (Vector2Int p in discovered)
+        {
+            minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+            minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);
+        }
+        foreach (Vector2Int p in halfDiscovered)
+        {
+            minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+            minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);
+        }
+
+        float centerX = (minX + maxX) / 2f;
+        float centerY = (minY + maxY) / 2f;
+        int gridSpanX = maxX - minX + 1;
+        int gridSpanY = maxY - minY + 1;
+
+        float step = cellSize + spacing;
+        float width = Mathf.Min(maxPanelSize, gridSpanX * step + framePadding * 2f + spacing);
+        float height = Mathf.Min(maxPanelSize, gridSpanY * step + framePadding * 2f + spacing);
+        GetComponent<RectTransform>().sizeDelta = new Vector2(width, height);
+
+        foreach (KeyValuePair<Vector2Int, Image> kv in icons)
+        {
+            kv.Value.rectTransform.anchoredPosition = new Vector2((kv.Key.x - centerX) * step, (kv.Key.y - centerY) * step);
         }
     }
 }
