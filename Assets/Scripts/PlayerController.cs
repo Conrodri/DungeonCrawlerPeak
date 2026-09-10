@@ -18,8 +18,8 @@ public class PlayerController : MonoBehaviour
 
     [Header("Fist")]
     public int fistDamage = 1;
-    public float fistRange = 0.5f;
-    public float fistOffset = 0.4f;
+    public float fistRange = 1.0f;
+    public float fistOffset = 0.8f;
     public float fistCooldown = 0.25f;
 
     [Header("Sword")]

@@ -12,6 +12,7 @@ public class HotbarUI : MonoBehaviour
     public Sprite bombSprite;
     public float slotSize = 40f;
     public float spacing = 48f;
+    public int fontSize = 14;
 
     // Slot 5 is reserved for a future item.
     readonly ItemType?[] slotTypes = { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, ItemType.Bomb, null };
@@ -37,7 +38,7 @@ public class HotbarUI : MonoBehaviour
     {
         Sprite[] sprites = { shurikenSprite, caillouSprite, batonSprite, bombSprite, null };
         slotTexts = new Text[SlotCount];
-        Font font = Font.CreateDynamicFontFromOSFont("Arial", 14);
+        Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
 
         for (int i = 0; i < SlotCount; i++)
         {
@@ -49,16 +50,18 @@ public class HotbarUI : MonoBehaviour
             img.color = sprites[i] != null ? Color.white : new Color(1f, 1f, 1f, 0.15f);
 
             RectTransform rt = img.rectTransform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0f, 0f);
-            rt.pivot = new Vector2(0f, 0f);
-            rt.anchoredPosition = new Vector2(20f + i * spacing, 20f);
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            // Centered as a row at the bottom-middle of the screen.
+            float xOffset = (i - (SlotCount - 1) / 2f) * spacing;
+            rt.anchoredPosition = new Vector2(xOffset, 20f + slotSize / 2f);
             rt.sizeDelta = new Vector2(slotSize, slotSize);
 
             GameObject textGO = new GameObject("Count", typeof(Text));
             textGO.transform.SetParent(slotGO.transform, false);
             Text text = textGO.GetComponent<Text>();
             text.font = font;
-            text.fontSize = 14;
+            text.fontSize = fontSize;
             text.alignment = TextAnchor.LowerRight;
             text.color = Color.white;
             RectTransform textRt = text.rectTransform;

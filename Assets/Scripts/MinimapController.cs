@@ -14,6 +14,11 @@ public class MinimapController : MonoBehaviour
     public Color discoveredColor = new Color(0.85f, 0.85f, 0.92f, 0.95f);
     public Color currentRoomColor = new Color(0.95f, 0.8f, 0.25f, 1f);
 
+    [Header("Frame")]
+    public Color frameColor = new Color(0.8f, 0.8f, 0.85f, 0.9f);
+    public Color backgroundColor = new Color(0.05f, 0.05f, 0.08f, 0.8f);
+    public float framePadding = 5f;
+
     static readonly Vector2Int[] Dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     readonly Dictionary<Vector2Int, Image> icons = new Dictionary<Vector2Int, Image>();
@@ -23,6 +28,7 @@ public class MinimapController : MonoBehaviour
 
     void Start()
     {
+        BuildFrame();
         BuildIcons();
         if (roomCamera != null) roomCamera.OnRoomEntered += HandleRoomEntered;
         HandleRoomEntered(Vector2Int.zero); // reveal the starting room immediately
@@ -31,6 +37,27 @@ public class MinimapController : MonoBehaviour
     void OnDestroy()
     {
         if (roomCamera != null) roomCamera.OnRoomEntered -= HandleRoomEntered;
+    }
+
+    void BuildFrame()
+    {
+        GameObject frame = new GameObject("Frame", typeof(Image));
+        frame.transform.SetParent(transform, false);
+        frame.GetComponent<Image>().color = frameColor;
+        RectTransform frameRt = frame.GetComponent<RectTransform>();
+        frameRt.anchorMin = Vector2.zero;
+        frameRt.anchorMax = Vector2.one;
+        frameRt.offsetMin = Vector2.zero;
+        frameRt.offsetMax = Vector2.zero;
+
+        GameObject background = new GameObject("Background", typeof(Image));
+        background.transform.SetParent(transform, false);
+        background.GetComponent<Image>().color = backgroundColor;
+        RectTransform bgRt = background.GetComponent<RectTransform>();
+        bgRt.anchorMin = Vector2.zero;
+        bgRt.anchorMax = Vector2.one;
+        bgRt.offsetMin = new Vector2(framePadding, framePadding);
+        bgRt.offsetMax = new Vector2(-framePadding, -framePadding);
     }
 
     void BuildIcons()

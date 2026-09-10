@@ -221,6 +221,19 @@ public static class DungeonBootstrap
         hud.emptyHeart = emptyHeart;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
 
+        // --- Gold counter (below the hearts) ---
+        GameObject goldGO = new GameObject("GoldCounter", typeof(RectTransform), typeof(GoldCounterUI));
+        goldGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform goldRect = goldGO.GetComponent<RectTransform>();
+        goldRect.anchorMin = Vector2.zero;
+        goldRect.anchorMax = Vector2.one;
+        goldRect.offsetMin = Vector2.zero;
+        goldRect.offsetMax = Vector2.zero;
+
+        GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
+        goldCounter.inventory = playerInventory;
+        goldCounter.goldSprite = goldSprite;
+
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
         hotbarGO.transform.SetParent(canvasGO.transform, false);
@@ -236,6 +249,9 @@ public static class DungeonBootstrap
         hotbar.caillouSprite = caillouSprite;
         hotbar.batonSprite = batonSprite;
         hotbar.bombSprite = bombSprite;
+        hotbar.slotSize = 56f;
+        hotbar.spacing = 64f;
+        hotbar.fontSize = 18;
 
         // --- Minimap (top-right): adjacent rooms half-reveal, entered rooms fully reveal ---
         GameObject minimapGO = new GameObject("Minimap", typeof(RectTransform), typeof(MinimapController));
@@ -244,11 +260,13 @@ public static class DungeonBootstrap
         minimapRect.anchorMin = minimapRect.anchorMax = new Vector2(1f, 1f);
         minimapRect.pivot = new Vector2(1f, 1f);
         minimapRect.anchoredPosition = new Vector2(-20f, -20f);
-        minimapRect.sizeDelta = new Vector2(160f, 160f);
+        minimapRect.sizeDelta = new Vector2(240f, 240f);
 
         MinimapController minimap = minimapGO.GetComponent<MinimapController>();
         minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
         minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
+        minimap.cellSize = 18f;
+        minimap.spacing = 4f;
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
