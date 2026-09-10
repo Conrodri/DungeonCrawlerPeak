@@ -37,6 +37,11 @@ public class Bomb : MonoBehaviour
         {
             Health health = hit.GetComponent<Health>();
             if (health != null) health.TakeDamage(damage);
+
+            // Bombing a locked door blows it open for good: RoomController skips a destroyed
+            // blocker forever after, even across room resets.
+            DoorBlocker blocker = hit.GetComponent<DoorBlocker>();
+            if (blocker != null) Destroy(blocker.gameObject);
         }
 
         if (explosionSprite != null)

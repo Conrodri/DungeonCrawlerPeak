@@ -72,6 +72,7 @@ public static class DungeonBootstrap
 
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+        Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -119,6 +120,8 @@ public static class DungeonBootstrap
         {
             BuildRoomGeometry(kv.Key.x * StepX, kv.Key.y * StepY, floorMap, wallsMap, floorTile, wallTile);
         }
+        // Each room's doors, so a Monster room can later block/unblock its own thresholds.
+        var doorsByRoom = new Dictionary<Vector2Int, List<(Vector2 pos, bool onVerticalWall)>>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             Vector2Int cell = kv.Key;
@@ -129,12 +132,18 @@ public static class DungeonBootstrap
                 int leftDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
                 int rightDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
                 CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, leftDoorY, rightDoorY, floorMap, wallsMap, floorTile, wallTile);
+
+                AddDoorInfo(doorsByRoom, cell, new Vector2(cell.x * StepX + RoomWidth - 0.5f, leftDoorY + DoorWidth / 2f), true);
+                AddDoorInfo(doorsByRoom, cell + Vector2Int.right, new Vector2((cell.x + 1) * StepX + 0.5f, rightDoorY + DoorWidth / 2f), true);
             }
             if (layout.ContainsKey(cell + Vector2Int.up))
             {
                 int bottomDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
                 int topDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
                 CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, bottomDoorX, topDoorX, floorMap, wallsMap, floorTile, wallTile);
+
+                AddDoorInfo(doorsByRoom, cell, new Vector2(bottomDoorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f), false);
+                AddDoorInfo(doorsByRoom, cell + Vector2Int.up, new Vector2(topDoorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f), false);
             }
         }
 
@@ -174,6 +183,7 @@ public static class DungeonBootstrap
 
         // --- Room content (enemies / special-room markers) ---
         var roomEntries = new List<RoomCameraController.RoomEntry>();
+        var monsterRoomControllers = new List<RoomController>();
         int eliteRoomCount = 0;
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
@@ -181,10 +191,19 @@ public static class DungeonBootstrap
             int originY = kv.Key.y * StepY;
             roomEntries.Add(new RoomCameraController.RoomEntry { gridPos = kv.Key, rect = new Rect(originX, originY, RoomWidth, RoomHeight) });
 
-            bool spawnedElite = PopulateRoom(kv.Value, originX, originY, root.transform, player.transform, enemySprite, eliteSprite,
-                shopMarker, treasureMarker, secretMarker, gambleMarker,
-                swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
-            if (spawnedElite) eliteRoomCount++;
+            if (kv.Value == RoomType.Monster)
+            {
+                List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var d) ? d : new List<(Vector2, bool)>();
+                bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
+                    enemySprite, eliteSprite, doorBarrierSprite, doors, monsterRoomControllers);
+                if (hasElite) eliteRoomCount++;
+            }
+            else
+            {
+                PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
+                    shopMarker, treasureMarker, secretMarker, gambleMarker,
+                    swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
+            }
         }
 
         // --- Camera: locked per-room instead of following the player continuously ---
@@ -205,6 +224,8 @@ public static class DungeonBootstrap
             if (roomCam == null) roomCam = cam.gameObject.AddComponent<RoomCameraController>();
             roomCam.target = player.transform;
             roomCam.rooms = roomEntries.ToArray();
+
+            foreach (RoomController rc in monsterRoomControllers) rc.roomCamera = roomCam;
 
             // Sort same-order sprites by world Y (further up the screen = further away) so the
             // player correctly passes behind tall wall tops and in front of near ones, Isaac-style.
@@ -443,41 +464,47 @@ public static class DungeonBootstrap
         }
     }
 
-    static bool PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
-        Sprite enemySprite, Sprite eliteSprite, Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker,
+    static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
+        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker,
         Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite, Sprite bombSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
 
         switch (type)
         {
-            case RoomType.Monster:
-                return SpawnEnemies(originX, originY, parent, player, enemySprite, eliteSprite);
             case RoomType.Shop:
                 SpawnMarker("ShopMarker", center, shopMarker, parent);
-                return false;
+                break;
             case RoomType.Treasure:
                 SpawnMarker("TreasureMarker", center, treasureMarker, parent);
                 // The treasure room guarantees both weapons are reachable on every floor.
                 SpawnWeaponPickup("SwordPickup", center + new Vector2(-1.5f, 0f), swordSprite, PlayerController.WeaponType.Sword, parent);
                 SpawnWeaponPickup("StaffPickup", center + new Vector2(1.5f, 0f), staffSprite, PlayerController.WeaponType.Staff, parent);
-                return false;
+                break;
             case RoomType.Secret:
                 SpawnMarker("SecretMarker", center, secretMarker, parent);
-                return false;
+                break;
             case RoomType.Gamble:
                 SpawnMarker("GambleMarker", center, gambleMarker, parent);
-                return false;
+                break;
             case RoomType.Start:
                 SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), goldSprite, ItemType.Gold, 5, parent);
                 SpawnItemPickup("ShurikenPickup", center + new Vector2(-0.7f, 1.5f), shurikenSprite, ItemType.Shuriken, 3, parent);
                 SpawnItemPickup("CaillouPickup", center + new Vector2(0.7f, 1.5f), caillouSprite, ItemType.Caillou, 3, parent);
                 SpawnItemPickup("BatonPickup", center + new Vector2(2f, 1.5f), batonSprite, ItemType.Baton, 3, parent);
                 SpawnItemPickup("BombPickup", center + new Vector2(0f, 2.7f), bombSprite, ItemType.Bomb, 3, parent);
-                return false;
-            default:
-                return false;
+                break;
         }
+    }
+
+    static void AddDoorInfo(Dictionary<Vector2Int, List<(Vector2 pos, bool onVerticalWall)>> doorsByRoom, Vector2Int room, Vector2 pos, bool onVerticalWall)
+    {
+        if (!doorsByRoom.TryGetValue(room, out List<(Vector2 pos, bool onVerticalWall)> list))
+        {
+            list = new List<(Vector2, bool)>();
+            doorsByRoom[room] = list;
+        }
+        list.Add((pos, onVerticalWall));
     }
 
     static void SpawnItemPickup(string name, Vector2 position, Sprite sprite, ItemType type, int amount, Transform parent)
@@ -527,7 +554,11 @@ public static class DungeonBootstrap
         marker.GetComponent<SpriteRenderer>().sprite = sprite;
     }
 
-    static bool SpawnEnemies(int originX, int originY, Transform parent, Transform player, Sprite enemySprite, Sprite eliteSprite)
+    // Builds a fixed enemy "recipe" for the room (positions + elite flag) and hands it to a
+    // RoomController, which does the actual spawning (and re-spawning on reset) at play time.
+    static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
+        Sprite enemySprite, Sprite eliteSprite, Sprite doorBarrierSprite,
+        List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
     {
         List<Vector2Int> offsets = new List<Vector2Int>(EnemySpawnOffsets);
         for (int i = offsets.Count - 1; i > 0; i--)
@@ -540,40 +571,47 @@ public static class DungeonBootstrap
         bool hasElite = Random.value < EliteChance;
         int eliteIndex = hasElite ? Random.Range(0, count) : -1;
 
+        RoomController.EnemySpawn[] recipe = new RoomController.EnemySpawn[count];
         for (int i = 0; i < count; i++)
         {
-            bool isElite = i == eliteIndex;
-            Vector2 spawn = new Vector2(originX + offsets[i].x, originY + offsets[i].y);
-
-            GameObject enemy = new GameObject(isElite ? "EliteEnemy" : "Enemy",
-                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
-            enemy.transform.SetParent(parent);
-            enemy.transform.position = spawn;
-
-            SpriteRenderer enemyRenderer = enemy.GetComponent<SpriteRenderer>();
-            enemyRenderer.sprite = isElite ? eliteSprite : enemySprite;
-            enemyRenderer.sortingOrder = 0;
-            if (isElite) enemy.transform.localScale = Vector3.one * 1.4f;
-
-            Rigidbody2D enemyBody = enemy.GetComponent<Rigidbody2D>();
-            enemyBody.gravityScale = 0f;
-            enemyBody.constraints = RigidbodyConstraints2D.FreezeRotation;
-
-            enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
-
-            Health enemyHealth = enemy.GetComponent<Health>();
-            enemyHealth.maxHealth = isElite ? 4 : 2;
-            enemyHealth.currentHealth = enemyHealth.maxHealth;
-
-            EnemyController controller = enemy.GetComponent<EnemyController>();
-            controller.isElite = isElite;
-            // Damage is in half-heart units on the player's Health: a normal hit costs 0.5
-            // heart (1), an elite hit costs a full heart (2).
-            controller.contactDamage = isElite ? 2 : 1;
-            controller.SetTarget(player);
+            recipe[i] = new RoomController.EnemySpawn { localOffset = offsets[i], isElite = i == eliteIndex };
         }
 
+        GameObject roomGO = new GameObject("MonsterRoom_" + gridPos, typeof(RoomController));
+        roomGO.transform.SetParent(parent);
+
+        RoomController controller = roomGO.GetComponent<RoomController>();
+        controller.gridPos = gridPos;
+        controller.roomOrigin = new Vector2(originX, originY);
+        controller.player = player;
+        controller.enemySprite = enemySprite;
+        controller.eliteSprite = eliteSprite;
+        controller.recipe = recipe;
+
+        foreach ((Vector2 pos, bool onVerticalWall) door in doors)
+        {
+            GameObject blocker = SpawnDoorBlocker(door.pos, door.onVerticalWall, doorBarrierSprite, roomGO.transform);
+            controller.doorBlockers.Add(blocker);
+        }
+
+        controllers.Add(controller);
         return hasElite;
+    }
+
+    static GameObject SpawnDoorBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
+    {
+        GameObject blocker = new GameObject("DoorBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(DoorBlocker));
+        blocker.transform.SetParent(parent);
+        blocker.transform.position = center;
+        blocker.transform.localScale = onVerticalWall ? new Vector3(1f, DoorWidth, 1f) : new Vector3(DoorWidth, 1f, 1f);
+
+        SpriteRenderer renderer = blocker.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        blocker.GetComponent<BoxCollider2D>().size = Vector2.one;
+
+        return blocker;
     }
 
     static Sprite CreateSolidSprite(string path, Color color)

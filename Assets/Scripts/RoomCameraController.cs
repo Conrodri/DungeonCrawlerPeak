@@ -12,7 +12,7 @@ public class RoomCameraController : MonoBehaviour
 
     public Transform target;
     public RoomEntry[] rooms;
-    public float followSpeed = 10f;
+    public float followSpeed = 22f;
 
     public event Action<Vector2Int> OnRoomEntered;
 

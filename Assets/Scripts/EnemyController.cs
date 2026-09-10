@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
@@ -8,6 +9,10 @@ public class EnemyController : MonoBehaviour
     public int contactDamage = 1;
     public float contactCooldown = 1f;
     public bool isElite;
+
+    // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
+    // one that was simply despawned (e.g. on room reset).
+    public event Action OnDied;
 
     Rigidbody2D rb;
     Health health;
@@ -60,6 +65,14 @@ public class EnemyController : MonoBehaviour
     void HandleDeath()
     {
         Debug.Log(name + " died.");
+        OnDied?.Invoke();
+        Destroy(gameObject);
+    }
+
+    // Used when a room despawns its enemies (reset on re-entry) rather than them dying in combat -
+    // no death log, no OnDied notification, since the owning RoomController already knows.
+    public void Despawn()
+    {
         Destroy(gameObject);
     }
 }
