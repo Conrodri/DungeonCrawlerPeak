@@ -65,9 +65,10 @@ public static class DungeonBootstrap
             }
         }
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = Vector3.zero;
+        player.tag = "Player";
 
         SpriteRenderer playerRenderer = player.GetComponent<SpriteRenderer>();
         playerRenderer.sprite = playerSprite;
@@ -80,6 +81,39 @@ public static class DungeonBootstrap
         playerBody.constraints = RigidbodyConstraints2D.FreezeRotation;
 
         player.GetComponent<CircleCollider2D>().radius = 0.4f;
+        Health playerHealth = player.GetComponent<Health>();
+        playerHealth.maxHealth = 5;
+        // Awake() (which normally sets this) only runs once Play mode starts, so set it
+        // explicitly here too - otherwise the Inspector shows 0/5 while still in Edit mode.
+        playerHealth.currentHealth = playerHealth.maxHealth;
+
+        Sprite enemySprite = CreateCircleSprite("Assets/Art/Enemy.png", new Color(0.75f, 0.15f, 0.15f));
+        Vector2[] enemySpawns = new Vector2[]
+        {
+            new Vector2(-4f, 2f),
+            new Vector2(4f, 2f),
+            new Vector2(0f, -2f),
+        };
+        foreach (Vector2 spawn in enemySpawns)
+        {
+            GameObject enemy = new GameObject("Enemy", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
+            enemy.transform.SetParent(root.transform);
+            enemy.transform.position = spawn;
+
+            SpriteRenderer enemyRenderer = enemy.GetComponent<SpriteRenderer>();
+            enemyRenderer.sprite = enemySprite;
+            enemyRenderer.sortingOrder = 0;
+
+            Rigidbody2D enemyBody = enemy.GetComponent<Rigidbody2D>();
+            enemyBody.gravityScale = 0f;
+            enemyBody.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+            enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
+            Health enemyHealth = enemy.GetComponent<Health>();
+            enemyHealth.maxHealth = 2;
+            enemyHealth.currentHealth = enemyHealth.maxHealth;
+            enemy.GetComponent<EnemyController>().SetTarget(player.transform);
+        }
 
         Camera cam = Camera.main;
         if (cam != null)
@@ -104,7 +138,7 @@ public static class DungeonBootstrap
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log("DungeonBootstrap: starter room built (" + RoomWidth + "x" + RoomHeight + ").");
+        Debug.Log("DungeonBootstrap: starter room built (" + RoomWidth + "x" + RoomHeight + ") with " + enemySpawns.Length + " enemies.");
     }
 
     static Sprite CreateSolidSprite(string path, Color color)
