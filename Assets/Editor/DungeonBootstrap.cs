@@ -64,6 +64,9 @@ public static class DungeonBootstrap
         Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
         Sprite batonSprite = CreateSolidSprite("Assets/Art/Items/Baton.png", new Color(0.5f, 0.35f, 0.2f));
 
+        Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
+        Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
+
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
         Sprite fullHeart = CreateHeartSprite("Assets/Art/UI/HeartFull.png", heartRed, heartRed);
@@ -141,7 +144,14 @@ public static class DungeonBootstrap
         playerBody.constraints = RigidbodyConstraints2D.FreezeRotation;
 
         player.GetComponent<CircleCollider2D>().radius = 0.4f;
-        player.GetComponent<PlayerController>().projectileSprite = projectileSprite;
+        PlayerController playerController = player.GetComponent<PlayerController>();
+        playerController.projectileSprite = projectileSprite;
+        playerController.fistVisualSprite = fistVisualSprite;
+        playerController.swordVisualSprite = swordVisualSprite;
+        playerController.shurikenSprite = shurikenSprite;
+        playerController.caillouSprite = caillouSprite;
+        playerController.batonSprite = batonSprite;
+        PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         Health playerHealth = player.GetComponent<Health>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
         // heart), elite hits cost 2 (a full heart).
@@ -205,6 +215,21 @@ public static class DungeonBootstrap
         hud.halfHeart = halfHeart;
         hud.emptyHeart = emptyHeart;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
+
+        // --- Hotbar (throwable consumables, slots 1-3 used today) ---
+        GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
+        hotbarGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform hotbarRect = hotbarGO.GetComponent<RectTransform>();
+        hotbarRect.anchorMin = Vector2.zero;
+        hotbarRect.anchorMax = Vector2.one;
+        hotbarRect.offsetMin = Vector2.zero;
+        hotbarRect.offsetMax = Vector2.zero;
+
+        HotbarUI hotbar = hotbarGO.GetComponent<HotbarUI>();
+        hotbar.inventory = playerInventory;
+        hotbar.shurikenSprite = shurikenSprite;
+        hotbar.caillouSprite = caillouSprite;
+        hotbar.batonSprite = batonSprite;
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -505,6 +530,19 @@ public static class DungeonBootstrap
         tex.Apply();
         // Pivot at the bottom so the extra height pokes upward out of the tile's own cell.
         return SaveTextureAsSprite(tex, path, new Vector2(0.5f, 0f));
+    }
+
+    static Sprite CreateRectSprite(string path, Color color)
+    {
+        // Narrow and tall: rotated to face the aim direction, this reads as a short slash/swing.
+        int width = TilePixelSize / 2;
+        int height = TilePixelSize;
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        Color[] pixels = new Color[width * height];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
     }
 
     static Sprite CreateCircleSprite(string path, Color color)
