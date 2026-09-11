@@ -17,6 +17,7 @@ public class MinimapController : MonoBehaviour
     public Sprite shopIconSprite;
     public Sprite eventIconSprite;
     public Sprite secretIconSprite;
+    public Color bossGlowColor = new Color(0.9f, 0.1f, 0.1f, 0.55f);
     public float cellSize = 12f;
     public float spacing = 3f;
     public float maxPanelSize = 240f;
@@ -35,9 +36,10 @@ public class MinimapController : MonoBehaviour
     static readonly Vector2Int[] Dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     readonly Dictionary<Vector2Int, Image> icons = new Dictionary<Vector2Int, Image>();
-    // Only holds an entry for rooms with a type icon (Boss/Shop/Event/Secret) - toggled on/off in
-    // Refresh() rather than colored like the plain rooms, and parented to their own icons[gridPos]
-    // so they track its position automatically (including through UpdateLayout's re-centering).
+    // Only holds an entry for rooms with a type icon and/or a glow (Boss/Shop/Event/Secret) -
+    // toggled on/off as a unit in Refresh() rather than colored like the plain rooms, and parented
+    // to their own icons[gridPos] so they track its position automatically (including through
+    // UpdateLayout's re-centering).
     readonly Dictionary<Vector2Int, GameObject> iconOverlays = new Dictionary<Vector2Int, GameObject>();
     readonly Dictionary<Vector2Int, RoomState> states = new Dictionary<Vector2Int, RoomState>();
     Vector2Int currentGridPos;
@@ -103,23 +105,53 @@ public class MinimapController : MonoBehaviour
             icons[gridPos] = img;
 
             Sprite typeIcon = GetTypeIconSprite(gridPos);
-            if (typeIcon != null)
+            bool hasGlow = bossRoomGridPositions.Contains(gridPos);
+            if (typeIcon != null || hasGlow)
             {
-                GameObject iconGO = new GameObject("TypeIcon", typeof(Image));
-                iconGO.transform.SetParent(go.transform, false);
+                GameObject overlay = new GameObject("Overlay", typeof(RectTransform));
+                overlay.transform.SetParent(go.transform, false);
+                RectTransform overlayRt = (RectTransform)overlay.transform;
+                overlayRt.anchorMin = overlayRt.anchorMax = new Vector2(0.5f, 0.5f);
+                overlayRt.pivot = new Vector2(0.5f, 0.5f);
+                overlayRt.anchoredPosition = Vector2.zero;
+                overlayRt.sizeDelta = Vector2.zero;
 
-                Image iconImg = iconGO.GetComponent<Image>();
-                iconImg.sprite = typeIcon;
-                iconImg.preserveAspect = true;
+                // Drawn first (behind the type icon below), and bigger than the cell so it reads
+                // as a halo bleeding out around it rather than just a tinted background.
+                if (hasGlow)
+                {
+                    GameObject glowGO = new GameObject("Glow", typeof(Image), typeof(PulsingGlow));
+                    glowGO.transform.SetParent(overlay.transform, false);
 
-                RectTransform iconRt = iconImg.rectTransform;
-                iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
-                iconRt.pivot = new Vector2(0.5f, 0.5f);
-                iconRt.anchoredPosition = Vector2.zero;
-                iconRt.sizeDelta = new Vector2(cellSize * 0.8f, cellSize * 0.8f);
+                    Image glowImg = glowGO.GetComponent<Image>();
+                    glowImg.color = bossGlowColor;
+                    glowImg.raycastTarget = false;
 
-                iconGO.SetActive(false); // hidden until Refresh() decides it should show
-                iconOverlays[gridPos] = iconGO;
+                    RectTransform glowRt = glowImg.rectTransform;
+                    glowRt.anchorMin = glowRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    glowRt.pivot = new Vector2(0.5f, 0.5f);
+                    glowRt.anchoredPosition = Vector2.zero;
+                    glowRt.sizeDelta = new Vector2(cellSize * 1.8f, cellSize * 1.8f);
+                }
+
+                if (typeIcon != null)
+                {
+                    GameObject iconGO = new GameObject("TypeIcon", typeof(Image));
+                    iconGO.transform.SetParent(overlay.transform, false);
+
+                    Image iconImg = iconGO.GetComponent<Image>();
+                    iconImg.sprite = typeIcon;
+                    iconImg.preserveAspect = true;
+
+                    RectTransform iconRt = iconImg.rectTransform;
+                    iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    iconRt.pivot = new Vector2(0.5f, 0.5f);
+                    iconRt.anchoredPosition = Vector2.zero;
+                    iconRt.sizeDelta = new Vector2(cellSize * 0.8f, cellSize * 0.8f);
+                }
+
+                overlay.SetActive(false); // hidden until Refresh() decides it should show
+                iconOverlays[gridPos] = overlay;
             }
         }
     }
