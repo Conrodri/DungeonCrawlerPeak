@@ -47,6 +47,60 @@ public static class DungeonBootstrap
         "    XX    ",
     };
 
+    static readonly string[] SkullMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXOXXXXOXX",
+        "XXOXXXXOXX",
+        "XXXXXXXXXX",
+        "XXXX  XXXX",
+        "XXXXXXXXXX",
+        "XX X X XX ",
+        "  XXXXXX  ",
+    };
+
+    static readonly string[] ChestMask =
+    {
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "          ",
+        "XXXXXXXXXX",
+        "XXXX  XXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+    };
+
+    static readonly string[] ExclamationMask =
+    {
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "          ",
+        "          ",
+        "   XXXX   ",
+        "   XXXX   ",
+    };
+
+    static readonly string[] QuestionMask =
+    {
+        "   XXXXX  ",
+        "  XX   XX ",
+        "  X    XX ",
+        "      XX  ",
+        "     XX   ",
+        "     XX   ",
+        "          ",
+        "     XX   ",
+        "     XX   ",
+    };
+
     [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
     {
@@ -56,12 +110,12 @@ public static class DungeonBootstrap
         Sprite enemySprite = CreateCircleSprite("Assets/Art/Enemy.png", new Color(0.75f, 0.15f, 0.15f));
         Sprite eliteSprite = CreateCircleSprite("Assets/Art/EnemyElite.png", new Color(0.95f, 0.55f, 0.05f));
 
-        Sprite shopMarker = CreateSolidSprite("Assets/Art/Markers/Shop.png", new Color(0.2f, 0.7f, 0.75f));
+        Sprite shopMarker = CreateMaskedSprite("Assets/Art/Markers/Shop.png", ChestMask, new Color(0.75f, 0.55f, 0.15f));
         Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
-        Sprite secretMarker = CreateSolidSprite("Assets/Art/Markers/Secret.png", new Color(0.55f, 0.35f, 0.75f));
+        Sprite secretMarker = CreateMaskedSprite("Assets/Art/Markers/Secret.png", QuestionMask, new Color(0.85f, 0.85f, 0.9f));
         Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
-        Sprite bossMarker = CreateSolidSprite("Assets/Art/Markers/Boss.png", new Color(0.6f, 0.05f, 0.05f));
-        Sprite eventMarker = CreateSolidSprite("Assets/Art/Markers/Event.png", new Color(0.4f, 0.6f, 0.85f));
+        Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
+        Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
@@ -356,8 +410,20 @@ public static class DungeonBootstrap
         minimap.monsterRooms = monsterRoomControllers.ToArray();
         minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
         minimap.secretRoomGridPositions = new List<Vector2Int>();
+        minimap.bossRoomGridPositions = new List<Vector2Int>();
+        minimap.shopRoomGridPositions = new List<Vector2Int>();
+        minimap.eventRoomGridPositions = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
+        {
             if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Boss) minimap.bossRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Shop) minimap.shopRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Event) minimap.eventRoomGridPositions.Add(kv2.Key);
+        }
+        minimap.bossIconSprite = bossMarker;
+        minimap.shopIconSprite = shopMarker;
+        minimap.eventIconSprite = eventMarker;
+        minimap.secretIconSprite = secretMarker;
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
@@ -827,6 +893,26 @@ public static class DungeonBootstrap
             {
                 float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
                 tex.SetPixel(x, y, dist <= radius ? color : clear);
+            }
+        }
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
+    }
+
+    // Single-color version of CreateHeartSprite's mask-to-texture approach, for arbitrary icon shapes.
+    static Sprite CreateMaskedSprite(string path, string[] mask, Color color)
+    {
+        int w = mask[0].Length;
+        int h = mask.Length;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color clear = new Color(0f, 0f, 0f, 0f);
+
+        for (int y = 0; y < h; y++)
+        {
+            string row = mask[h - 1 - y]; // texture row 0 is the bottom; mask row 0 is the visual top
+            for (int x = 0; x < w; x++)
+            {
+                tex.SetPixel(x, y, row[x] == 'X' ? color : clear);
             }
         }
         tex.Apply();

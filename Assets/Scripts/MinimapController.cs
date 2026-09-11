@@ -10,6 +10,13 @@ public class MinimapController : MonoBehaviour
     // Never pre-revealed as "Adjacent" from a neighboring room - only shows up once actually
     // entered (see HandleRoomEntered), since a secret room sits behind a bombable wall, not a door.
     public List<Vector2Int> secretRoomGridPositions = new List<Vector2Int>();
+    public List<Vector2Int> bossRoomGridPositions = new List<Vector2Int>();
+    public List<Vector2Int> shopRoomGridPositions = new List<Vector2Int>();
+    public List<Vector2Int> eventRoomGridPositions = new List<Vector2Int>();
+    public Sprite bossIconSprite;
+    public Sprite shopIconSprite;
+    public Sprite eventIconSprite;
+    public Sprite secretIconSprite;
     public float cellSize = 12f;
     public float spacing = 3f;
     public float maxPanelSize = 240f;
@@ -28,6 +35,10 @@ public class MinimapController : MonoBehaviour
     static readonly Vector2Int[] Dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     readonly Dictionary<Vector2Int, Image> icons = new Dictionary<Vector2Int, Image>();
+    // Only holds an entry for rooms with a type icon (Boss/Shop/Event/Secret) - toggled on/off in
+    // Refresh() rather than colored like the plain rooms, and parented to their own icons[gridPos]
+    // so they track its position automatically (including through UpdateLayout's re-centering).
+    readonly Dictionary<Vector2Int, GameObject> iconOverlays = new Dictionary<Vector2Int, GameObject>();
     readonly Dictionary<Vector2Int, RoomState> states = new Dictionary<Vector2Int, RoomState>();
     Vector2Int currentGridPos;
 
@@ -90,7 +101,36 @@ public class MinimapController : MonoBehaviour
             rt.anchoredPosition = new Vector2(gridPos.x * (cellSize + spacing), gridPos.y * (cellSize + spacing));
 
             icons[gridPos] = img;
+
+            Sprite typeIcon = GetTypeIconSprite(gridPos);
+            if (typeIcon != null)
+            {
+                GameObject iconGO = new GameObject("TypeIcon", typeof(Image));
+                iconGO.transform.SetParent(go.transform, false);
+
+                Image iconImg = iconGO.GetComponent<Image>();
+                iconImg.sprite = typeIcon;
+                iconImg.preserveAspect = true;
+
+                RectTransform iconRt = iconImg.rectTransform;
+                iconRt.anchorMin = iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+                iconRt.pivot = new Vector2(0.5f, 0.5f);
+                iconRt.anchoredPosition = Vector2.zero;
+                iconRt.sizeDelta = new Vector2(cellSize * 0.8f, cellSize * 0.8f);
+
+                iconGO.SetActive(false); // hidden until Refresh() decides it should show
+                iconOverlays[gridPos] = iconGO;
+            }
         }
+    }
+
+    Sprite GetTypeIconSprite(Vector2Int gridPos)
+    {
+        if (bossRoomGridPositions.Contains(gridPos)) return bossIconSprite;
+        if (shopRoomGridPositions.Contains(gridPos)) return shopIconSprite;
+        if (eventRoomGridPositions.Contains(gridPos)) return eventIconSprite;
+        if (secretRoomGridPositions.Contains(gridPos)) return secretIconSprite;
+        return null;
     }
 
     void HandleRoomEntered(Vector2Int gridPos)
@@ -133,6 +173,15 @@ public class MinimapController : MonoBehaviour
             else if (state == RoomState.Adjacent) c = halfDiscoveredColor;
             else c = undiscoveredColor;
             kv.Value.color = c;
+        }
+
+        foreach (KeyValuePair<Vector2Int, GameObject> kv in iconOverlays)
+        {
+            bool hasEntry = states.TryGetValue(kv.Key, out RoomState state);
+            // A secret room's icon only shows once actually entered (Discovered) - never just from
+            // being adjacent, same rule as its background color never pre-revealing.
+            bool visible = secretRoomGridPositions.Contains(kv.Key) ? (hasEntry && state == RoomState.Discovered) : hasEntry;
+            kv.Value.SetActive(visible);
         }
     }
 
