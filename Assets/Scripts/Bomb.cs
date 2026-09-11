@@ -42,6 +42,10 @@ public class Bomb : MonoBehaviour
             // blocker forever after, even across room resets.
             DoorBlocker blocker = hit.GetComponent<DoorBlocker>();
             if (blocker != null) Destroy(blocker.gameObject);
+
+            // Same permanent-open mechanic as a locked door's DoorBlocker, for a secret room's wall.
+            SecretWallBlocker secretWall = hit.GetComponent<SecretWallBlocker>();
+            if (secretWall != null) Destroy(secretWall.gameObject);
         }
 
         if (explosionSprite != null)

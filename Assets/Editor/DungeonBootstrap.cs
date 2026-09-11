@@ -77,6 +77,9 @@ public static class DungeonBootstrap
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
+        // Same face color as the wall itself, so a secret room's bombable wall blends in - no
+        // visual hint, on purpose (detection items are a separate future feature).
+        Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -136,7 +139,8 @@ public static class DungeonBootstrap
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             Vector2Int cell = kv.Key;
-            if (layout.ContainsKey(cell + Vector2Int.right))
+            Vector2Int rightCell = cell + Vector2Int.right;
+            if (layout.ContainsKey(rightCell))
             {
                 // Same offset on both sides so the two doors line up along the shared wall -
                 // entering near the top of one room's wall must lead out near the top of the other's.
@@ -145,20 +149,47 @@ public static class DungeonBootstrap
 
                 Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
                 Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, doorY + DoorWidth / 2f);
-                AddDoorInfo(doorsByRoom, cell, leftPos, true);
-                AddDoorInfo(doorsByRoom, cell + Vector2Int.right, rightPos, true);
-                pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, cell + Vector2Int.right, true));
+
+                bool leftIsSecret = kv.Value == RoomType.Secret;
+                bool rightIsSecret = layout[rightCell] == RoomType.Secret;
+                if (leftIsSecret || rightIsSecret)
+                {
+                    CreateSecretDoorLink(
+                        leftIsSecret ? leftPos : rightPos, leftIsSecret ? Vector2.left : Vector2.right,
+                        leftIsSecret ? rightPos : leftPos, leftIsSecret ? Vector2.right : Vector2.left,
+                        true, secretWallSprite, root.transform);
+                }
+                else
+                {
+                    AddDoorInfo(doorsByRoom, cell, leftPos, true);
+                    AddDoorInfo(doorsByRoom, rightCell, rightPos, true);
+                    pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, rightCell, true));
+                }
             }
-            if (layout.ContainsKey(cell + Vector2Int.up))
+            Vector2Int upCell = cell + Vector2Int.up;
+            if (layout.ContainsKey(upCell))
             {
                 int doorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
                 CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
 
                 Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
                 Vector2 topPos = new Vector2(doorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
-                AddDoorInfo(doorsByRoom, cell, bottomPos, false);
-                AddDoorInfo(doorsByRoom, cell + Vector2Int.up, topPos, false);
-                pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, cell + Vector2Int.up, false));
+
+                bool bottomIsSecret = kv.Value == RoomType.Secret;
+                bool topIsSecret = layout[upCell] == RoomType.Secret;
+                if (bottomIsSecret || topIsSecret)
+                {
+                    CreateSecretDoorLink(
+                        bottomIsSecret ? bottomPos : topPos, bottomIsSecret ? Vector2.down : Vector2.up,
+                        bottomIsSecret ? topPos : bottomPos, bottomIsSecret ? Vector2.up : Vector2.down,
+                        false, secretWallSprite, root.transform);
+                }
+                else
+                {
+                    AddDoorInfo(doorsByRoom, cell, bottomPos, false);
+                    AddDoorInfo(doorsByRoom, upCell, topPos, false);
+                    pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, upCell, false));
+                }
             }
         }
 
@@ -323,9 +354,10 @@ public static class DungeonBootstrap
         MinimapController minimap = minimapGO.GetComponent<MinimapController>();
         minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
         minimap.monsterRooms = monsterRoomControllers.ToArray();
-        minimap.allRoomGridPositions = new List<Vector2Int>();
+        minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
+        minimap.secretRoomGridPositions = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
-            if (kv2.Value != RoomType.Secret) minimap.allRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
@@ -370,20 +402,15 @@ public static class DungeonBootstrap
             rooms[cell] = Random.value < 0.25f ? RoomType.Empty : RoomType.Monster;
         }
 
-        // Treasure/Shop/Event/Gamble are placed first, as extra dead-end branches off the layout,
-        // so that the Boss/Secret distance search below sees the floor's true final shape - placing
-        // them after Boss/Secret would let one of these bonus branches end up farther out than the
-        // Boss room, breaking "always the farthest room".
-        PlaceSpecialRoom(rooms, RoomType.Treasure);
-        PlaceSpecialRoom(rooms, RoomType.Shop);
-        if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event); // 1-in-2 chance per floor
-        PlaceSpecialRoom(rooms, RoomType.Gamble);
-
         // Boss is always the farthest room from Start (in door-hops, not Euclidean distance), and
         // Secret is always the farthest room from Boss - which naturally lands it on the opposite
         // side of the layout without needing a coordinate mirror that might not exist as a room.
-        // Both are restricted to ordinary Monster/Empty cells so they can't cannibalize one of the
-        // guaranteed special rooms placed just above.
+        // Both are restricted to ordinary Monster/Empty cells, and computed before Treasure/Shop/
+        // Event/Gamble are placed below: those are new dead-end branches that can attach onto any
+        // existing cell (including a freshly-picked Boss/Secret), and doing this search first, on
+        // the base tree, is what guarantees both are still genuine dead ends afterward - it doesn't
+        // cost accuracy, since bonus rooms are excluded from candidacy either way so they never
+        // affect which Monster/Empty cell is actually farthest.
         RoomType[] normalTypes = { RoomType.Monster, RoomType.Empty };
         Vector2Int bossCell = FindFarthestRoom(rooms, start, normalTypes);
         rooms[bossCell] = RoomType.Boss;
@@ -391,12 +418,24 @@ public static class DungeonBootstrap
         Vector2Int secretCell = FindFarthestRoom(rooms, bossCell, normalTypes);
         rooms[secretCell] = RoomType.Secret;
 
+        // Never anchored on the Secret room, so its one connection (the only one its bombable wall
+        // assumes) is never touched again.
+        PlaceSpecialRoom(rooms, RoomType.Treasure, secretCell);
+        PlaceSpecialRoom(rooms, RoomType.Shop, secretCell);
+        if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell); // 1-in-2 chance per floor
+        PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell);
+
         return rooms;
     }
 
     // BFS distance in room-hops from `from`, over the graph of cells already in `rooms` (two cells
     // are adjacent if both exist - the same rule that decides where a door gets carved later).
-    // Returns the farthest cell whose type is one of `candidateTypes`; ties broken at random.
+    // Returns the farthest cell whose type is one of `candidateTypes`, preferring a dead end (only
+    // 1 neighbor) - a Treasure/Shop/Event/Gamble room can end up attached directly to what would
+    // otherwise be the single farthest cell (they're placed earlier, as new branches off any
+    // existing cell), which would leave it with 2 neighbors; Secret specifically needs exactly 1,
+    // since its bombable wall assumes a single connection. Falls back to any matching cell (dead
+    // end or not) in the rare case no dead end of the right type exists. Ties broken at random.
     static Vector2Int FindFarthestRoom(Dictionary<Vector2Int, RoomType> rooms, Vector2Int from, RoomType[] candidateTypes)
     {
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
@@ -416,24 +455,39 @@ public static class DungeonBootstrap
             }
         }
 
+        return PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: true)
+            ?? PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: false).Value;
+    }
+
+    static Vector2Int? PickFarthestMatch(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, int> dist, Vector2Int[] dirs, RoomType[] candidateTypes, bool requireDeadEnd)
+    {
         int best = -1;
         var farthest = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, int> kv in dist)
         {
             if (System.Array.IndexOf(candidateTypes, rooms[kv.Key]) < 0) continue;
+            if (requireDeadEnd)
+            {
+                int neighborCount = 0;
+                foreach (Vector2Int d in dirs) if (rooms.ContainsKey(kv.Key + d)) neighborCount++;
+                if (neighborCount != 1) continue;
+            }
             if (kv.Value > best) { best = kv.Value; farthest.Clear(); farthest.Add(kv.Key); }
             else if (kv.Value == best) farthest.Add(kv.Key);
         }
-        return farthest[Random.Range(0, farthest.Count)];
+        return farthest.Count > 0 ? farthest[Random.Range(0, farthest.Count)] : (Vector2Int?)null;
     }
 
-    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type)
+    // `protectedAnchor` (if given) is never used as the attachment point for the new room - used to
+    // keep the Secret room's single connection from growing a second one.
+    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor = null)
     {
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         var candidates = new List<Vector2Int>();
 
         foreach (Vector2Int cell in rooms.Keys)
         {
+            if (cell == protectedAnchor) continue;
             foreach (Vector2Int d in dirs)
             {
                 Vector2Int next = cell + d;
@@ -510,7 +564,35 @@ public static class DungeonBootstrap
         SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, roomB, parent);
     }
 
-    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController ownerRoom, Transform parent)
+    // A secret room's single connection: same cross-to-teleport behavior as any door, but both
+    // triggers start solid (locked) and a wall-colored SecretWallBlocker fills the gap on the outer
+    // (non-secret) side, indistinguishable from a normal wall. Bombing it (see Bomb.cs) unlocks
+    // both triggers for good, revealing the room.
+    static void CreateSecretDoorLink(Vector2 secretPos, Vector2 secretInward, Vector2 outerPos, Vector2 outerInward, bool onVerticalWall, Sprite wallLikeSprite, Transform parent)
+    {
+        const float landingDepth = 1.5f;
+        DoorTrigger secretTrigger = SpawnDoorTrigger(secretPos, secretInward, outerPos + outerInward * landingDepth, null, parent, locked: true);
+        DoorTrigger outerTrigger = SpawnDoorTrigger(outerPos, outerInward, secretPos + secretInward * landingDepth, null, parent, locked: true);
+
+        SecretWallBlocker blocker = SpawnSecretWallBlocker(outerPos, onVerticalWall, wallLikeSprite, parent);
+        blocker.triggerA = secretTrigger;
+        blocker.triggerB = outerTrigger;
+    }
+
+    static SecretWallBlocker SpawnSecretWallBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("SecretWallBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(SecretWallBlocker));
+        go.transform.SetParent(parent);
+        go.transform.position = center;
+        go.transform.localScale = onVerticalWall ? new Vector3(1f, DoorWidth, 1f) : new Vector3(DoorWidth, 1f, 1f);
+
+        go.GetComponent<SpriteRenderer>().sprite = sprite;
+        go.GetComponent<BoxCollider2D>().size = Vector2.one;
+
+        return go.GetComponent<SecretWallBlocker>();
+    }
+
+    static DoorTrigger SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController ownerRoom, Transform parent, bool locked = false)
     {
         GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
         go.transform.SetParent(parent);
@@ -524,7 +606,7 @@ public static class DungeonBootstrap
         go.transform.position = pos - inward * 0.95f;
 
         BoxCollider2D collider = go.GetComponent<BoxCollider2D>();
-        collider.isTrigger = true;
+        collider.isTrigger = !locked;
         collider.size = new Vector2(DoorWidth, DoorWidth);
 
         DoorTrigger trigger = go.GetComponent<DoorTrigger>();
@@ -532,6 +614,7 @@ public static class DungeonBootstrap
         trigger.ownerRoom = ownerRoom;
 
         if (ownerRoom != null) ownerRoom.exitTriggers.Add(trigger);
+        return trigger;
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,

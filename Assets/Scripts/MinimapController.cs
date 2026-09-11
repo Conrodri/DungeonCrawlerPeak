@@ -7,6 +7,9 @@ public class MinimapController : MonoBehaviour
     public RoomCameraController roomCamera;
     public RoomController[] monsterRooms = new RoomController[0];
     public List<Vector2Int> allRoomGridPositions = new List<Vector2Int>();
+    // Never pre-revealed as "Adjacent" from a neighboring room - only shows up once actually
+    // entered (see HandleRoomEntered), since a secret room sits behind a bombable wall, not a door.
+    public List<Vector2Int> secretRoomGridPositions = new List<Vector2Int>();
     public float cellSize = 12f;
     public float spacing = 3f;
     public float maxPanelSize = 240f;
@@ -102,6 +105,7 @@ public class MinimapController : MonoBehaviour
         foreach (Vector2Int dir in Dirs)
         {
             Vector2Int neighbor = gridPos + dir;
+            if (secretRoomGridPositions.Contains(neighbor)) continue;
             if (icons.ContainsKey(neighbor) && !states.ContainsKey(neighbor)) states[neighbor] = RoomState.Adjacent;
         }
 
