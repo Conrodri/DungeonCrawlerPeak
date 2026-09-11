@@ -461,9 +461,14 @@ public static class DungeonBootstrap
     {
         GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
         go.transform.SetParent(parent);
-        // Sits a little toward the void side of the threshold, so the player has to step fully
-        // through the opening (not just graze its edge) before teleporting.
-        go.transform.position = pos - inward * 0.4f;
+        // pos is the center of the room's own 1-unit-thick border wall row/column (half-width
+        // 0.5), so the offset must clear at least that much to sit fully in the void beyond the
+        // wall - otherwise the trigger still overlaps the wall's own tile and fires while the
+        // player visually hasn't cleared it yet (worse the taller a neighboring wall tile renders,
+        // e.g. a room's own top/side walls, whose sprite pokes further up than its collision
+        // cell). Capped just under 1 unit so the two paired triggers on either side of the Gap
+        // (width 3, doorWidth-sized triggers) never overlap each other.
+        go.transform.position = pos - inward * 0.95f;
 
         BoxCollider2D collider = go.GetComponent<BoxCollider2D>();
         collider.isTrigger = true;
