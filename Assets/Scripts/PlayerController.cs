@@ -70,6 +70,9 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        // Same tunneling guard as EnemyController: relentless FixedUpdate-driven velocity pressed
+        // against a tilemap CompositeCollider2D can otherwise creep through a corner over time.
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         health = GetComponent<Health>();
         inventory = GetComponent<PlayerInventory>();
         bodyCollider = GetComponent<CircleCollider2D>();

@@ -225,20 +225,6 @@ public static class DungeonBootstrap
             monsterControllers.TryGetValue(link.cellA, out RoomController roomA);
             monsterControllers.TryGetValue(link.cellB, out RoomController roomB);
             CreateDoorLink(link.posA, link.inwardA, roomA, link.posB, link.inwardB, roomB, root.transform);
-
-            // Seal the void gap symmetrically: a locked room must stop the player at the OTHER
-            // room's own threshold too, not only at its own - otherwise nothing physically stops
-            // the player from wandering into the (collision-less) gap between the two rooms.
-            if (roomB != null)
-            {
-                GameObject mirror = SpawnDoorBlocker(link.posA, link.onVerticalWall, doorBarrierSprite, roomB.transform);
-                roomB.doorBlockers.Add(mirror);
-            }
-            if (roomA != null)
-            {
-                GameObject mirror = SpawnDoorBlocker(link.posB, link.onVerticalWall, doorBarrierSprite, roomA.transform);
-                roomA.doorBlockers.Add(mirror);
-            }
         }
 
         // --- Camera: locked per-room instead of following the player continuously ---
