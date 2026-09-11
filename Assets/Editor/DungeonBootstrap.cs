@@ -468,6 +468,8 @@ public static class DungeonBootstrap
         DoorTrigger trigger = go.GetComponent<DoorTrigger>();
         trigger.destination = destination;
         trigger.destinationRoom = destinationRoom;
+
+        if (destinationRoom != null) destinationRoom.incomingTriggers.Add(trigger);
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,

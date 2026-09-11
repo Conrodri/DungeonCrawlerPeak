@@ -24,6 +24,9 @@ public class RoomController : MonoBehaviour
     public Sprite eliteSprite;
     public EnemySpawn[] recipe;
     public List<GameObject> doorBlockers = new List<GameObject>();
+    // Door triggers in neighboring rooms that lead INTO this room - switched solid while locked
+    // (see DoorTrigger.SetLocked), so a locked door never shows a visible barrier on that side.
+    public List<DoorTrigger> incomingTriggers = new List<DoorTrigger>();
 
     public bool IsLocked { get; private set; }
     public bool IsCleared { get; private set; }
@@ -124,6 +127,10 @@ public class RoomController : MonoBehaviour
         foreach (GameObject blocker in doorBlockers)
         {
             if (blocker != null) blocker.SetActive(IsLocked);
+        }
+        foreach (DoorTrigger trigger in incomingTriggers)
+        {
+            if (trigger != null) trigger.SetLocked(IsLocked);
         }
 
         if (!IsLocked && !IsCleared)
