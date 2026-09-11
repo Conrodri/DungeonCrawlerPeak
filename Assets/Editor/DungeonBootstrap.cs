@@ -485,29 +485,42 @@ public static class DungeonBootstrap
         RoomType[] normalTypes = { RoomType.Monster, RoomType.Empty };
         Vector2Int bossCell = FindFarthestRoom(rooms, start, normalTypes);
         rooms[bossCell] = RoomType.Boss;
+        int bossDistance = ComputeDistances(rooms, start)[bossCell];
 
         Vector2Int secretCell = FindFarthestRoom(rooms, bossCell, normalTypes);
         rooms[secretCell] = RoomType.Secret;
 
-        // Never anchored on the Secret room, so its one connection (the only one its bombable wall
-        // assumes) is never touched again.
-        PlaceSpecialRoom(rooms, RoomType.Treasure, secretCell);
-        PlaceSpecialRoom(rooms, RoomType.Shop, secretCell);
-        if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell); // 1-in-2 chance per floor
-        PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell);
+        // Never anchored on the Secret room (so its one connection - the only one its bombable wall
+        // assumes - is never touched again), and never allowed to reach as far from Start as the
+        // Boss room (so it stays unambiguously the single farthest room on the floor).
+        PlaceSpecialRoom(rooms, RoomType.Treasure, secretCell, start, bossDistance);
+        PlaceSpecialRoom(rooms, RoomType.Shop, secretCell, start, bossDistance);
+        if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
+        PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
 
         return rooms;
     }
 
+    // Returns the farthest cell whose type is one of `candidateTypes`, preferring a dead end (only
+    // 1 neighbor) - since Boss/Secret are chosen before Treasure/Shop/Event/Gamble are placed (see
+    // GenerateLayout), requiring a dead end here is what keeps Secret's single connection (which
+    // its bombable wall assumes) from growing a second one once those bonus rooms are added -
+    // PlaceSpecialRoom is also told never to attach one onto Secret specifically (protectedAnchor)
+    // or to reach as far from Start as Boss (maxDistanceFromStart), so neither is disturbed
+    // afterward. Falls back to any matching cell (dead end or not) in the rare case no dead end of
+    // the right type exists. Ties broken at random.
+    static Vector2Int FindFarthestRoom(Dictionary<Vector2Int, RoomType> rooms, Vector2Int from, RoomType[] candidateTypes)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, from);
+
+        return PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: true)
+            ?? PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: false).Value;
+    }
+
     // BFS distance in room-hops from `from`, over the graph of cells already in `rooms` (two cells
     // are adjacent if both exist - the same rule that decides where a door gets carved later).
-    // Returns the farthest cell whose type is one of `candidateTypes`, preferring a dead end (only
-    // 1 neighbor) - a Treasure/Shop/Event/Gamble room can end up attached directly to what would
-    // otherwise be the single farthest cell (they're placed earlier, as new branches off any
-    // existing cell), which would leave it with 2 neighbors; Secret specifically needs exactly 1,
-    // since its bombable wall assumes a single connection. Falls back to any matching cell (dead
-    // end or not) in the rare case no dead end of the right type exists. Ties broken at random.
-    static Vector2Int FindFarthestRoom(Dictionary<Vector2Int, RoomType> rooms, Vector2Int from, RoomType[] candidateTypes)
+    static Dictionary<Vector2Int, int> ComputeDistances(Dictionary<Vector2Int, RoomType> rooms, Vector2Int from)
     {
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         var dist = new Dictionary<Vector2Int, int> { [from] = 0 };
@@ -525,9 +538,7 @@ public static class DungeonBootstrap
                 queue.Enqueue(next);
             }
         }
-
-        return PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: true)
-            ?? PickFarthestMatch(rooms, dist, dirs, candidateTypes, requireDeadEnd: false).Value;
+        return dist;
     }
 
     static Vector2Int? PickFarthestMatch(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, int> dist, Vector2Int[] dirs, RoomType[] candidateTypes, bool requireDeadEnd)
@@ -549,16 +560,21 @@ public static class DungeonBootstrap
         return farthest.Count > 0 ? farthest[Random.Range(0, farthest.Count)] : (Vector2Int?)null;
     }
 
-    // `protectedAnchor` (if given) is never used as the attachment point for the new room - used to
-    // keep the Secret room's single connection from growing a second one.
-    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor = null)
+    // `protectedAnchor` (if given) is never used as the attachment point for the new room - keeps
+    // the Secret room's single connection from growing a second one. `maxDistanceFromStart` rejects
+    // any anchor whose new leaf would reach that far or farther, so a bonus room can never tie or
+    // exceed the Boss room's distance from Start (it wouldn't visually read as "the farthest room"
+    // anymore if a Shop/Treasure/etc. coincidentally matched or beat it).
+    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart)
     {
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
         var candidates = new List<Vector2Int>();
 
         foreach (Vector2Int cell in rooms.Keys)
         {
             if (cell == protectedAnchor) continue;
+            if (dist.TryGetValue(cell, out int cellDist) && cellDist + 1 >= maxDistanceFromStart) continue;
             foreach (Vector2Int d in dirs)
             {
                 Vector2Int next = cell + d;
