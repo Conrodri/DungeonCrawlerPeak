@@ -134,6 +134,7 @@ public static class DungeonBootstrap
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
+        Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -196,16 +197,17 @@ public static class DungeonBootstrap
             Vector2Int rightCell = cell + Vector2Int.right;
             if (layout.ContainsKey(rightCell))
             {
-                // Same offset on both sides so the two doors line up along the shared wall -
-                // entering near the top of one room's wall must lead out near the top of the other's.
-                int doorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
+                bool leftIsSecret = kv.Value == RoomType.Secret;
+                bool rightIsSecret = layout[rightCell] == RoomType.Secret;
+                // A secret wall always sits at the dead center of the wall - the wall itself gives
+                // no visual hint either way, but at least a player who suspects a given wall only
+                // needs to bomb the one predictable spot instead of the whole length of it.
+                int doorY = (leftIsSecret || rightIsSecret ? CenteredDoorOffset(RoomHeight) : RandomDoorOffset(RoomHeight)) + cell.y * StepY;
                 CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, doorY, doorY, floorMap, wallsMap, floorTile);
 
                 Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
                 Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, doorY + DoorWidth / 2f);
 
-                bool leftIsSecret = kv.Value == RoomType.Secret;
-                bool rightIsSecret = layout[rightCell] == RoomType.Secret;
                 if (leftIsSecret || rightIsSecret)
                 {
                     CreateSecretDoorLink(
@@ -223,14 +225,14 @@ public static class DungeonBootstrap
             Vector2Int upCell = cell + Vector2Int.up;
             if (layout.ContainsKey(upCell))
             {
-                int doorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
+                bool bottomIsSecret = kv.Value == RoomType.Secret;
+                bool topIsSecret = layout[upCell] == RoomType.Secret;
+                int doorX = (bottomIsSecret || topIsSecret ? CenteredDoorOffset(RoomWidth) : RandomDoorOffset(RoomWidth)) + cell.x * StepX;
                 CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
 
                 Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
                 Vector2 topPos = new Vector2(doorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
 
-                bool bottomIsSecret = kv.Value == RoomType.Secret;
-                bool topIsSecret = layout[upCell] == RoomType.Secret;
                 if (bottomIsSecret || topIsSecret)
                 {
                     CreateSecretDoorLink(
@@ -413,17 +415,20 @@ public static class DungeonBootstrap
         minimap.bossRoomGridPositions = new List<Vector2Int>();
         minimap.shopRoomGridPositions = new List<Vector2Int>();
         minimap.eventRoomGridPositions = new List<Vector2Int>();
+        minimap.treasureRoomGridPositions = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
         {
             if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Boss) minimap.bossRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Shop) minimap.shopRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Event) minimap.eventRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Treasure) minimap.treasureRoomGridPositions.Add(kv2.Key);
         }
         minimap.bossIconSprite = bossMarker;
         minimap.shopIconSprite = shopMarker;
         minimap.eventIconSprite = eventMarker;
         minimap.secretIconSprite = secretMarker;
+        minimap.outlineRingSprite = outlineRingSprite;
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
@@ -589,6 +594,13 @@ public static class DungeonBootstrap
     {
         int maxOffset = wallLength - DoorMargin - DoorWidth;
         return Random.Range(DoorMargin, maxOffset + 1);
+    }
+
+    // Dead center of the wall, used only for a secret room's wall so there's exactly one spot to
+    // bomb along its length instead of a random one.
+    static int CenteredDoorOffset(int wallLength)
+    {
+        return (wallLength - DoorWidth) / 2;
     }
 
     // Opens each room's own threshold on a shared vertical boundary. No corridor connects them -
@@ -913,6 +925,25 @@ public static class DungeonBootstrap
             for (int x = 0; x < w; x++)
             {
                 tex.SetPixel(x, y, row[x] == 'X' ? color : clear);
+            }
+        }
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
+    }
+
+    // A hollow square (solid border, transparent center) drawn plain white so the minimap can tint
+    // it to any room-type outline color via Image.color instead of baking a separate texture per color.
+    static Sprite CreateRingSprite(string path, int size, int thickness, Color color)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color clear = new Color(0f, 0f, 0f, 0f);
+
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                bool isBorder = x < thickness || x >= size - thickness || y < thickness || y >= size - thickness;
+                tex.SetPixel(x, y, isBorder ? color : clear);
             }
         }
         tex.Apply();

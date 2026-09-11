@@ -13,11 +13,18 @@ public class MinimapController : MonoBehaviour
     public List<Vector2Int> bossRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> shopRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> eventRoomGridPositions = new List<Vector2Int>();
+    public List<Vector2Int> treasureRoomGridPositions = new List<Vector2Int>();
     public Sprite bossIconSprite;
     public Sprite shopIconSprite;
     public Sprite eventIconSprite;
     public Sprite secretIconSprite;
-    public Color bossGlowColor = new Color(0.9f, 0.1f, 0.1f, 0.55f);
+    // A hollow-centered square (see DungeonBootstrap's CreateRingSprite) shared by every outline
+    // below - plain white so each can be tinted to its own color via Image.color.
+    public Sprite outlineRingSprite;
+    public Color bossOutlineColor = new Color(0.85f, 0.1f, 0.1f, 1f);
+    public Color treasureOutlineColor = new Color(0.95f, 0.85f, 0.15f, 1f);
+    public Color eventOutlineColor = new Color(0.55f, 0.25f, 0.85f, 1f);
+    public Color secretOutlineColor = new Color(0.05f, 0.05f, 0.05f, 1f);
     public float cellSize = 12f;
     public float spacing = 3f;
     public float maxPanelSize = 240f;
@@ -36,10 +43,10 @@ public class MinimapController : MonoBehaviour
     static readonly Vector2Int[] Dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     readonly Dictionary<Vector2Int, Image> icons = new Dictionary<Vector2Int, Image>();
-    // Only holds an entry for rooms with a type icon and/or a glow (Boss/Shop/Event/Secret) -
-    // toggled on/off as a unit in Refresh() rather than colored like the plain rooms, and parented
-    // to their own icons[gridPos] so they track its position automatically (including through
-    // UpdateLayout's re-centering).
+    // Only holds an entry for rooms with a type icon and/or an outline (Boss/Shop/Event/Secret/
+    // Treasure) - toggled on/off as a unit in Refresh() rather than colored like the plain rooms,
+    // and parented to their own icons[gridPos] so they track its position automatically (including
+    // through UpdateLayout's re-centering).
     readonly Dictionary<Vector2Int, GameObject> iconOverlays = new Dictionary<Vector2Int, GameObject>();
     readonly Dictionary<Vector2Int, RoomState> states = new Dictionary<Vector2Int, RoomState>();
     Vector2Int currentGridPos;
@@ -105,8 +112,8 @@ public class MinimapController : MonoBehaviour
             icons[gridPos] = img;
 
             Sprite typeIcon = GetTypeIconSprite(gridPos);
-            bool hasGlow = bossRoomGridPositions.Contains(gridPos);
-            if (typeIcon != null || hasGlow)
+            Color? outlineColor = GetOutlineColor(gridPos);
+            if (typeIcon != null || outlineColor != null)
             {
                 GameObject overlay = new GameObject("Overlay", typeof(RectTransform));
                 overlay.transform.SetParent(go.transform, false);
@@ -116,22 +123,24 @@ public class MinimapController : MonoBehaviour
                 overlayRt.anchoredPosition = Vector2.zero;
                 overlayRt.sizeDelta = Vector2.zero;
 
-                // Drawn first (behind the type icon below), and bigger than the cell so it reads
-                // as a halo bleeding out around it rather than just a tinted background.
-                if (hasGlow)
+                // Drawn first (behind the type icon below); the ring sprite's hollow center lets
+                // the room's own square (the parent, rendered further behind still) show through,
+                // so only the border itself reads as a colored outline around the cell.
+                if (outlineColor != null && outlineRingSprite != null)
                 {
-                    GameObject glowGO = new GameObject("Glow", typeof(Image), typeof(PulsingGlow));
-                    glowGO.transform.SetParent(overlay.transform, false);
+                    GameObject outlineGO = new GameObject("Outline", typeof(Image));
+                    outlineGO.transform.SetParent(overlay.transform, false);
 
-                    Image glowImg = glowGO.GetComponent<Image>();
-                    glowImg.color = bossGlowColor;
-                    glowImg.raycastTarget = false;
+                    Image outlineImg = outlineGO.GetComponent<Image>();
+                    outlineImg.sprite = outlineRingSprite;
+                    outlineImg.color = outlineColor.Value;
+                    outlineImg.raycastTarget = false;
 
-                    RectTransform glowRt = glowImg.rectTransform;
-                    glowRt.anchorMin = glowRt.anchorMax = new Vector2(0.5f, 0.5f);
-                    glowRt.pivot = new Vector2(0.5f, 0.5f);
-                    glowRt.anchoredPosition = Vector2.zero;
-                    glowRt.sizeDelta = new Vector2(cellSize * 1.8f, cellSize * 1.8f);
+                    RectTransform outlineRt = outlineImg.rectTransform;
+                    outlineRt.anchorMin = outlineRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    outlineRt.pivot = new Vector2(0.5f, 0.5f);
+                    outlineRt.anchoredPosition = Vector2.zero;
+                    outlineRt.sizeDelta = new Vector2(cellSize, cellSize);
                 }
 
                 if (typeIcon != null)
@@ -162,6 +171,15 @@ public class MinimapController : MonoBehaviour
         if (shopRoomGridPositions.Contains(gridPos)) return shopIconSprite;
         if (eventRoomGridPositions.Contains(gridPos)) return eventIconSprite;
         if (secretRoomGridPositions.Contains(gridPos)) return secretIconSprite;
+        return null;
+    }
+
+    Color? GetOutlineColor(Vector2Int gridPos)
+    {
+        if (bossRoomGridPositions.Contains(gridPos)) return bossOutlineColor;
+        if (treasureRoomGridPositions.Contains(gridPos)) return treasureOutlineColor;
+        if (eventRoomGridPositions.Contains(gridPos)) return eventOutlineColor;
+        if (secretRoomGridPositions.Contains(gridPos)) return secretOutlineColor;
         return null;
     }
 
