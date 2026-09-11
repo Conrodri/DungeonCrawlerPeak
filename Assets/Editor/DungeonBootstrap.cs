@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 public static class DungeonBootstrap
 {
-    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble }
+    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event }
 
     // Sized to fill a 16:9 screen at the camera's orthographic size (RoomHeight/2) with no
     // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
@@ -60,6 +60,8 @@ public static class DungeonBootstrap
         Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
         Sprite secretMarker = CreateSolidSprite("Assets/Art/Markers/Secret.png", new Color(0.55f, 0.35f, 0.75f));
         Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
+        Sprite bossMarker = CreateSolidSprite("Assets/Art/Markers/Boss.png", new Color(0.6f, 0.05f, 0.05f));
+        Sprite eventMarker = CreateSolidSprite("Assets/Art/Markers/Event.png", new Color(0.4f, 0.6f, 0.85f));
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
@@ -214,7 +216,7 @@ public static class DungeonBootstrap
             else
             {
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
-                    shopMarker, treasureMarker, secretMarker, gambleMarker,
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
                     swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
             }
         }
@@ -321,7 +323,9 @@ public static class DungeonBootstrap
         MinimapController minimap = minimapGO.GetComponent<MinimapController>();
         minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
         minimap.monsterRooms = monsterRoomControllers.ToArray();
-        minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
+        minimap.allRoomGridPositions = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
+            if (kv2.Value != RoomType.Secret) minimap.allRoomGridPositions.Add(kv2.Key);
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
@@ -366,12 +370,61 @@ public static class DungeonBootstrap
             rooms[cell] = Random.value < 0.25f ? RoomType.Empty : RoomType.Monster;
         }
 
+        // Treasure/Shop/Event/Gamble are placed first, as extra dead-end branches off the layout,
+        // so that the Boss/Secret distance search below sees the floor's true final shape - placing
+        // them after Boss/Secret would let one of these bonus branches end up farther out than the
+        // Boss room, breaking "always the farthest room".
         PlaceSpecialRoom(rooms, RoomType.Treasure);
         PlaceSpecialRoom(rooms, RoomType.Shop);
-        PlaceSpecialRoom(rooms, RoomType.Secret);
+        if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event); // 1-in-2 chance per floor
         PlaceSpecialRoom(rooms, RoomType.Gamble);
 
+        // Boss is always the farthest room from Start (in door-hops, not Euclidean distance), and
+        // Secret is always the farthest room from Boss - which naturally lands it on the opposite
+        // side of the layout without needing a coordinate mirror that might not exist as a room.
+        // Both are restricted to ordinary Monster/Empty cells so they can't cannibalize one of the
+        // guaranteed special rooms placed just above.
+        RoomType[] normalTypes = { RoomType.Monster, RoomType.Empty };
+        Vector2Int bossCell = FindFarthestRoom(rooms, start, normalTypes);
+        rooms[bossCell] = RoomType.Boss;
+
+        Vector2Int secretCell = FindFarthestRoom(rooms, bossCell, normalTypes);
+        rooms[secretCell] = RoomType.Secret;
+
         return rooms;
+    }
+
+    // BFS distance in room-hops from `from`, over the graph of cells already in `rooms` (two cells
+    // are adjacent if both exist - the same rule that decides where a door gets carved later).
+    // Returns the farthest cell whose type is one of `candidateTypes`; ties broken at random.
+    static Vector2Int FindFarthestRoom(Dictionary<Vector2Int, RoomType> rooms, Vector2Int from, RoomType[] candidateTypes)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        var dist = new Dictionary<Vector2Int, int> { [from] = 0 };
+        var queue = new Queue<Vector2Int>();
+        queue.Enqueue(from);
+
+        while (queue.Count > 0)
+        {
+            Vector2Int current = queue.Dequeue();
+            foreach (Vector2Int d in dirs)
+            {
+                Vector2Int next = current + d;
+                if (!rooms.ContainsKey(next) || dist.ContainsKey(next)) continue;
+                dist[next] = dist[current] + 1;
+                queue.Enqueue(next);
+            }
+        }
+
+        int best = -1;
+        var farthest = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, int> kv in dist)
+        {
+            if (System.Array.IndexOf(candidateTypes, rooms[kv.Key]) < 0) continue;
+            if (kv.Value > best) { best = kv.Value; farthest.Clear(); farthest.Add(kv.Key); }
+            else if (kv.Value == best) farthest.Add(kv.Key);
+        }
+        return farthest[Random.Range(0, farthest.Count)];
     }
 
     static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type)
@@ -482,7 +535,7 @@ public static class DungeonBootstrap
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
-        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker,
+        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker,
         Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite, Sprite bombSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
@@ -503,6 +556,12 @@ public static class DungeonBootstrap
                 break;
             case RoomType.Gamble:
                 SpawnMarker("GambleMarker", center, gambleMarker, parent);
+                break;
+            case RoomType.Boss:
+                SpawnMarker("BossMarker", center, bossMarker, parent);
+                break;
+            case RoomType.Event:
+                SpawnMarker("EventMarker", center, eventMarker, parent);
                 break;
             case RoomType.Start:
                 SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), goldSprite, ItemType.Gold, 5, parent);
