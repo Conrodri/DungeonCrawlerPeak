@@ -122,8 +122,12 @@ public static class DungeonBootstrap
         {
             BuildRoomGeometry(kv.Key.x * StepX, kv.Key.y * StepY, floorMap, wallsMap, floorTile, wallTile);
         }
-        // Each room's doors, so a Monster room can later block/unblock its own thresholds.
+        // Each room's doors, so a Monster room can later block/unblock its own thresholds. Door
+        // TRIGGERS aren't created yet here - that happens once every Monster room's
+        // RoomController exists below, so each trigger can be wired to check the lock state of
+        // the room it teleports into (see pendingDoorLinks).
         var doorsByRoom = new Dictionary<Vector2Int, List<(Vector2 pos, bool onVerticalWall)>>();
+        var pendingDoorLinks = new List<(Vector2 posA, Vector2 inwardA, Vector2Int cellA, Vector2 posB, Vector2 inwardB, Vector2Int cellB)>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             Vector2Int cell = kv.Key;
@@ -139,7 +143,7 @@ public static class DungeonBootstrap
                 Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, rightDoorY + DoorWidth / 2f);
                 AddDoorInfo(doorsByRoom, cell, leftPos, true);
                 AddDoorInfo(doorsByRoom, cell + Vector2Int.right, rightPos, true);
-                CreateDoorLink(leftPos, Vector2.left, rightPos, Vector2.right, root.transform);
+                pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, cell + Vector2Int.right));
             }
             if (layout.ContainsKey(cell + Vector2Int.up))
             {
@@ -151,7 +155,7 @@ public static class DungeonBootstrap
                 Vector2 topPos = new Vector2(topDoorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
                 AddDoorInfo(doorsByRoom, cell, bottomPos, false);
                 AddDoorInfo(doorsByRoom, cell + Vector2Int.up, topPos, false);
-                CreateDoorLink(bottomPos, Vector2.down, topPos, Vector2.up, root.transform);
+                pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, cell + Vector2Int.up));
             }
         }
 
@@ -212,6 +216,17 @@ public static class DungeonBootstrap
                     shopMarker, treasureMarker, secretMarker, gambleMarker,
                     swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
             }
+        }
+
+        // Now that every Monster room's RoomController exists, create the door triggers and wire
+        // each one to the lock state of the room it teleports into.
+        var monsterControllers = new Dictionary<Vector2Int, RoomController>();
+        foreach (RoomController rc in monsterRoomControllers) monsterControllers[rc.gridPos] = rc;
+        foreach (var link in pendingDoorLinks)
+        {
+            monsterControllers.TryGetValue(link.cellA, out RoomController roomA);
+            monsterControllers.TryGetValue(link.cellB, out RoomController roomB);
+            CreateDoorLink(link.posA, link.inwardA, roomA, link.posB, link.inwardB, roomB, root.transform);
         }
 
         // --- Camera: locked per-room instead of following the player continuously ---
@@ -304,6 +319,7 @@ public static class DungeonBootstrap
 
         MinimapController minimap = minimapGO.GetComponent<MinimapController>();
         minimap.roomCamera = cam != null ? cam.GetComponent<RoomCameraController>() : null;
+        minimap.monsterRooms = monsterRoomControllers.ToArray();
         minimap.allRoomGridPositions = new List<Vector2Int>(layout.Keys);
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
@@ -429,15 +445,17 @@ public static class DungeonBootstrap
     }
 
     // Wires both directions of a door-to-door teleport: fully crossing either threshold lands
-    // the player just inside the other room, past its own threshold.
-    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, Vector2 posB, Vector2 inwardB, Transform parent)
+    // the player just inside the other room, past its own threshold. roomA/roomB (nullable) are
+    // the RoomControllers of the rooms on each side - each trigger checks the OTHER side's lock
+    // state, since that's the room it actually teleports into.
+    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, RoomController roomA, Vector2 posB, Vector2 inwardB, RoomController roomB, Transform parent)
     {
         const float landingDepth = 1.5f;
-        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, parent);
-        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, parent);
+        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, roomB, parent);
+        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, roomA, parent);
     }
 
-    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, Transform parent)
+    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController destinationRoom, Transform parent)
     {
         GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
         go.transform.SetParent(parent);
@@ -449,7 +467,9 @@ public static class DungeonBootstrap
         collider.isTrigger = true;
         collider.size = new Vector2(DoorWidth, DoorWidth);
 
-        go.GetComponent<DoorTrigger>().destination = destination;
+        DoorTrigger trigger = go.GetComponent<DoorTrigger>();
+        trigger.destination = destination;
+        trigger.destinationRoom = destinationRoom;
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,

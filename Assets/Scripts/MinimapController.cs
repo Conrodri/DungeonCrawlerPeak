@@ -5,6 +5,7 @@ using UnityEngine.UI;
 public class MinimapController : MonoBehaviour
 {
     public RoomCameraController roomCamera;
+    public RoomController[] monsterRooms = new RoomController[0];
     public List<Vector2Int> allRoomGridPositions = new List<Vector2Int>();
     public float cellSize = 12f;
     public float spacing = 3f;
@@ -13,6 +14,7 @@ public class MinimapController : MonoBehaviour
     public Color undiscoveredColor = new Color(0f, 0f, 0f, 0f);
     public Color halfDiscoveredColor = new Color(0.35f, 0.33f, 0.4f, 0.9f);
     public Color discoveredColor = new Color(0.85f, 0.85f, 0.92f, 0.95f);
+    public Color clearedColor = new Color(0.5f, 0.8f, 0.55f, 0.95f);
     public Color currentRoomColor = new Color(0.95f, 0.8f, 0.25f, 1f);
 
     [Header("Frame")]
@@ -23,8 +25,7 @@ public class MinimapController : MonoBehaviour
     static readonly Vector2Int[] Dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     readonly Dictionary<Vector2Int, Image> icons = new Dictionary<Vector2Int, Image>();
-    readonly HashSet<Vector2Int> discovered = new HashSet<Vector2Int>();
-    readonly HashSet<Vector2Int> halfDiscovered = new HashSet<Vector2Int>();
+    readonly Dictionary<Vector2Int, RoomState> states = new Dictionary<Vector2Int, RoomState>();
     Vector2Int currentGridPos;
 
     void Start()
@@ -32,12 +33,20 @@ public class MinimapController : MonoBehaviour
         BuildFrame();
         BuildIcons();
         if (roomCamera != null) roomCamera.OnRoomEntered += HandleRoomEntered;
+        foreach (RoomController room in monsterRooms)
+        {
+            if (room != null) room.OnRoomCleared += HandleRoomCleared;
+        }
         HandleRoomEntered(Vector2Int.zero); // reveal the starting room immediately
     }
 
     void OnDestroy()
     {
         if (roomCamera != null) roomCamera.OnRoomEntered -= HandleRoomEntered;
+        foreach (RoomController room in monsterRooms)
+        {
+            if (room != null) room.OnRoomCleared -= HandleRoomCleared;
+        }
     }
 
     void BuildFrame()
@@ -86,27 +95,38 @@ public class MinimapController : MonoBehaviour
         if (!icons.ContainsKey(gridPos)) return;
 
         currentGridPos = gridPos;
-        discovered.Add(gridPos);
-        halfDiscovered.Remove(gridPos);
+        // Cleared is sticky - re-entering a cleared room must not downgrade it back to Discovered.
+        if (!states.TryGetValue(gridPos, out RoomState current) || current != RoomState.Cleared)
+            states[gridPos] = RoomState.Discovered;
 
         foreach (Vector2Int dir in Dirs)
         {
             Vector2Int neighbor = gridPos + dir;
-            if (icons.ContainsKey(neighbor) && !discovered.Contains(neighbor)) halfDiscovered.Add(neighbor);
+            if (icons.ContainsKey(neighbor) && !states.ContainsKey(neighbor)) states[neighbor] = RoomState.Adjacent;
         }
 
         Refresh();
         UpdateLayout();
     }
 
+    void HandleRoomCleared(Vector2Int gridPos)
+    {
+        if (!icons.ContainsKey(gridPos)) return;
+
+        states[gridPos] = RoomState.Cleared;
+        Refresh();
+    }
+
     void Refresh()
     {
         foreach (KeyValuePair<Vector2Int, Image> kv in icons)
         {
+            states.TryGetValue(kv.Key, out RoomState state);
             Color c;
             if (kv.Key == currentGridPos) c = currentRoomColor;
-            else if (discovered.Contains(kv.Key)) c = discoveredColor;
-            else if (halfDiscovered.Contains(kv.Key)) c = halfDiscoveredColor;
+            else if (state == RoomState.Cleared) c = clearedColor;
+            else if (state == RoomState.Discovered) c = discoveredColor;
+            else if (state == RoomState.Adjacent) c = halfDiscoveredColor;
             else c = undiscoveredColor;
             kv.Value.color = c;
         }
@@ -117,12 +137,7 @@ public class MinimapController : MonoBehaviour
     void UpdateLayout()
     {
         int minX = int.MaxValue, maxX = int.MinValue, minY = int.MaxValue, maxY = int.MinValue;
-        foreach (Vector2Int p in discovered)
-        {
-            minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
-            minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);
-        }
-        foreach (Vector2Int p in halfDiscovered)
+        foreach (Vector2Int p in states.Keys)
         {
             minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
             minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);

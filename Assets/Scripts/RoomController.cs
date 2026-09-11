@@ -25,6 +25,13 @@ public class RoomController : MonoBehaviour
     public EnemySpawn[] recipe;
     public List<GameObject> doorBlockers = new List<GameObject>();
 
+    public bool IsLocked { get; private set; }
+    public bool IsCleared { get; private set; }
+
+    // Fired once, the moment this room's original monsters are all dead - lets the minimap (and
+    // anything else) react even if the player has already left the room.
+    public event Action<Vector2Int> OnRoomCleared;
+
     readonly List<EnemyController> liveEnemies = new List<EnemyController>();
     bool hasBeenEnteredBefore;
 
@@ -43,6 +50,7 @@ public class RoomController : MonoBehaviour
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
         if (enteredGridPos != gridPos) return;
+        if (IsCleared) return; // a cleared room's monsters never come back
 
         if (!hasBeenEnteredBefore)
         {
@@ -112,10 +120,16 @@ public class RoomController : MonoBehaviour
 
     void UpdateDoors()
     {
-        bool locked = liveEnemies.Count > 0;
+        IsLocked = liveEnemies.Count > 0;
         foreach (GameObject blocker in doorBlockers)
         {
-            if (blocker != null) blocker.SetActive(locked);
+            if (blocker != null) blocker.SetActive(IsLocked);
+        }
+
+        if (!IsLocked && !IsCleared)
+        {
+            IsCleared = true;
+            OnRoomCleared?.Invoke(gridPos);
         }
     }
 }
