@@ -127,35 +127,33 @@ public static class DungeonBootstrap
         // RoomController exists below, so each trigger can be wired to check the lock state of
         // the room it teleports into (see pendingDoorLinks).
         var doorsByRoom = new Dictionary<Vector2Int, List<(Vector2 pos, bool onVerticalWall)>>();
-        var pendingDoorLinks = new List<(Vector2 posA, Vector2 inwardA, Vector2Int cellA, Vector2 posB, Vector2 inwardB, Vector2Int cellB)>();
+        var pendingDoorLinks = new List<(Vector2 posA, Vector2 inwardA, Vector2Int cellA, Vector2 posB, Vector2 inwardB, Vector2Int cellB, bool onVerticalWall)>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             Vector2Int cell = kv.Key;
             if (layout.ContainsKey(cell + Vector2Int.right))
             {
-                // Each side's door is positioned independently along its own wall - a room
-                // entered near one corner can open into its neighbor near the opposite one.
-                int leftDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
-                int rightDoorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
-                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, leftDoorY, rightDoorY, floorMap, wallsMap, floorTile);
+                // Same offset on both sides so the two doors line up along the shared wall -
+                // entering near the top of one room's wall must lead out near the top of the other's.
+                int doorY = RandomDoorOffset(RoomHeight) + cell.y * StepY;
+                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, doorY, doorY, floorMap, wallsMap, floorTile);
 
-                Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, leftDoorY + DoorWidth / 2f);
-                Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, rightDoorY + DoorWidth / 2f);
+                Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
+                Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, doorY + DoorWidth / 2f);
                 AddDoorInfo(doorsByRoom, cell, leftPos, true);
                 AddDoorInfo(doorsByRoom, cell + Vector2Int.right, rightPos, true);
-                pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, cell + Vector2Int.right));
+                pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, cell + Vector2Int.right, true));
             }
             if (layout.ContainsKey(cell + Vector2Int.up))
             {
-                int bottomDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
-                int topDoorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
-                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, bottomDoorX, topDoorX, floorMap, wallsMap, floorTile);
+                int doorX = RandomDoorOffset(RoomWidth) + cell.x * StepX;
+                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
 
-                Vector2 bottomPos = new Vector2(bottomDoorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
-                Vector2 topPos = new Vector2(topDoorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
+                Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
+                Vector2 topPos = new Vector2(doorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
                 AddDoorInfo(doorsByRoom, cell, bottomPos, false);
                 AddDoorInfo(doorsByRoom, cell + Vector2Int.up, topPos, false);
-                pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, cell + Vector2Int.up));
+                pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, cell + Vector2Int.up, false));
             }
         }
 
@@ -227,6 +225,20 @@ public static class DungeonBootstrap
             monsterControllers.TryGetValue(link.cellA, out RoomController roomA);
             monsterControllers.TryGetValue(link.cellB, out RoomController roomB);
             CreateDoorLink(link.posA, link.inwardA, roomA, link.posB, link.inwardB, roomB, root.transform);
+
+            // Seal the void gap symmetrically: a locked room must stop the player at the OTHER
+            // room's own threshold too, not only at its own - otherwise nothing physically stops
+            // the player from wandering into the (collision-less) gap between the two rooms.
+            if (roomB != null)
+            {
+                GameObject mirror = SpawnDoorBlocker(link.posA, link.onVerticalWall, doorBarrierSprite, roomB.transform);
+                roomB.doorBlockers.Add(mirror);
+            }
+            if (roomA != null)
+            {
+                GameObject mirror = SpawnDoorBlocker(link.posB, link.onVerticalWall, doorBarrierSprite, roomA.transform);
+                roomA.doorBlockers.Add(mirror);
+            }
         }
 
         // --- Camera: locked per-room instead of following the player continuously ---
