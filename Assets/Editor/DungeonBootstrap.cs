@@ -571,6 +571,7 @@ public static class DungeonBootstrap
         RoomController controller = roomGO.GetComponent<RoomController>();
         controller.gridPos = gridPos;
         controller.roomOrigin = new Vector2(originX, originY);
+        controller.roomSize = new Vector2(RoomWidth, RoomHeight);
         controller.player = player;
         controller.enemySprite = enemySprite;
         controller.eliteSprite = eliteSprite;

@@ -17,6 +17,7 @@ public class RoomController : MonoBehaviour
 
     public Vector2Int gridPos;
     public Vector2 roomOrigin;
+    public Vector2 roomSize;
     public RoomCameraController roomCamera;
     public Transform player;
     public Sprite enemySprite;
@@ -88,6 +89,7 @@ public class RoomController : MonoBehaviour
             // heart (1), an elite hit costs a full heart (2).
             controller.contactDamage = spawn.isElite ? 2 : 1;
             controller.SetTarget(player);
+            controller.SetRoomBounds(new Rect(roomOrigin, roomSize));
             controller.OnDied += () => HandleEnemyDied(controller);
 
             liveEnemies.Add(controller);
