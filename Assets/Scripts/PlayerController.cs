@@ -70,6 +70,10 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        // Same tunneling guard as EnemyController: without it, a player moving against a tilemap
+        // CompositeCollider2D can occasionally skip clean through a thin wall in a single physics
+        // step instead of colliding with it.
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         health = GetComponent<Health>();
         inventory = GetComponent<PlayerInventory>();
         bodyCollider = GetComponent<CircleCollider2D>();

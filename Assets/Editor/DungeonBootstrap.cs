@@ -99,7 +99,11 @@ public static class DungeonBootstrap
         floorGO.transform.SetParent(gridGO.transform);
         floorGO.GetComponent<TilemapRenderer>().sortingOrder = -1;
 
-        GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D), typeof(CompositeCollider2D));
+        // No CompositeCollider2D: its "Merge" geometry generation silently produces incomplete
+        // coverage on a tilemap this large (confirmed only ~20-40% of wall tiles per room actually
+        // got collision, the rest let the player walk straight through) - individual per-tile
+        // colliders from TilemapCollider2D alone are reliable and cheap enough at this scale.
+        GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D));
         wallsGO.transform.SetParent(gridGO.transform);
         // Individual mode (rather than batched Chunk) lets each wall tile sort against the
         // player sprite by Y position, so tall wall tops correctly draw in front of / behind the player.
@@ -107,7 +111,6 @@ public static class DungeonBootstrap
         wallsGO.GetComponent<TilemapRenderer>().sortingOrder = 0;
         Rigidbody2D wallsBody = wallsGO.GetComponent<Rigidbody2D>();
         wallsBody.bodyType = RigidbodyType2D.Static;
-        wallsGO.GetComponent<TilemapCollider2D>().usedByComposite = true;
 
         Tilemap floorMap = floorGO.GetComponent<Tilemap>();
         Tilemap wallsMap = wallsGO.GetComponent<Tilemap>();
