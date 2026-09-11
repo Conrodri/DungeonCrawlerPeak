@@ -24,9 +24,10 @@ public class RoomController : MonoBehaviour
     public Sprite eliteSprite;
     public EnemySpawn[] recipe;
     public List<GameObject> doorBlockers = new List<GameObject>();
-    // Door triggers in neighboring rooms that lead INTO this room - switched solid while locked
-    // (see DoorTrigger.SetLocked), so a locked door never shows a visible barrier on that side.
-    public List<DoorTrigger> incomingTriggers = new List<DoorTrigger>();
+    // This room's own door triggers (the ones sitting inside it) - switched solid while locked
+    // (see DoorTrigger.SetLocked) to block LEAVING, with no visible barrier needed. Entering a
+    // locked room is never blocked this way - only leaving it before it's cleared.
+    public List<DoorTrigger> exitTriggers = new List<DoorTrigger>();
 
     public bool IsLocked { get; private set; }
     public bool IsCleared { get; private set; }
@@ -128,7 +129,7 @@ public class RoomController : MonoBehaviour
         {
             if (blocker != null) blocker.SetActive(IsLocked);
         }
-        foreach (DoorTrigger trigger in incomingTriggers)
+        foreach (DoorTrigger trigger in exitTriggers)
         {
             if (trigger != null) trigger.SetLocked(IsLocked);
         }

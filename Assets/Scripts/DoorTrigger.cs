@@ -1,15 +1,16 @@
 using UnityEngine;
 
 // Fully crossing a doorway teleports the player straight to the connected room - no walkable
-// corridor in between. While the destination room is locked, this same collider is switched to
-// solid (see SetLocked) instead of a separate visible barrier - the neighboring room must always
-// look open, even though the doorway itself silently refuses to let the player through.
+// corridor in between. Entering a locked room is always allowed (that's how you engage it); this
+// collider is switched solid only to block LEAVING through it while the room it sits in is
+// locked - no visible barrier needed, since this collider has no sprite.
 [RequireComponent(typeof(BoxCollider2D))]
 public class DoorTrigger : MonoBehaviour
 {
     public Vector2 destination;
-    // The room this trigger leads into (null if that room is never lockable).
-    public RoomController destinationRoom;
+    // The room this trigger physically sits in (null if that room is never lockable) - its OWN
+    // lock state gates leaving through this door, not the destination's.
+    public RoomController ownerRoom;
 
     BoxCollider2D boxCollider;
 

@@ -447,16 +447,17 @@ public static class DungeonBootstrap
 
     // Wires both directions of a door-to-door teleport: fully crossing either threshold lands
     // the player just inside the other room, past its own threshold. roomA/roomB (nullable) are
-    // the RoomControllers of the rooms on each side - each trigger checks the OTHER side's lock
-    // state, since that's the room it actually teleports into.
+    // the RoomControllers of the rooms on each side - each trigger checks its OWN room's lock
+    // state (the room it physically sits in), since entering a locked room is always allowed;
+    // only leaving one before it's cleared is blocked.
     static void CreateDoorLink(Vector2 posA, Vector2 inwardA, RoomController roomA, Vector2 posB, Vector2 inwardB, RoomController roomB, Transform parent)
     {
         const float landingDepth = 1.5f;
-        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, roomB, parent);
-        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, roomA, parent);
+        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, roomA, parent);
+        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, roomB, parent);
     }
 
-    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController destinationRoom, Transform parent)
+    static void SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController ownerRoom, Transform parent)
     {
         GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
         go.transform.SetParent(parent);
@@ -470,9 +471,9 @@ public static class DungeonBootstrap
 
         DoorTrigger trigger = go.GetComponent<DoorTrigger>();
         trigger.destination = destination;
-        trigger.destinationRoom = destinationRoom;
+        trigger.ownerRoom = ownerRoom;
 
-        if (destinationRoom != null) destinationRoom.incomingTriggers.Add(trigger);
+        if (ownerRoom != null) ownerRoom.exitTriggers.Add(trigger);
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
