@@ -101,74 +101,6 @@ public static class DungeonBootstrap
         "     XX   ",
     };
 
-    static readonly string[] FistMask =
-    {
-        "  XXXX    ",
-        " XXXXXX   ",
-        "XXXXXXXX  ",
-        "XXXXXXXXX ",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        " XXXXXXXX ",
-        "  XXXXXX  ",
-        "   XXXX   ",
-    };
-
-    static readonly string[] DaggerMask =
-    {
-        "    XX    ",
-        "   XXXX   ",
-        "   XXXX   ",
-        "  XXXXXX  ",
-        "  XXXXXX  ",
-        " XXXXXXXX ",
-        "    XX    ",
-        "    XX    ",
-        "    XX    ",
-        "   XXXX   ",
-    };
-
-    static readonly string[] LightbulbMask =
-    {
-        "  XXXXXX  ",
-        " XXXXXXXX ",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        " XXXXXXXX ",
-        "  XXXXXX  ",
-        "   XXXX   ",
-        "   X  X   ",
-        "   XXXX   ",
-    };
-
-    static readonly string[] BootMask =
-    {
-        "  XXXXX   ",
-        "  XXXXX   ",
-        "  XXXXX   ",
-        "  XXXXX   ",
-        "  XXXXXX  ",
-        "  XXXXXXX ",
-        "  XXXXXXXX",
-        "XXXXXXXXXX",
-    };
-
-    static readonly string[] StarMask =
-    {
-        "    XX    ",
-        "    XX    ",
-        "   XXXX   ",
-        "  XXXXXX  ",
-        "XXXXXXXXXX",
-        " XXXXXXXX ",
-        " XXX  XXX ",
-        "XXX    XXX",
-        "XX      XX",
-        "X        X",
-    };
-
     [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
     {
@@ -204,13 +136,6 @@ public static class DungeonBootstrap
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
         Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
-
-        Sprite constitutionIcon = CreateMaskedSprite("Assets/Art/UI/StatConstitution.png", HeartMask, new Color(0.85f, 0.15f, 0.2f));
-        Sprite forceIcon = CreateMaskedSprite("Assets/Art/UI/StatForce.png", FistMask, new Color(0.8f, 0.5f, 0.2f));
-        Sprite agiliteIcon = CreateMaskedSprite("Assets/Art/UI/StatAgilite.png", DaggerMask, new Color(0.75f, 0.78f, 0.82f));
-        Sprite intelligenceIcon = CreateMaskedSprite("Assets/Art/UI/StatIntelligence.png", LightbulbMask, new Color(0.95f, 0.85f, 0.3f));
-        Sprite vitesseIcon = CreateMaskedSprite("Assets/Art/UI/StatVitesse.png", BootMask, new Color(0.5f, 0.35f, 0.2f));
-        Sprite charismeIcon = CreateMaskedSprite("Assets/Art/UI/StatCharisme.png", StarMask, new Color(0.85f, 0.35f, 0.75f));
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -473,12 +398,6 @@ public static class DungeonBootstrap
 
         StatsUI statsUI = statsGO.GetComponent<StatsUI>();
         statsUI.stats = playerStats;
-        statsUI.constitutionIcon = constitutionIcon;
-        statsUI.forceIcon = forceIcon;
-        statsUI.agiliteIcon = agiliteIcon;
-        statsUI.intelligenceIcon = intelligenceIcon;
-        statsUI.vitesseIcon = vitesseIcon;
-        statsUI.charismeIcon = charismeIcon;
 
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
