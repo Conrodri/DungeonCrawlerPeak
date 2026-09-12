@@ -10,6 +10,10 @@ public class PlayerController : MonoBehaviour
 
     public float moveSpeed = 5f;
 
+    [Header("Sprint")]
+    public float sprintSpeedMultiplier = 1.6f;
+    public float sprintStaminaCostPerSecond = 25f;
+
     [Header("Weapon")]
     public WeaponType currentWeapon = WeaponType.Fist;
     public Sprite projectileSprite;
@@ -55,6 +59,7 @@ public class PlayerController : MonoBehaviour
 
     Rigidbody2D rb;
     Health health;
+    Stamina stamina;
     PlayerInventory inventory;
     PlayerStats stats;
     CircleCollider2D bodyCollider;
@@ -63,6 +68,7 @@ public class PlayerController : MonoBehaviour
     float lastAttackTime = -999f;
     float lastThrowTime = -999f;
     bool isDead;
+    bool isSprinting;
 
     void Awake()
     {
@@ -72,6 +78,7 @@ public class PlayerController : MonoBehaviour
         // step instead of colliding with it.
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         health = GetComponent<Health>();
+        stamina = GetComponent<Stamina>();
         inventory = GetComponent<PlayerInventory>();
         stats = GetComponent<PlayerStats>();
         bodyCollider = GetComponent<CircleCollider2D>();
@@ -83,6 +90,7 @@ public class PlayerController : MonoBehaviour
         if (isDead || DialogueManager.IsOpen || InventoryUI.IsOpen)
         {
             moveInput = Vector2.zero;
+            isSprinting = false;
             return;
         }
 
@@ -90,6 +98,7 @@ public class PlayerController : MonoBehaviour
         if (kb == null)
         {
             moveInput = Vector2.zero;
+            isSprinting = false;
             return;
         }
 
@@ -101,6 +110,11 @@ public class PlayerController : MonoBehaviour
         if (kb.wKey.isPressed) y += 1f;
         if (kb.sKey.isPressed) y -= 1f;
         moveInput = new Vector2(x, y).normalized;
+
+        // Sprint: held Shift while actually moving, gated on stamina - runs out mid-sprint and it
+        // cuts off on its own instead of going negative.
+        isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f;
+        if (isSprinting) stamina.Drain(sprintStaminaCostPerSecond * Time.deltaTime);
 
         // Aiming/attacking: arrow keys only, cardinal directions, no diagonals.
         Vector2 aim = Vector2.zero;
@@ -125,7 +139,8 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * stats.MoveSpeedMultiplier;
+        float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier : 1f);
+        rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
     }
 
     bool weaponLocked;

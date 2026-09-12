@@ -1,6 +1,6 @@
 using System;
 
-public enum StatType { None, Force, Dexterite, Intelligence, Vitesse, Constitution, Portee, Charisme }
+public enum StatType { None, Force, Dexterite, Intelligence, Vitesse, Constitution, Portee, Charisme, Endurance }
 
 // 0%, 33%, 66% chance of the failure outcome actually applying when the roll fails.
 public enum RiskTier { Safe, Important, Risky }

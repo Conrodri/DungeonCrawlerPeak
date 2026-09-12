@@ -242,6 +242,7 @@ public static class DungeonGenerator
         Sprite intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
         Sprite vitesseIcon = LoadIconPackSprite("Thunder_Bright");
         Sprite charismeIcon = LoadIconPackSprite("Star01_Bright");
+        Sprite enduranceIcon = LoadIconPackSprite("Watch_Bright");
 
         Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
         Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
@@ -364,7 +365,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -391,6 +392,7 @@ public static class DungeonGenerator
         playerInventory.hotbarSlots[3] = ItemIds.Bomb;
         PlayerStats playerStats = player.GetComponent<PlayerStats>();
         Health playerHealth = player.GetComponent<Health>();
+        Stamina playerStamina = player.GetComponent<Stamina>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
         // heart), elite hits cost 2 (a full heart).
         playerHealth.maxHealth = 6;
@@ -526,6 +528,34 @@ public static class DungeonGenerator
         hud.emptyColor = heartEmpty;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
 
+        // --- Stamina bar (thin bar directly under the hearts, always visible) ---
+        GameObject staminaBarGO = new GameObject("StaminaBar", typeof(RectTransform), typeof(Image), typeof(StaminaBarUI));
+        staminaBarGO.transform.SetParent(canvasGO.transform, false);
+        Image staminaBarBackground = staminaBarGO.GetComponent<Image>();
+        staminaBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform staminaBarRect = staminaBarBackground.rectTransform;
+        staminaBarRect.anchorMin = staminaBarRect.anchorMax = new Vector2(0f, 1f);
+        staminaBarRect.pivot = new Vector2(0f, 1f);
+        staminaBarRect.anchoredPosition = new Vector2(20f, -58f);
+        staminaBarRect.sizeDelta = new Vector2(160f, 10f);
+
+        GameObject staminaFillGO = new GameObject("Fill", typeof(Image));
+        staminaFillGO.transform.SetParent(staminaBarGO.transform, false);
+        Image staminaFill = staminaFillGO.GetComponent<Image>();
+        staminaFill.color = new Color(0.75f, 0.7f, 0.15f);
+        staminaFill.type = Image.Type.Filled;
+        staminaFill.fillMethod = Image.FillMethod.Horizontal;
+        staminaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform staminaFillRect = staminaFill.rectTransform;
+        staminaFillRect.anchorMin = Vector2.zero;
+        staminaFillRect.anchorMax = Vector2.one;
+        staminaFillRect.offsetMin = new Vector2(1f, 1f);
+        staminaFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        StaminaBarUI staminaBar = staminaBarGO.GetComponent<StaminaBarUI>();
+        staminaBar.target = playerStamina;
+        staminaBar.fill = staminaFill;
+
         // --- Gold counter (below the hearts) ---
         GameObject goldGO = new GameObject("GoldCounter", typeof(RectTransform), typeof(GoldCounterUI));
         goldGO.transform.SetParent(canvasGO.transform, false);
@@ -537,6 +567,7 @@ public static class DungeonGenerator
 
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
+        goldCounter.yOffset = -78f; // leaves room for the stamina bar sitting just under the hearts
 
         // --- Stats column (below the gold counter) ---
         GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
@@ -555,6 +586,7 @@ public static class DungeonGenerator
         statsUI.intelligenceIcon = intelligenceIcon;
         statsUI.vitesseIcon = vitesseIcon;
         statsUI.charismeIcon = charismeIcon;
+        statsUI.enduranceIcon = enduranceIcon;
 
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
@@ -743,6 +775,7 @@ public static class DungeonGenerator
         dialogueManager.playerInventory = playerInventory;
         dialogueManager.playerController = playerController;
         dialogueManager.playerHealth = playerHealth;
+        dialogueManager.playerStamina = playerStamina;
         dialogueManager.diceRoll = diceRollUI;
         dialogueManager.promptGO = promptGO;
         dialogueManager.panel = dialoguePanel;

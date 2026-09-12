@@ -19,9 +19,12 @@ public class SaveData
     public int constitution;
     public int portee;
     public int charisme;
+    public int endurance;
 
     public int maxHealth;
     public int currentHealth;
+    public float maxStamina;
+    public float currentStamina;
 
     public PlayerController.WeaponType currentWeapon;
     public bool weaponLocked;

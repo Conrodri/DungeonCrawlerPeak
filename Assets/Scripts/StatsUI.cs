@@ -13,6 +13,7 @@ public class StatsUI : MonoBehaviour
     public Sprite intelligenceIcon;
     public Sprite vitesseIcon;
     public Sprite charismeIcon;
+    public Sprite enduranceIcon;
 
     public float yOffset = -135f;
     public float rowSpacing = 56f;
@@ -20,7 +21,7 @@ public class StatsUI : MonoBehaviour
     public int fontSize = 32;
     [Range(0f, 1f)] public float alpha = 0.3f;
 
-    static readonly string[] Labels = { "Constitution", "Force", "Agilite", "Intelligence", "Vitesse", "Charisme" };
+    static readonly string[] Labels = { "Constitution", "Force", "Agilite", "Intelligence", "Vitesse", "Charisme", "Endurance" };
 
     Text[] valueTexts;
 
@@ -37,7 +38,7 @@ public class StatsUI : MonoBehaviour
 
     void BuildUI()
     {
-        Sprite[] icons = { constitutionIcon, forceIcon, agiliteIcon, intelligenceIcon, vitesseIcon, charismeIcon };
+        Sprite[] icons = { constitutionIcon, forceIcon, agiliteIcon, intelligenceIcon, vitesseIcon, charismeIcon, enduranceIcon };
         valueTexts = new Text[Labels.Length];
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
         Color tint = new Color(1f, 1f, 1f, alpha);
@@ -84,5 +85,6 @@ public class StatsUI : MonoBehaviour
         valueTexts[3].text = Labels[3] + ": " + stats.intelligence;
         valueTexts[4].text = Labels[4] + ": " + stats.vitesse;
         valueTexts[5].text = Labels[5] + ": " + stats.charisme;
+        valueTexts[6].text = Labels[6] + ": " + stats.endurance;
     }
 }

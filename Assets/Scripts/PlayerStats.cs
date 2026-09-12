@@ -4,6 +4,7 @@ using UnityEngine;
 // below. Nothing here changes these values over time yet - no XP/level-up flow, no stat allocation
 // UI. That arrives with the NPC dialogue/dice-roll feature, which will grant or penalize stats.
 [RequireComponent(typeof(Health))]
+[RequireComponent(typeof(Stamina))]
 public class PlayerStats : MonoBehaviour
 {
     public int level = 1;
@@ -14,8 +15,13 @@ public class PlayerStats : MonoBehaviour
     public int constitution = 1;
     public int portee = 1;
     public int charisme = 1;
+    public int endurance = 1;
 
     const int VitesseCap = 25;
+    const float BaseStamina = 60f;
+    const float StaminaPerEndurance = 8f;
+    const float BaseStaminaRegen = 15f;
+    const float StaminaRegenPerEndurance = 1.5f;
 
     public float PhysicalDamageMultiplier => 1f + force * 0.01f;
     public float MagicDamageMultiplier => 1f + intelligence * 0.01f;
@@ -31,12 +37,18 @@ public class PlayerStats : MonoBehaviour
     public int ProficiencyBonus => level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
 
     Health health;
+    Stamina stamina;
 
     void Awake()
     {
         health = GetComponent<Health>();
         health.maxHealth += constitution; // 1 point = 1 half-heart unit, same scale as Health itself
         health.currentHealth = health.maxHealth;
+
+        stamina = GetComponent<Stamina>();
+        stamina.maxStamina = BaseStamina + endurance * StaminaPerEndurance;
+        stamina.regenPerSecond = BaseStaminaRegen + endurance * StaminaRegenPerEndurance;
+        stamina.currentStamina = stamina.maxStamina;
     }
 
     void Update()
@@ -55,6 +67,7 @@ public class PlayerStats : MonoBehaviour
             case StatType.Constitution: return constitution;
             case StatType.Portee: return portee;
             case StatType.Charisme: return charisme;
+            case StatType.Endurance: return endurance;
             default: return 0;
         }
     }
@@ -78,6 +91,13 @@ public class PlayerStats : MonoBehaviour
                 break;
             case StatType.Portee: portee = Mathf.Max(0, portee - amount); break;
             case StatType.Charisme: charisme = Mathf.Max(0, charisme - amount); break;
+            case StatType.Endurance:
+                int enduranceLoss = Mathf.Min(endurance, amount);
+                endurance -= enduranceLoss;
+                stamina.maxStamina = Mathf.Max(10f, stamina.maxStamina - enduranceLoss * StaminaPerEndurance);
+                stamina.regenPerSecond = Mathf.Max(1f, stamina.regenPerSecond - enduranceLoss * StaminaRegenPerEndurance);
+                stamina.currentStamina = Mathf.Min(stamina.currentStamina, stamina.maxStamina);
+                break;
         }
     }
 
@@ -90,5 +110,6 @@ public class PlayerStats : MonoBehaviour
         ApplyPenalty(StatType.Constitution, 1);
         ApplyPenalty(StatType.Portee, 1);
         ApplyPenalty(StatType.Charisme, 1);
+        ApplyPenalty(StatType.Endurance, 1);
     }
 }
