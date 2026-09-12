@@ -99,11 +99,14 @@ public class DialogueManager : MonoBehaviour
     // the player can judge whether to take the option before committing to it - not just after.
     string FormatOption(DialogueOption option)
     {
-        if (option.checkStat == StatType.None) return option.text;
-
-        int statValue = playerStats.GetStat(option.checkStat);
-        int proficiency = playerStats.ProficiencyBonus;
-        return option.text + " [" + option.checkStat + " " + statValue + " +" + proficiency + " vs DC " + option.dc + ", " + RiskLabel(option.risk) + "]";
+        string line = option.text;
+        if (option.checkStat != StatType.None)
+        {
+            int statValue = playerStats.GetStat(option.checkStat);
+            int proficiency = playerStats.ProficiencyBonus;
+            line += " [" + option.checkStat + " " + statValue + " +" + proficiency + " vs DC " + option.dc + ", " + RiskLabel(option.risk) + "]";
+        }
+        return option.disabled ? "<color=#777777>" + line + " (indisponible)</color>" : line;
     }
 
     string RiskLabel(RiskTier risk)
@@ -122,7 +125,9 @@ public class DialogueManager : MonoBehaviour
         if (Keyboard.current == null || activeNpc == null) return;
         for (int i = 0; i < activeNpc.options.Count && i < 5; i++)
         {
-            if (NumberKeyPressed(i)) { ChooseOption(activeNpc.options[i]); return; }
+            if (!NumberKeyPressed(i)) continue;
+            if (!activeNpc.options[i].disabled) ChooseOption(activeNpc.options[i]);
+            return;
         }
     }
 
@@ -158,13 +163,46 @@ public class DialogueManager : MonoBehaviour
             if (success)
             {
                 Resolve(option.onSuccess, true);
+                return;
+            }
+
+            float malusChance = option.risk == RiskTier.Risky ? 0.66f : option.risk == RiskTier.Important ? 0.33f : 0f;
+            bool apply = Random.value < malusChance;
+            if (option.risk == RiskTier.Important)
+            {
+                // Failing an Important check doesn't end the conversation - the option just
+                // becomes permanently unusable, and the player can still pick another one.
+                option.disabled = true;
+                ResolveKeepOpen(option.onFailure, apply);
             }
             else
             {
-                float malusChance = option.risk == RiskTier.Risky ? 0.66f : option.risk == RiskTier.Important ? 0.33f : 0f;
-                Resolve(option.onFailure, Random.value < malusChance);
+                Resolve(option.onFailure, apply);
             }
         }));
+    }
+
+    // Same outcome handling as Resolve, but re-lists the options instead of closing the panel -
+    // used for a failed Important-tier check, where only that one option should become unusable.
+    void ResolveKeepOpen(DialogueOutcome outcome, bool apply)
+    {
+        if (outcome == null) { RefreshOptionsText(); return; }
+
+        if (apply)
+        {
+            bodyText.text = outcome.messagePool != null && outcome.messagePool.Length > 0
+                ? outcome.messagePool[Random.Range(0, outcome.messagePool.Length)]
+                : outcome.message;
+            ApplyOutcome(outcome);
+        }
+        else
+        {
+            bodyText.text = "Rien ne se passe.";
+        }
+
+        // ApplyOutcome may have destroyed the NPC (npcDisappearsForever) - if so, activeNpc is now
+        // null and the Update() safety net closes the panel on its own; only refresh if it's still here.
+        if (activeNpc != null) RefreshOptionsText();
     }
 
     void Resolve(DialogueOutcome outcome, bool apply)

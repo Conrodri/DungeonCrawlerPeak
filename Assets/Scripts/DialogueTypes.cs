@@ -26,4 +26,8 @@ public class DialogueOption
     public RiskTier risk = RiskTier.Safe;
     public DialogueOutcome onSuccess;
     public DialogueOutcome onFailure;
+    // Set at runtime when an Important-tier check fails - the option stays listed but can't be
+    // chosen again, instead of the whole conversation ending. Persists on this instance, so it
+    // stays disabled if the player leaves and re-opens the same NPC's dialogue later.
+    [System.NonSerialized] public bool disabled;
 }

@@ -1024,8 +1024,7 @@ public static class DungeonBootstrap
                 },
                 onFailure = new DialogueOutcome
                 {
-                    message = "Il n'a pas de temps a perdre avec des illettres, et s'en va.",
-                    npcDisappearsForever = true,
+                    message = "Il n'a pas de temps a perdre avec des illettres pour l'instant.",
                 },
             },
             new DialogueOption
