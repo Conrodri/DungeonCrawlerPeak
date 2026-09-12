@@ -8,4 +8,6 @@ public static class ItemIds
     public const string Anvil = "anvil";
     public const string CursedSword = "cursed_sword";
     public const string TrapSack = "trap_sack";
+    public const string HealthPotion = "health_potion";
+    public const string CerberusCollar = "cerberus_collar";
 }

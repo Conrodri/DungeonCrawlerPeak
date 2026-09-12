@@ -15,4 +15,6 @@ public class ItemDefinition
     public bool HasCursedWeapon;
     public PlayerController.WeaponType CursedWeaponType;
     public bool IsTrap;
+    // 0 = not a potion; otherwise using it from the hotbar heals this much instead of throwing it.
+    public int HealAmount;
 }

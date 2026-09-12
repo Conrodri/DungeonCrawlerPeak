@@ -8,9 +8,6 @@ using UnityEngine;
 public class DoorTrigger : MonoBehaviour
 {
     public Vector2 destination;
-    // The room this trigger physically sits in (null if that room is never lockable) - its OWN
-    // lock state gates leaving through this door, not the destination's.
-    public RoomController ownerRoom;
 
     BoxCollider2D boxCollider;
 

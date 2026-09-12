@@ -113,6 +113,8 @@ public static class DungeonBootstrap
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
+        Sprite cerberusSprite = CreateCircleSprite("Assets/Art/Enemies/Cerberus.png", new Color(0.15f, 0.1f, 0.1f));
+        Sprite bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
         Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
         Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
@@ -188,6 +190,15 @@ public static class DungeonBootstrap
             isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword);
         RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Misc, 1, trapSackSprite,
             "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true);
+
+        Sprite potionSprite = CreateCircleSprite("Assets/Art/Items/Potion.png", new Color(0.8f, 0.15f, 0.35f));
+        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
+            "Restaure un peu de vie.", healAmount: 3);
+
+        Sprite cerberusCollarSprite = CreateSolidSprite("Assets/Art/Items/CerberusCollar.png", new Color(0.75f, 0.6f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Misc, 1, cerberusCollarSprite,
+            "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.");
+
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
@@ -359,6 +370,7 @@ public static class DungeonBootstrap
         // --- Room content (enemies / special-room markers) ---
         var roomEntries = new List<RoomCameraController.RoomEntry>();
         var monsterRoomControllers = new List<RoomController>();
+        var bossRoomControllers = new List<BossRoomController>();
         int eliteRoomCount = 0;
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
@@ -372,6 +384,15 @@ public static class DungeonBootstrap
                 bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
                     enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers);
                 if (hasElite) eliteRoomCount++;
+            }
+            else if (kv.Value == RoomType.Boss)
+            {
+                List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var bd) ? bd : new List<(Vector2, bool)>();
+                PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
+                    swordPickupSprite, staffPickupSprite);
+                SetupBossRoom(kv.Key, originX, originY, root.transform, player.transform,
+                    cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers);
             }
             else
             {
@@ -397,15 +418,18 @@ public static class DungeonBootstrap
             }
         }
 
-        // Now that every Monster room's RoomController exists, create the door triggers and wire
-        // each one to the lock state of the room it teleports into.
+        // Now that every Monster/Boss room's controller exists, create the door triggers and wire
+        // each one to the lock state of the room it sits in.
         var monsterControllers = new Dictionary<Vector2Int, RoomController>();
         foreach (RoomController rc in monsterRoomControllers) monsterControllers[rc.gridPos] = rc;
+        var bossControllers = new Dictionary<Vector2Int, BossRoomController>();
+        foreach (BossRoomController bc in bossRoomControllers) bossControllers[bc.gridPos] = bc;
+
         foreach (var link in pendingDoorLinks)
         {
-            monsterControllers.TryGetValue(link.cellA, out RoomController roomA);
-            monsterControllers.TryGetValue(link.cellB, out RoomController roomB);
-            CreateDoorLink(link.posA, link.inwardA, roomA, link.posB, link.inwardB, roomB, root.transform);
+            List<DoorTrigger> triggersA = GetExitTriggerList(link.cellA, monsterControllers, bossControllers);
+            List<DoorTrigger> triggersB = GetExitTriggerList(link.cellB, monsterControllers, bossControllers);
+            CreateDoorLink(link.posA, link.inwardA, triggersA, link.posB, link.inwardB, triggersB, root.transform);
         }
 
         // --- Camera: locked per-room instead of following the player continuously ---
@@ -755,6 +779,69 @@ public static class DungeonBootstrap
         itemInspectManager.nameText = inspectNameText;
         itemInspectManager.bodyText = inspectBodyText;
 
+        // --- Boss victory banner (center screen, hidden by default) ---
+        GameObject victoryGO = new GameObject("VictoryBanner", typeof(RectTransform), typeof(VictoryBannerUI));
+        victoryGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform victoryRect = victoryGO.GetComponent<RectTransform>();
+        victoryRect.anchorMin = Vector2.zero;
+        victoryRect.anchorMax = Vector2.one;
+        victoryRect.offsetMin = Vector2.zero;
+        victoryRect.offsetMax = Vector2.zero;
+
+        GameObject victoryTextGO = new GameObject("Text", typeof(Text));
+        victoryTextGO.transform.SetParent(victoryGO.transform, false);
+        Text victoryText = victoryTextGO.GetComponent<Text>();
+        victoryText.font = uiFont;
+        victoryText.fontSize = 56;
+        victoryText.fontStyle = FontStyle.Bold;
+        victoryText.alignment = TextAnchor.MiddleCenter;
+        victoryText.color = new Color(0.95f, 0.85f, 0.3f);
+        RectTransform victoryTextRect = victoryText.rectTransform;
+        victoryTextRect.anchorMin = new Vector2(0.5f, 0.7f);
+        victoryTextRect.anchorMax = new Vector2(0.5f, 0.7f);
+        victoryTextRect.pivot = new Vector2(0.5f, 0.5f);
+        victoryTextRect.sizeDelta = new Vector2(1200f, 120f);
+        victoryGO.SetActive(false);
+
+        VictoryBannerUI victoryBanner = victoryGO.GetComponent<VictoryBannerUI>();
+        victoryBanner.root = victoryGO;
+        victoryBanner.bannerText = victoryText;
+
+        // --- Boss health bar (top-center, hidden until a boss binds to it) ---
+        GameObject bossBarGO = new GameObject("BossHealthBar", typeof(RectTransform), typeof(Image), typeof(BossHealthBarUI));
+        bossBarGO.transform.SetParent(canvasGO.transform, false);
+        Image bossBarBackground = bossBarGO.GetComponent<Image>();
+        bossBarBackground.color = new Color(0.15f, 0.05f, 0.05f, 0.85f);
+        RectTransform bossBarRect = bossBarBackground.rectTransform;
+        bossBarRect.anchorMin = bossBarRect.anchorMax = new Vector2(0.5f, 1f);
+        bossBarRect.pivot = new Vector2(0.5f, 1f);
+        bossBarRect.anchoredPosition = new Vector2(0f, -30f);
+        bossBarRect.sizeDelta = new Vector2(900f, 40f);
+        bossBarGO.SetActive(false);
+
+        GameObject bossBarFillGO = new GameObject("Fill", typeof(Image));
+        bossBarFillGO.transform.SetParent(bossBarGO.transform, false);
+        Image bossBarFill = bossBarFillGO.GetComponent<Image>();
+        bossBarFill.color = new Color(0.75f, 0.1f, 0.1f);
+        bossBarFill.type = Image.Type.Filled;
+        bossBarFill.fillMethod = Image.FillMethod.Horizontal;
+        bossBarFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform bossBarFillRect = bossBarFill.rectTransform;
+        bossBarFillRect.anchorMin = Vector2.zero;
+        bossBarFillRect.anchorMax = Vector2.one;
+        bossBarFillRect.offsetMin = new Vector2(4f, 4f);
+        bossBarFillRect.offsetMax = new Vector2(-4f, -4f);
+
+        BossHealthBarUI bossHealthBar = bossBarGO.GetComponent<BossHealthBarUI>();
+        bossHealthBar.root = bossBarGO;
+        bossHealthBar.fill = bossBarFill;
+
+        foreach (BossRoomController bossRoomController in bossRoomControllers)
+        {
+            bossRoomController.victoryBanner = victoryBanner;
+            bossRoomController.healthBar = bossHealthBar;
+        }
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
@@ -984,11 +1071,20 @@ public static class DungeonBootstrap
     // the RoomControllers of the rooms on each side - each trigger checks its OWN room's lock
     // state (the room it physically sits in), since entering a locked room is always allowed;
     // only leaving one before it's cleared is blocked.
-    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, RoomController roomA, Vector2 posB, Vector2 inwardB, RoomController roomB, Transform parent)
+    // Looks up which room controller (Monster or Boss - either can lock its doors) owns a grid
+    // cell, if any, and returns its exitTriggers list for SpawnDoorTrigger to register into.
+    static List<DoorTrigger> GetExitTriggerList(Vector2Int cell, Dictionary<Vector2Int, RoomController> monsterControllers, Dictionary<Vector2Int, BossRoomController> bossControllers)
+    {
+        if (monsterControllers.TryGetValue(cell, out RoomController rc)) return rc.exitTriggers;
+        if (bossControllers.TryGetValue(cell, out BossRoomController bc)) return bc.exitTriggers;
+        return null;
+    }
+
+    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, List<DoorTrigger> exitTriggersA, Vector2 posB, Vector2 inwardB, List<DoorTrigger> exitTriggersB, Transform parent)
     {
         const float landingDepth = 1.5f;
-        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, roomA, parent);
-        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, roomB, parent);
+        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, exitTriggersA, parent);
+        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, exitTriggersB, parent);
     }
 
     // A secret room's single connection: same cross-to-teleport behavior as any door, but both
@@ -1019,7 +1115,7 @@ public static class DungeonBootstrap
         return go.GetComponent<SecretWallBlocker>();
     }
 
-    static DoorTrigger SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, RoomController ownerRoom, Transform parent, bool locked = false)
+    static DoorTrigger SpawnDoorTrigger(Vector2 pos, Vector2 inward, Vector2 destination, List<DoorTrigger> exitTriggers, Transform parent, bool locked = false)
     {
         GameObject go = new GameObject("DoorTrigger", typeof(BoxCollider2D), typeof(DoorTrigger));
         go.transform.SetParent(parent);
@@ -1038,9 +1134,8 @@ public static class DungeonBootstrap
 
         DoorTrigger trigger = go.GetComponent<DoorTrigger>();
         trigger.destination = destination;
-        trigger.ownerRoom = ownerRoom;
 
-        if (ownerRoom != null) ownerRoom.exitTriggers.Add(trigger);
+        if (exitTriggers != null) exitTriggers.Add(trigger);
         return trigger;
     }
 
@@ -1095,19 +1190,19 @@ public static class DungeonBootstrap
 
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
-        PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false)
+        PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0)
     {
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
-            CursedWeaponType = cursedWeaponType, IsTrap = isTrap
+            CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount
         });
         entries.Add(new ItemCatalog.Entry
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
-            cursedWeaponType = cursedWeaponType, isTrap = isTrap
+            cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount
         });
     }
 
@@ -1518,6 +1613,56 @@ public static class DungeonBootstrap
 
         controllers.Add(controller);
         return hasElite;
+    }
+
+    const int BossHealth = 40;
+
+    static void SetupBossRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
+        Sprite bossSprite, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
+        List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers)
+    {
+        Vector2 roomOrigin = new Vector2(originX, originY);
+        Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
+
+        GameObject bossGO = new GameObject("Cerberus", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
+        bossGO.transform.SetParent(parent);
+        bossGO.transform.position = center;
+        bossGO.transform.localScale = Vector3.one * 1.6f;
+
+        SpriteRenderer renderer = bossGO.GetComponent<SpriteRenderer>();
+        renderer.sprite = bossSprite;
+        renderer.sortingOrder = 0;
+
+        Rigidbody2D body = bossGO.GetComponent<Rigidbody2D>();
+        body.gravityScale = 0f;
+        body.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+        bossGO.GetComponent<CircleCollider2D>().radius = 0.6f;
+
+        Health health = bossGO.GetComponent<Health>();
+        health.maxHealth = BossHealth;
+        health.currentHealth = health.maxHealth;
+
+        BossController boss = bossGO.GetComponent<BossController>();
+        boss.projectileSprite = bossProjectileSprite;
+
+        GameObject roomGO = new GameObject("BossRoom_" + gridPos, typeof(BossRoomController));
+        roomGO.transform.SetParent(parent);
+
+        BossRoomController controller = roomGO.GetComponent<BossRoomController>();
+        controller.gridPos = gridPos;
+        controller.boss = boss;
+        controller.player = player;
+        controller.roomOrigin = roomOrigin;
+        controller.roomSize = new Vector2(RoomWidth, RoomHeight);
+
+        foreach ((Vector2 pos, bool onVerticalWall) door in doors)
+        {
+            GameObject blocker = SpawnDoorBlocker(door.pos, door.onVerticalWall, doorBarrierSprite, roomGO.transform);
+            controller.doorBlockers.Add(blocker);
+        }
+
+        controllers.Add(controller);
     }
 
     static GameObject SpawnDoorBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)

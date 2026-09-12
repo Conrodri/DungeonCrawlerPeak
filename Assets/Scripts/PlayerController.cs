@@ -115,11 +115,12 @@ public class PlayerController : MonoBehaviour
             TryAttack();
         }
 
-        // Hotbar: slots 1-3 throw a stocked consumable, slot 4 drops a bomb. Slot 5 is reserved.
-        if (kb.digit1Key.wasPressedThisFrame) TryThrow(ItemIds.Shuriken);
-        if (kb.digit2Key.wasPressedThisFrame) TryThrow(ItemIds.Caillou);
-        if (kb.digit3Key.wasPressedThisFrame) TryThrow(ItemIds.Baton);
-        if (kb.digit4Key.wasPressedThisFrame) TryThrowBomb();
+        // Hotbar: reads whatever the player actually assigned to each slot (drag & drop, feature
+        // 2) instead of assuming the starting loadout.
+        if (kb.digit1Key.wasPressedThisFrame) UseHotbarSlot(0);
+        if (kb.digit2Key.wasPressedThisFrame) UseHotbarSlot(1);
+        if (kb.digit3Key.wasPressedThisFrame) UseHotbarSlot(2);
+        if (kb.digit4Key.wasPressedThisFrame) UseHotbarSlot(3);
     }
 
     void FixedUpdate()
@@ -176,6 +177,37 @@ public class PlayerController : MonoBehaviour
 
     int ScaledPhysicalDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.PhysicalDamageMultiplier);
     int ScaledMagicDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.MagicDamageMultiplier);
+
+    void UseHotbarSlot(int index)
+    {
+        string itemId = inventory.hotbarSlots[index];
+        if (string.IsNullOrEmpty(itemId)) return;
+
+        if (itemId == ItemIds.Bomb)
+        {
+            TryThrowBomb();
+            return;
+        }
+
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition != null && definition.HealAmount > 0)
+        {
+            UsePotion(itemId, definition.HealAmount);
+            return;
+        }
+
+        TryThrow(itemId);
+    }
+
+    void UsePotion(string itemId, int healAmount)
+    {
+        float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
+        if (Time.time - lastThrowTime < cooldown) return;
+        if (!inventory.TryConsume(itemId)) return;
+
+        lastThrowTime = Time.time;
+        health.Heal(healAmount);
+    }
 
     void TryThrow(string itemId)
     {

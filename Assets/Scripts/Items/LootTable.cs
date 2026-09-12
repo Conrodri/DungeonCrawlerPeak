@@ -14,6 +14,7 @@ public static class LootTable
         (ItemIds.Caillou, 2, 2),
         (ItemIds.Baton, 2, 2),
         (ItemIds.Bomb, 1, 1),
+        (ItemIds.HealthPotion, 1, 2),
     };
 
     public static void TryDropLoot(Vector2 position)

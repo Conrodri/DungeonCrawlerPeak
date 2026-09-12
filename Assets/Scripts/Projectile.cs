@@ -10,6 +10,10 @@ public class Projectile : MonoBehaviour
     public float speed = 8f;
     public float maxDistance = 5f;
     public float lifetime = 5f; // safety net in case maxDistance/speed make this unreachable
+    // Collisions with this tag are ignored - lets a projectile pass through its own caster.
+    // Player-thrown projectiles ignore "Player" (default); a boss projectile sets this empty so
+    // it actually hits the player.
+    public string ignoreTag = "Player";
 
     Rigidbody2D rb;
     Vector2 startPos;
@@ -35,7 +39,7 @@ public class Projectile : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.collider.CompareTag("Player")) return;
+        if (!string.IsNullOrEmpty(ignoreTag) && collision.collider.CompareTag(ignoreTag)) return;
 
         Health health = collision.collider.GetComponent<Health>();
         if (health != null) health.TakeDamage(damage);

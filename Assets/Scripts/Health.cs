@@ -20,6 +20,13 @@ public class Health : MonoBehaviour
         currentHealth = maxHealth;
     }
 
+    public void Heal(int amount)
+    {
+        if (amount <= 0 || isDead) return;
+        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
     public void TakeDamage(int amount)
     {
         if (amount <= 0 || isDead) return;
