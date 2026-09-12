@@ -91,8 +91,30 @@ public class DialogueManager : MonoBehaviour
     void RefreshOptionsText()
     {
         string s = "";
-        for (int i = 0; i < activeNpc.options.Count; i++) s += (i + 1) + ". " + activeNpc.options[i].text + "\n";
+        for (int i = 0; i < activeNpc.options.Count; i++) s += (i + 1) + ". " + FormatOption(activeNpc.options[i]) + "\n";
         optionsText.text = s;
+    }
+
+    // Shows exactly what a check needs (stat + proficiency vs DC) and how risky failing it is, so
+    // the player can judge whether to take the option before committing to it - not just after.
+    string FormatOption(DialogueOption option)
+    {
+        if (option.checkStat == StatType.None) return option.text;
+
+        int statValue = playerStats.GetStat(option.checkStat);
+        int proficiency = playerStats.ProficiencyBonus;
+        return option.text + " [" + option.checkStat + " " + statValue + " +" + proficiency + " vs DC " + option.dc + ", " + RiskLabel(option.risk) + "]";
+    }
+
+    string RiskLabel(RiskTier risk)
+    {
+        switch (risk)
+        {
+            case RiskTier.Safe: return "Safe";
+            case RiskTier.Important: return "Importante";
+            case RiskTier.Risky: return "Risquee";
+            default: return "";
+        }
     }
 
     void HandleOptionInput()
