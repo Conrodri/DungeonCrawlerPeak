@@ -437,9 +437,15 @@ public static class DungeonGenerator
                     SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, root.transform);
                 }
 
+                if (kv.Value == RoomType.Shop)
+                {
+                    Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+                    SpawnMerchantNpc(center, npcSprite, root.transform);
+                }
+
                 // Stone blocks everywhere except Start (no obstacles blocking the initial pickups),
-                // Boss (kept clear for the fight) and Safe (guaranteed hazard-free by design).
-                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss && kv.Value != RoomType.Safe)
+                // Boss (kept clear for the fight), Safe and Shop (both guaranteed hazard-free by design).
+                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss && kv.Value != RoomType.Safe && kv.Value != RoomType.Shop)
                 {
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
@@ -1460,6 +1466,45 @@ public static class DungeonGenerator
                 costItemId = ItemIds.Metal,
                 costAmount = 2,
             },
+        };
+    }
+
+    // Shop rooms had a marker only until now (no purchase flow existed) - reuses the exact same
+    // isPurchase mechanism as the Tavernier/Table de Craft (feature 9/10), just priced in gold.
+    static void SpawnMerchantNpc(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Marchand";
+        npc.greeting = "Jetez un oeil, tout est a vendre.";
+        npc.options = new List<DialogueOption>
+        {
+            BuyOption("Acheter un Shuriken (3 or)", ItemIds.Shuriken, 3),
+            BuyOption("Acheter un Caillou (2 or)", ItemIds.Caillou, 2),
+            BuyOption("Acheter un Baton (4 or)", ItemIds.Baton, 4),
+            BuyOption("Acheter une Bombe (8 or)", ItemIds.Bomb, 8),
+            BuyOption("Acheter une Potion de Soin (" + HealthPotionPrice + " or)", ItemIds.HealthPotion, HealthPotionPrice),
+        };
+    }
+
+    static DialogueOption BuyOption(string text, string itemId, int goldPrice)
+    {
+        return new DialogueOption
+        {
+            text = text,
+            isPurchase = true,
+            purchaseItemId = itemId,
+            costItemId = ItemIds.Gold,
+            costAmount = goldPrice,
         };
     }
 
