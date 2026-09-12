@@ -18,7 +18,7 @@ public class StatsUI : MonoBehaviour
     public float rowSpacing = 56f;
     public float iconSize = 40f;
     public int fontSize = 32;
-    [Range(0f, 1f)] public float alpha = 0.5f;
+    [Range(0f, 1f)] public float alpha = 0.3f;
 
     static readonly string[] Labels = { "Constitution", "Force", "Agilite", "Intelligence", "Vitesse", "Charisme" };
 
