@@ -30,11 +30,12 @@ public static class DungeonBootstrap
     const int TilePixelSize = 16;
     const int WallExtraHeight = 8;
 
-    static readonly Vector2Int[] EnemySpawnOffsets =
-    {
-        new Vector2Int(5, 6), new Vector2Int(16, 6), new Vector2Int(11, 3),
-        new Vector2Int(11, 9), new Vector2Int(8, 9), new Vector2Int(14, 3),
-    };
+    // Spawn placement tuning (see GenerateEnemySpawnPositions): distance kept from walls, doors,
+    // and other spawned enemies.
+    const float EnemySpawnWallMargin = 3f;
+    const float EnemySpawnMinDoorDistance = 3f;
+    const float EnemySpawnMinSpacing = 3f;
+    const int EnemySpawnMaxAttempts = 30;
 
     static readonly string[] SkullMask =
     {
@@ -1078,25 +1079,69 @@ public static class DungeonBootstrap
 
     // Builds a fixed enemy "recipe" for the room (positions + elite flag) and hands it to a
     // RoomController, which does the actual spawning (and re-spawning on reset) at play time.
+    // Picks `count` world-space positions inside the room's walkable interior, away from its
+    // walls, its own doors (so a spawn never blocks a threshold) and each other. Rooms have no
+    // interior obstacles yet - this rejection sampling generalizes cleanly once decor does.
+    static List<Vector2> GenerateEnemySpawnPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors)
+    {
+        Rect interior = new Rect(
+            roomOrigin.x + EnemySpawnWallMargin, roomOrigin.y + EnemySpawnWallMargin,
+            RoomWidth - EnemySpawnWallMargin * 2f, RoomHeight - EnemySpawnWallMargin * 2f);
+
+        List<Vector2> accepted = new List<Vector2>();
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 best = interior.center;
+            float bestNearestDistance = -1f;
+
+            for (int attempt = 0; attempt < EnemySpawnMaxAttempts; attempt++)
+            {
+                Vector2 candidate = new Vector2(Random.Range(interior.xMin, interior.xMax), Random.Range(interior.yMin, interior.yMax));
+
+                bool tooCloseToDoor = false;
+                foreach ((Vector2 pos, bool onVerticalWall) door in doors)
+                {
+                    if (Vector2.Distance(candidate, door.pos) < EnemySpawnMinDoorDistance) { tooCloseToDoor = true; break; }
+                }
+                if (tooCloseToDoor) continue;
+
+                float nearestNeighbor = float.MaxValue;
+                foreach (Vector2 other in accepted) nearestNeighbor = Mathf.Min(nearestNeighbor, Vector2.Distance(candidate, other));
+
+                if (accepted.Count == 0 || nearestNeighbor >= EnemySpawnMinSpacing)
+                {
+                    best = candidate;
+                    break;
+                }
+                // Every attempt got rejected for spacing - keep the least-crowded candidate seen
+                // so a spawn position is always produced instead of leaving a gap in the recipe.
+                if (nearestNeighbor > bestNearestDistance)
+                {
+                    bestNearestDistance = nearestNeighbor;
+                    best = candidate;
+                }
+            }
+
+            accepted.Add(best);
+        }
+        return accepted;
+    }
+
     static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
         Sprite enemySprite, Sprite eliteSprite, Sprite doorBarrierSprite,
         List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
     {
-        List<Vector2Int> offsets = new List<Vector2Int>(EnemySpawnOffsets);
-        for (int i = offsets.Count - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (offsets[i], offsets[j]) = (offsets[j], offsets[i]);
-        }
-
         int count = Random.Range(2, 4);
         bool hasElite = Random.value < EliteChance;
         int eliteIndex = hasElite ? Random.Range(0, count) : -1;
 
+        Vector2 roomOrigin = new Vector2(originX, originY);
+        List<Vector2> positions = GenerateEnemySpawnPositions(count, roomOrigin, doors);
+
         RoomController.EnemySpawn[] recipe = new RoomController.EnemySpawn[count];
         for (int i = 0; i < count; i++)
         {
-            recipe[i] = new RoomController.EnemySpawn { localOffset = offsets[i], isElite = i == eliteIndex };
+            recipe[i] = new RoomController.EnemySpawn { localOffset = positions[i] - roomOrigin, isElite = i == eliteIndex };
         }
 
         GameObject roomGO = new GameObject("MonsterRoom_" + gridPos, typeof(RoomController));
