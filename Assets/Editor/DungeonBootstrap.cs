@@ -41,6 +41,10 @@ public static class DungeonBootstrap
     // in melee once Force is raised by some future means.
     const int StoneBlockHealth = 3;
     const int StoneBlockRequiredForce = 2;
+    const int WoodDebrisHealth = 1;
+    const int WoodDebrisRequiredForce = 0;
+    const int MetalDebrisHealth = 5;
+    const int MetalDebrisRequiredForce = 3;
     const float DecorWallMargin = 3f;
     const float DecorMinSpacing = 2f;
     const float DecorMinDoorDistance = 2.5f;
@@ -110,6 +114,18 @@ public static class DungeonBootstrap
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
+        Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
+        Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
+        Sprite barrelSprite = CreateSolidSprite("Assets/Art/Decor/Barrel.png", new Color(0.5f, 0.25f, 0.15f));
+        Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
+        DecorSprites decorSprites = new DecorSprites
+        {
+            stoneBlock = stoneBlockSprite,
+            woodDebris = woodDebrisSprite,
+            metalDebris = metalDebrisSprite,
+            barrel = barrelSprite,
+            fuelPuddle = fuelPuddleSprite,
+        };
         Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
         Sprite hpUpBadge = LoadIconPackSprite("Heart02_Bright");
@@ -145,6 +161,7 @@ public static class DungeonBootstrap
 
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+        decorSprites.explosion = explosionSprite;
 
         // Registered immediately (usable right away by SpawnItemPickup etc. below) and also baked
         // into an ItemCatalog placed in the scene, so the same data re-registers itself into
@@ -338,7 +355,7 @@ public static class DungeonBootstrap
             {
                 List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var d) ? d : new List<(Vector2, bool)>();
                 bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
-                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, stoneBlockSprite, floorTheme, doors, monsterRoomControllers);
+                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers);
                 if (hasElite) eliteRoomCount++;
             }
             else
@@ -360,7 +377,7 @@ public static class DungeonBootstrap
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
                     List<(Vector2 pos, bool onVerticalWall)> roomDoors = doorsByRoom.TryGetValue(kv.Key, out var rd) ? rd : new List<(Vector2, bool)>();
-                    SpawnStoneBlocks(roomOrigin, roomDoors, new List<Vector2> { center }, stoneBlockSprite, root.transform);
+                    SpawnRoomDecor(roomOrigin, roomDoors, new List<Vector2> { center }, decorSprites, root.transform);
                 }
             }
         }
@@ -1191,37 +1208,101 @@ public static class DungeonBootstrap
     static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
         => GeneratePlacementPositions(count, roomOrigin, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
 
-    // 0-2 stone blocks, kept away from walls/doors and from `avoid` (already-placed enemies, or a
-    // special room's marker/NPC at its center).
-    static void SpawnStoneBlocks(Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, Sprite sprite, Transform parent)
+    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle }
+
+    // Bundles every sprite a decor piece might need, so SpawnRoomDecor's signature doesn't grow
+    // with each new decor type.
+    struct DecorSprites
+    {
+        public Sprite stoneBlock;
+        public Sprite woodDebris;
+        public Sprite metalDebris;
+        public Sprite barrel;
+        public Sprite fuelPuddle;
+        public Sprite explosion;
+    }
+
+    // 0-2 decor pieces, kept away from walls/doors and from `avoid` (already-placed enemies, or a
+    // special room's marker/NPC at its center). Each position gets a random decor type.
+    static void SpawnRoomDecor(Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent)
     {
         int count = Random.Range(0, 3);
         if (count == 0) return;
 
         foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, doors, avoid))
         {
-            SpawnStoneBlock(pos, sprite, parent);
+            switch ((DecorType)Random.Range(0, 5))
+            {
+                case DecorType.StoneBlock:
+                    SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent);
+                    break;
+                case DecorType.WoodDebris:
+                    SpawnDestructible("WoodDebris", pos, sprites.woodDebris, WoodDebrisHealth, WoodDebrisRequiredForce, parent);
+                    break;
+                case DecorType.MetalDebris:
+                    SpawnDestructible("MetalDebris", pos, sprites.metalDebris, MetalDebrisHealth, MetalDebrisRequiredForce, parent);
+                    break;
+                case DecorType.ExplosiveBarrel:
+                    SpawnExplosiveBarrel(pos, sprites.barrel, sprites.explosion, parent);
+                    break;
+                case DecorType.FuelPuddle:
+                    SpawnFuelPuddle(pos, sprites.fuelPuddle, parent);
+                    break;
+            }
         }
     }
 
-    static void SpawnStoneBlock(Vector2 position, Sprite sprite, Transform parent)
+    static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent)
     {
-        GameObject block = new GameObject("StoneBlock", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(DestructibleObject));
-        block.transform.SetParent(parent);
-        block.transform.position = position;
+        GameObject go = new GameObject(name, typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(DestructibleObject));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
 
-        SpriteRenderer renderer = block.GetComponent<SpriteRenderer>();
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
 
-        block.GetComponent<BoxCollider2D>().size = Vector2.one * 0.9f;
+        go.GetComponent<BoxCollider2D>().size = Vector2.one * 0.9f;
 
-        Rigidbody2D body = block.GetComponent<Rigidbody2D>();
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
         body.bodyType = RigidbodyType2D.Static;
 
-        DestructibleObject destructible = block.GetComponent<DestructibleObject>();
-        destructible.maxHealth = StoneBlockHealth;
-        destructible.requiredForce = StoneBlockRequiredForce;
+        DestructibleObject destructible = go.GetComponent<DestructibleObject>();
+        destructible.maxHealth = maxHealth;
+        destructible.requiredForce = requiredForce;
+    }
+
+    static void SpawnExplosiveBarrel(Vector2 position, Sprite sprite, Sprite explosionSprite, Transform parent)
+    {
+        GameObject go = new GameObject("ExplosiveBarrel", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(ExplosiveBarrel));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<BoxCollider2D>().size = Vector2.one * 0.9f;
+
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
+        body.bodyType = RigidbodyType2D.Static;
+
+        go.GetComponent<ExplosiveBarrel>().explosionSprite = explosionSprite;
+    }
+
+    static void SpawnFuelPuddle(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("FuelPuddle", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(FuelPuddle));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+        // Flattened into a puddle shape rather than the plain circle it's drawn as.
+        go.transform.localScale = new Vector3(1.4f, 0.7f, 1f);
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = -1;
+
+        go.GetComponent<CircleCollider2D>().isTrigger = true;
     }
 
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
@@ -1237,7 +1318,7 @@ public static class DungeonBootstrap
 
     static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
         RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
-        Sprite stoneBlockSprite, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
+        DecorSprites decorSprites, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
     {
         EnemyType[] composition;
         bool clustered;
@@ -1295,7 +1376,7 @@ public static class DungeonBootstrap
             controller.doorBlockers.Add(blocker);
         }
 
-        SpawnStoneBlocks(roomOrigin, doors, positions, stoneBlockSprite, roomGO.transform);
+        SpawnRoomDecor(roomOrigin, doors, positions, decorSprites, roomGO.transform);
 
         controllers.Add(controller);
         return hasElite;

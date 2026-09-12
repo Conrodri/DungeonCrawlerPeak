@@ -32,38 +32,7 @@ public class Bomb : MonoBehaviour
 
     void Explode()
     {
-        // Area damage hits everything with a Health component in range, including the player -
-        // standing in your own blast is a real risk, same as in Isaac.
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
-        foreach (Collider2D hit in hits)
-        {
-            Health health = hit.GetComponent<Health>();
-            if (health != null) health.TakeDamage(damage);
-
-            DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
-            if (destructible != null) destructible.TryDamage(damage, attackerForce);
-
-            // Bombing a locked door blows it open for good: RoomController skips a destroyed
-            // blocker forever after, even across room resets.
-            DoorBlocker blocker = hit.GetComponent<DoorBlocker>();
-            if (blocker != null) Destroy(blocker.gameObject);
-
-            // Same permanent-open mechanic as a locked door's DoorBlocker, for a secret room's wall.
-            SecretWallBlocker secretWall = hit.GetComponent<SecretWallBlocker>();
-            if (secretWall != null) Destroy(secretWall.gameObject);
-        }
-
-        if (explosionSprite != null)
-        {
-            GameObject fx = new GameObject("Explosion", typeof(SpriteRenderer), typeof(AttackVisual));
-            fx.transform.position = transform.position;
-            fx.transform.localScale = Vector3.one * (explosionRadius * 2f);
-            SpriteRenderer renderer = fx.GetComponent<SpriteRenderer>();
-            renderer.sprite = explosionSprite;
-            renderer.sortingOrder = 1;
-            fx.GetComponent<AttackVisual>().lifetime = 0.2f;
-        }
-
+        ExplosionUtility.Explode(transform.position, explosionRadius, damage, attackerForce, explosionSprite);
         Destroy(gameObject);
     }
 }
