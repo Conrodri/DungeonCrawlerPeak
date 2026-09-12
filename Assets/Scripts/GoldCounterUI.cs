@@ -34,20 +34,20 @@ public class GoldCounterUI : MonoBehaviour
         iconRt.anchorMin = iconRt.anchorMax = new Vector2(0f, 1f);
         iconRt.pivot = new Vector2(0f, 1f);
         iconRt.anchoredPosition = new Vector2(20f, yOffset);
-        iconRt.sizeDelta = new Vector2(24f, 24f);
+        iconRt.sizeDelta = new Vector2(48f, 48f);
 
         GameObject textGO = new GameObject("GoldText", typeof(Text));
         textGO.transform.SetParent(transform, false);
         text = textGO.GetComponent<Text>();
-        text.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
-        text.fontSize = 18;
+        text.font = Font.CreateDynamicFontFromOSFont("Arial", 36);
+        text.fontSize = 36;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = Color.white;
         RectTransform textRt = text.rectTransform;
         textRt.anchorMin = textRt.anchorMax = new Vector2(0f, 1f);
         textRt.pivot = new Vector2(0f, 1f);
-        textRt.anchoredPosition = new Vector2(50f, yOffset);
-        textRt.sizeDelta = new Vector2(80f, 24f);
+        textRt.anchoredPosition = new Vector2(78f, yOffset);
+        textRt.sizeDelta = new Vector2(160f, 48f);
     }
 
     void Refresh()

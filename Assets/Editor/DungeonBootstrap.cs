@@ -101,6 +101,74 @@ public static class DungeonBootstrap
         "     XX   ",
     };
 
+    static readonly string[] FistMask =
+    {
+        "  XXXX    ",
+        " XXXXXX   ",
+        "XXXXXXXX  ",
+        "XXXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+    };
+
+    static readonly string[] DaggerMask =
+    {
+        "    XX    ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "   XXXX   ",
+    };
+
+    static readonly string[] LightbulbMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "   X  X   ",
+        "   XXXX   ",
+    };
+
+    static readonly string[] BootMask =
+    {
+        "  XXXXX   ",
+        "  XXXXX   ",
+        "  XXXXX   ",
+        "  XXXXX   ",
+        "  XXXXXX  ",
+        "  XXXXXXX ",
+        "  XXXXXXXX",
+        "XXXXXXXXXX",
+    };
+
+    static readonly string[] StarMask =
+    {
+        "    XX    ",
+        "    XX    ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        " XXX  XXX ",
+        "XXX    XXX",
+        "XX      XX",
+        "X        X",
+    };
+
     [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
     {
@@ -136,6 +204,13 @@ public static class DungeonBootstrap
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
         Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+
+        Sprite constitutionIcon = CreateMaskedSprite("Assets/Art/UI/StatConstitution.png", HeartMask, new Color(0.85f, 0.15f, 0.2f));
+        Sprite forceIcon = CreateMaskedSprite("Assets/Art/UI/StatForce.png", FistMask, new Color(0.8f, 0.5f, 0.2f));
+        Sprite agiliteIcon = CreateMaskedSprite("Assets/Art/UI/StatAgilite.png", DaggerMask, new Color(0.75f, 0.78f, 0.82f));
+        Sprite intelligenceIcon = CreateMaskedSprite("Assets/Art/UI/StatIntelligence.png", LightbulbMask, new Color(0.95f, 0.85f, 0.3f));
+        Sprite vitesseIcon = CreateMaskedSprite("Assets/Art/UI/StatVitesse.png", BootMask, new Color(0.5f, 0.35f, 0.2f));
+        Sprite charismeIcon = CreateMaskedSprite("Assets/Art/UI/StatCharisme.png", StarMask, new Color(0.85f, 0.35f, 0.75f));
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -387,6 +462,24 @@ public static class DungeonBootstrap
         goldCounter.inventory = playerInventory;
         goldCounter.goldSprite = goldSprite;
 
+        // --- Stats column (below the gold counter) ---
+        GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
+        statsGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform statsRect = statsGO.GetComponent<RectTransform>();
+        statsRect.anchorMin = Vector2.zero;
+        statsRect.anchorMax = Vector2.one;
+        statsRect.offsetMin = Vector2.zero;
+        statsRect.offsetMax = Vector2.zero;
+
+        StatsUI statsUI = statsGO.GetComponent<StatsUI>();
+        statsUI.stats = playerStats;
+        statsUI.constitutionIcon = constitutionIcon;
+        statsUI.forceIcon = forceIcon;
+        statsUI.agiliteIcon = agiliteIcon;
+        statsUI.intelligenceIcon = intelligenceIcon;
+        statsUI.vitesseIcon = vitesseIcon;
+        statsUI.charismeIcon = charismeIcon;
+
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
         hotbarGO.transform.SetParent(canvasGO.transform, false);
@@ -404,7 +497,7 @@ public static class DungeonBootstrap
         hotbar.bombSprite = bombSprite;
         hotbar.slotSize = 56f;
         hotbar.spacing = 64f;
-        hotbar.fontSize = 18;
+        hotbar.fontSize = 36;
 
         // --- Minimap (top-right): adjacent rooms half-reveal, entered rooms fully reveal ---
         GameObject minimapGO = new GameObject("Minimap", typeof(RectTransform), typeof(MinimapController));
@@ -442,7 +535,9 @@ public static class DungeonBootstrap
         minimap.maxPanelSize = 320f;
 
         // --- Dialogue UI (bottom panel + interact prompt + dice roll popup) ---
-        Font uiFont = Font.CreateDynamicFontFromOSFont("Arial", 16);
+        // Text sizes doubled (or more) across this whole block for readability, per user request -
+        // the panel/positions grew to match so the bigger text still fits.
+        Font uiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
 
         GameObject dialogueGO = new GameObject("DialogueManager", typeof(RectTransform), typeof(DialogueManager));
         dialogueGO.transform.SetParent(canvasGO.transform, false);
@@ -456,15 +551,15 @@ public static class DungeonBootstrap
         promptGO.transform.SetParent(dialogueGO.transform, false);
         Text promptText = promptGO.GetComponent<Text>();
         promptText.font = uiFont;
-        promptText.fontSize = 18;
+        promptText.fontSize = 36;
         promptText.alignment = TextAnchor.MiddleCenter;
         promptText.color = Color.white;
         promptText.text = "Appuyez sur E pour parler";
         RectTransform promptRect = promptText.rectTransform;
         promptRect.anchorMin = promptRect.anchorMax = new Vector2(0.5f, 0f);
         promptRect.pivot = new Vector2(0.5f, 0f);
-        promptRect.anchoredPosition = new Vector2(0f, 90f);
-        promptRect.sizeDelta = new Vector2(400f, 30f);
+        promptRect.anchoredPosition = new Vector2(0f, 170f);
+        promptRect.sizeDelta = new Vector2(800f, 60f);
         promptGO.SetActive(false);
 
         GameObject dialoguePanel = new GameObject("DialoguePanel", typeof(Image));
@@ -474,14 +569,14 @@ public static class DungeonBootstrap
         panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
         panelRect.anchoredPosition = new Vector2(0f, 20f);
-        panelRect.sizeDelta = new Vector2(760f, 220f);
+        panelRect.sizeDelta = new Vector2(1200f, 520f);
         dialoguePanel.SetActive(false);
 
         GameObject npcNameGO = new GameObject("NpcName", typeof(Text));
         npcNameGO.transform.SetParent(dialoguePanel.transform, false);
         Text npcNameText = npcNameGO.GetComponent<Text>();
         npcNameText.font = uiFont;
-        npcNameText.fontSize = 20;
+        npcNameText.fontSize = 40;
         npcNameText.fontStyle = FontStyle.Bold;
         npcNameText.alignment = TextAnchor.UpperLeft;
         npcNameText.color = new Color(0.9f, 0.8f, 0.4f);
@@ -489,36 +584,40 @@ public static class DungeonBootstrap
         npcNameRect.anchorMin = new Vector2(0f, 1f);
         npcNameRect.anchorMax = new Vector2(1f, 1f);
         npcNameRect.pivot = new Vector2(0.5f, 1f);
-        npcNameRect.anchoredPosition = new Vector2(0f, -10f);
-        npcNameRect.sizeDelta = new Vector2(-20f, 30f);
+        npcNameRect.anchoredPosition = new Vector2(0f, -20f);
+        npcNameRect.sizeDelta = new Vector2(-40f, 60f);
 
         GameObject bodyGO = new GameObject("Body", typeof(Text));
         bodyGO.transform.SetParent(dialoguePanel.transform, false);
         Text bodyText = bodyGO.GetComponent<Text>();
         bodyText.font = uiFont;
-        bodyText.fontSize = 16;
+        bodyText.fontSize = 32;
         bodyText.alignment = TextAnchor.UpperLeft;
         bodyText.color = Color.white;
+        bodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        bodyText.verticalOverflow = VerticalWrapMode.Overflow;
         RectTransform bodyRect = bodyText.rectTransform;
         bodyRect.anchorMin = new Vector2(0f, 1f);
         bodyRect.anchorMax = new Vector2(1f, 1f);
         bodyRect.pivot = new Vector2(0.5f, 1f);
-        bodyRect.anchoredPosition = new Vector2(0f, -45f);
-        bodyRect.sizeDelta = new Vector2(-20f, 60f);
+        bodyRect.anchoredPosition = new Vector2(0f, -90f);
+        bodyRect.sizeDelta = new Vector2(-40f, 140f);
 
         GameObject optionsGO = new GameObject("Options", typeof(Text));
         optionsGO.transform.SetParent(dialoguePanel.transform, false);
         Text optionsText = optionsGO.GetComponent<Text>();
         optionsText.font = uiFont;
-        optionsText.fontSize = 16;
+        optionsText.fontSize = 32;
         optionsText.alignment = TextAnchor.UpperLeft;
         optionsText.color = new Color(0.75f, 0.85f, 1f);
+        optionsText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        optionsText.verticalOverflow = VerticalWrapMode.Overflow;
         RectTransform optionsRect = optionsText.rectTransform;
         optionsRect.anchorMin = new Vector2(0f, 0f);
         optionsRect.anchorMax = new Vector2(1f, 1f);
         optionsRect.pivot = new Vector2(0.5f, 0f);
-        optionsRect.offsetMin = new Vector2(10f, 10f);
-        optionsRect.offsetMax = new Vector2(-10f, -110f);
+        optionsRect.offsetMin = new Vector2(20f, 20f);
+        optionsRect.offsetMax = new Vector2(-20f, -260f);
 
         GameObject diceGO = new GameObject("DiceRoll", typeof(Image), typeof(DiceRollUI));
         diceGO.transform.SetParent(dialogueGO.transform, false);
@@ -527,15 +626,15 @@ public static class DungeonBootstrap
         RectTransform diceRect = diceBackground.rectTransform;
         diceRect.anchorMin = diceRect.anchorMax = new Vector2(0.5f, 0.5f);
         diceRect.pivot = new Vector2(0.5f, 0.5f);
-        diceRect.anchoredPosition = new Vector2(0f, 80f);
-        diceRect.sizeDelta = new Vector2(260f, 90f);
+        diceRect.anchoredPosition = new Vector2(0f, 150f);
+        diceRect.sizeDelta = new Vector2(520f, 180f);
         diceGO.SetActive(false);
 
         GameObject diceTextGO = new GameObject("RollText", typeof(Text));
         diceTextGO.transform.SetParent(diceGO.transform, false);
         Text diceText = diceTextGO.GetComponent<Text>();
         diceText.font = uiFont;
-        diceText.fontSize = 28;
+        diceText.fontSize = 56;
         diceText.fontStyle = FontStyle.Bold;
         diceText.alignment = TextAnchor.MiddleCenter;
         diceText.color = Color.white;
