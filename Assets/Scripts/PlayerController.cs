@@ -223,6 +223,9 @@ public class PlayerController : MonoBehaviour
             if (hit.gameObject == gameObject) continue;
             Health targetHealth = hit.GetComponent<Health>();
             if (targetHealth != null) targetHealth.TakeDamage(damage);
+
+            DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
+            if (destructible != null) destructible.TryDamage(damage, stats.force);
         }
 
         SpawnAttackVisual(visualSprite, origin, range);
@@ -265,6 +268,7 @@ public class PlayerController : MonoBehaviour
         projectile.damage = damage;
         projectile.speed = speed;
         projectile.maxDistance = maxDistance;
+        projectile.attackerForce = stats.force;
         projectile.Launch(direction);
     }
 

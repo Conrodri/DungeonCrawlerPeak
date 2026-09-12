@@ -37,6 +37,15 @@ public static class DungeonBootstrap
     const float EnemySpawnMinSpacing = 3f;
     const int EnemySpawnMaxAttempts = 30;
 
+    // Stone block tuning: tougher than a fresh player's Force (1) so bombs matter, but breakable
+    // in melee once Force is raised by some future means.
+    const int StoneBlockHealth = 3;
+    const int StoneBlockRequiredForce = 2;
+    const float DecorWallMargin = 3f;
+    const float DecorMinSpacing = 2f;
+    const float DecorMinDoorDistance = 2.5f;
+    const float DecorMinAvoidDistance = 2f;
+
     static readonly string[] SkullMask =
     {
         "  XXXXXX  ",
@@ -100,6 +109,7 @@ public static class DungeonBootstrap
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
+        Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
         Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
         Sprite hpUpBadge = LoadIconPackSprite("Heart02_Bright");
@@ -328,7 +338,7 @@ public static class DungeonBootstrap
             {
                 List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var d) ? d : new List<(Vector2, bool)>();
                 bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
-                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, floorTheme, doors, monsterRoomControllers);
+                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, stoneBlockSprite, floorTheme, doors, monsterRoomControllers);
                 if (hasElite) eliteRoomCount++;
             }
             else
@@ -341,6 +351,16 @@ public static class DungeonBootstrap
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
                     SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
+                }
+
+                // Stone blocks everywhere except Start (no obstacles blocking the initial pickups)
+                // and Boss (kept clear for the fight).
+                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss)
+                {
+                    Vector2 roomOrigin = new Vector2(originX, originY);
+                    Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
+                    List<(Vector2 pos, bool onVerticalWall)> roomDoors = doorsByRoom.TryGetValue(kv.Key, out var rd) ? rd : new List<(Vector2, bool)>();
+                    SpawnStoneBlocks(roomOrigin, roomDoors, new List<Vector2> { center }, stoneBlockSprite, root.transform);
                 }
             }
         }
@@ -1095,13 +1115,17 @@ public static class DungeonBootstrap
     // Builds a fixed enemy "recipe" for the room (positions + elite flag) and hands it to a
     // RoomController, which does the actual spawning (and re-spawning on reset) at play time.
     // Picks `count` world-space positions inside the room's walkable interior, away from its
-    // walls, its own doors (so a spawn never blocks a threshold) and each other. Rooms have no
-    // interior obstacles yet - this rejection sampling generalizes cleanly once decor does.
+    // walls, its own doors (so a spawn never blocks a threshold), each other, and optionally an
+    // arbitrary set of points to avoid (e.g. already-placed enemies, when placing decor next).
     static List<Vector2> GenerateEnemySpawnPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors)
+        => GeneratePlacementPositions(count, roomOrigin, doors, null, EnemySpawnWallMargin, EnemySpawnMinSpacing, EnemySpawnMinDoorDistance, 0f);
+
+    static List<Vector2> GeneratePlacementPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors,
+        List<Vector2> avoid, float wallMargin, float minSpacing, float minDoorDistance, float minAvoidDistance)
     {
         Rect interior = new Rect(
-            roomOrigin.x + EnemySpawnWallMargin, roomOrigin.y + EnemySpawnWallMargin,
-            RoomWidth - EnemySpawnWallMargin * 2f, RoomHeight - EnemySpawnWallMargin * 2f);
+            roomOrigin.x + wallMargin, roomOrigin.y + wallMargin,
+            RoomWidth - wallMargin * 2f, RoomHeight - wallMargin * 2f);
 
         List<Vector2> accepted = new List<Vector2>();
         for (int i = 0; i < count; i++)
@@ -1113,17 +1137,24 @@ public static class DungeonBootstrap
             {
                 Vector2 candidate = new Vector2(Random.Range(interior.xMin, interior.xMax), Random.Range(interior.yMin, interior.yMax));
 
-                bool tooCloseToDoor = false;
+                bool rejected = false;
                 foreach ((Vector2 pos, bool onVerticalWall) door in doors)
                 {
-                    if (Vector2.Distance(candidate, door.pos) < EnemySpawnMinDoorDistance) { tooCloseToDoor = true; break; }
+                    if (Vector2.Distance(candidate, door.pos) < minDoorDistance) { rejected = true; break; }
                 }
-                if (tooCloseToDoor) continue;
+                if (!rejected && avoid != null)
+                {
+                    foreach (Vector2 a in avoid)
+                    {
+                        if (Vector2.Distance(candidate, a) < minAvoidDistance) { rejected = true; break; }
+                    }
+                }
+                if (rejected) continue;
 
                 float nearestNeighbor = float.MaxValue;
                 foreach (Vector2 other in accepted) nearestNeighbor = Mathf.Min(nearestNeighbor, Vector2.Distance(candidate, other));
 
-                if (accepted.Count == 0 || nearestNeighbor >= EnemySpawnMinSpacing)
+                if (accepted.Count == 0 || nearestNeighbor >= minSpacing)
                 {
                     best = candidate;
                     break;
@@ -1157,6 +1188,42 @@ public static class DungeonBootstrap
         return positions;
     }
 
+    static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
+        => GeneratePlacementPositions(count, roomOrigin, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
+
+    // 0-2 stone blocks, kept away from walls/doors and from `avoid` (already-placed enemies, or a
+    // special room's marker/NPC at its center).
+    static void SpawnStoneBlocks(Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, Sprite sprite, Transform parent)
+    {
+        int count = Random.Range(0, 3);
+        if (count == 0) return;
+
+        foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, doors, avoid))
+        {
+            SpawnStoneBlock(pos, sprite, parent);
+        }
+    }
+
+    static void SpawnStoneBlock(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject block = new GameObject("StoneBlock", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(DestructibleObject));
+        block.transform.SetParent(parent);
+        block.transform.position = position;
+
+        SpriteRenderer renderer = block.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        block.GetComponent<BoxCollider2D>().size = Vector2.one * 0.9f;
+
+        Rigidbody2D body = block.GetComponent<Rigidbody2D>();
+        body.bodyType = RigidbodyType2D.Static;
+
+        DestructibleObject destructible = block.GetComponent<DestructibleObject>();
+        destructible.maxHealth = StoneBlockHealth;
+        destructible.requiredForce = StoneBlockRequiredForce;
+    }
+
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
     // paired 1:1 with EncounterPatternClustered.
     static readonly EnemyType[][] EncounterPatterns =
@@ -1170,7 +1237,7 @@ public static class DungeonBootstrap
 
     static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
         RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
-        EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
+        Sprite stoneBlockSprite, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
     {
         EnemyType[] composition;
         bool clustered;
@@ -1227,6 +1294,8 @@ public static class DungeonBootstrap
             GameObject blocker = SpawnDoorBlocker(door.pos, door.onVerticalWall, doorBarrierSprite, roomGO.transform);
             controller.doorBlockers.Add(blocker);
         }
+
+        SpawnStoneBlocks(roomOrigin, doors, positions, stoneBlockSprite, roomGO.transform);
 
         controllers.Add(controller);
         return hasElite;

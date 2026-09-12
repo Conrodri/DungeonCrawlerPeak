@@ -4,6 +4,8 @@ using UnityEngine;
 public class Bomb : MonoBehaviour
 {
     public int damage = 3;
+    // Explosives bypass any DestructibleObject.requiredForce gate - they're "a tool built for it".
+    public int attackerForce = int.MaxValue;
     public float explosionRadius = 2f;
     public float fuseTime = 1.2f;
     public Sprite explosionSprite;
@@ -37,6 +39,9 @@ public class Bomb : MonoBehaviour
         {
             Health health = hit.GetComponent<Health>();
             if (health != null) health.TakeDamage(damage);
+
+            DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
+            if (destructible != null) destructible.TryDamage(damage, attackerForce);
 
             // Bombing a locked door blows it open for good: RoomController skips a destroyed
             // blocker forever after, even across room resets.

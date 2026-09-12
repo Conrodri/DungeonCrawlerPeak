@@ -4,6 +4,9 @@ using UnityEngine;
 public class Projectile : MonoBehaviour
 {
     public int damage = 1;
+    // Default lets a non-player source (e.g. a future enemy projectile) always pass a
+    // DestructibleObject's force gate; PlayerController overrides this with the caster's Force.
+    public int attackerForce = int.MaxValue;
     public float speed = 8f;
     public float maxDistance = 5f;
     public float lifetime = 5f; // safety net in case maxDistance/speed make this unreachable
@@ -36,6 +39,9 @@ public class Projectile : MonoBehaviour
 
         Health health = collision.collider.GetComponent<Health>();
         if (health != null) health.TakeDamage(damage);
+
+        DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
+        if (destructible != null) destructible.TryDamage(damage, attackerForce);
 
         Destroy(gameObject);
     }
