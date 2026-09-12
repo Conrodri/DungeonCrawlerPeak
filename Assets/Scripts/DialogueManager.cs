@@ -13,6 +13,7 @@ public class DialogueManager : MonoBehaviour
 
     public PlayerStats playerStats;
     public PlayerInventory playerInventory;
+    public PlayerController playerController;
     public DiceRollUI diceRoll;
 
     public GameObject promptGO;
@@ -249,6 +250,12 @@ public class DialogueManager : MonoBehaviour
         }
 
         if (outcome.curse) playerStats.ApplyCurse();
+
+        if (outcome.removesCursedItem)
+        {
+            playerInventory.RemoveCurse();
+            if (playerController != null) playerController.UnlockWeapon();
+        }
 
         // Destroying it fires NpcInteractable.OnDestroy -> NotifyNpcRemoved, which only clears the
         // reference (see NotifyNpcRemoved) - the already-scheduled CloseAfterDelay still closes the

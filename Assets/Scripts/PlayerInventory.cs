@@ -8,6 +8,7 @@ public class PlayerInventory : MonoBehaviour
     public string[] hotbarSlots = new string[HotbarUI.SlotCount];
 
     readonly List<InventorySlot> slots = new List<InventorySlot>();
+    string cursedItemId;
 
     public event Action OnInventoryChanged;
 
@@ -61,6 +62,8 @@ public class PlayerInventory : MonoBehaviour
 
     public bool TryConsume(string itemId)
     {
+        if (itemId == cursedItemId) return false;
+
         foreach (InventorySlot slot in slots)
         {
             if (slot.itemId != itemId || slot.count <= 0) continue;
@@ -100,6 +103,20 @@ public class PlayerInventory : MonoBehaviour
     {
         hotbarSlots[hotbarIndex] = itemId;
         OnInventoryChanged?.Invoke();
+    }
+
+    // A cursed item can't be thrown/consumed away via TryConsume until this is lifted.
+    public void ApplyCurse(string itemId)
+    {
+        cursedItemId = itemId;
+    }
+
+    public void RemoveCurse()
+    {
+        if (string.IsNullOrEmpty(cursedItemId)) return;
+        string id = cursedItemId;
+        cursedItemId = null;
+        while (TryConsume(id)) { }
     }
 
     static int MaxStackFor(string itemId)

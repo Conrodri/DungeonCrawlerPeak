@@ -15,6 +15,7 @@ public class DialogueOutcome
     public int[] statPenaltyAmounts;
     public bool curse; // an extra -1 to every stat, on top of any statPenaltyTypes above
     public bool npcDisappearsForever; // destroys the NPC - it never comes back in this floor
+    public bool removesCursedItem; // lifts PlayerInventory's cursed-item lock and any forced weapon
 }
 
 [Serializable]

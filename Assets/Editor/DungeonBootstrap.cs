@@ -118,6 +118,7 @@ public static class DungeonBootstrap
         Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
         Sprite barrelSprite = CreateSolidSprite("Assets/Art/Decor/Barrel.png", new Color(0.5f, 0.25f, 0.15f));
         Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
+        Sprite floorTrapSprite = CreateCircleSprite("Assets/Art/Decor/FloorTrap.png", new Color(0.2f, 0.08f, 0.08f));
         DecorSprites decorSprites = new DecorSprites
         {
             stoneBlock = stoneBlockSprite,
@@ -125,6 +126,7 @@ public static class DungeonBootstrap
             metalDebris = metalDebrisSprite,
             barrel = barrelSprite,
             fuelPuddle = fuelPuddleSprite,
+            floorTrap = floorTrapSprite,
         };
         Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
@@ -173,6 +175,19 @@ public static class DungeonBootstrap
         RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Throwable, 10, caillouSprite);
         RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Throwable, 10, batonSprite);
         RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Throwable, 10, bombSprite);
+
+        // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
+        // never in the common LootTable drop pool.
+        Sprite anvilSprite = CreateSolidSprite("Assets/Art/Items/Anvil.png", new Color(0.2f, 0.2f, 0.22f));
+        Sprite cursedSwordSprite = CreateSolidSprite("Assets/Art/Items/CursedSword.png", new Color(0.35f, 0.1f, 0.4f));
+        Sprite trapSackSprite = CreateSolidSprite("Assets/Art/Items/TrapSack.png", new Color(0.5f, 0.4f, 0.3f));
+        RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Misc, 1, anvilSprite,
+            "Une lourde enclume de forgeron.", weight: 5);
+        RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite", ItemCategory.Weapon, 1, cursedSwordSprite,
+            "Une lame ancienne. Une presence malveillante semble y sommeiller.",
+            isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword);
+        RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Misc, 1, trapSackSprite,
+            "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true);
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
@@ -660,12 +675,85 @@ public static class DungeonBootstrap
         DialogueManager dialogueManager = dialogueGO.GetComponent<DialogueManager>();
         dialogueManager.playerStats = playerStats;
         dialogueManager.playerInventory = playerInventory;
+        dialogueManager.playerController = playerController;
         dialogueManager.diceRoll = diceRollUI;
         dialogueManager.promptGO = promptGO;
         dialogueManager.panel = dialoguePanel;
         dialogueManager.nameText = npcNameText;
         dialogueManager.bodyText = bodyText;
         dialogueManager.optionsText = optionsText;
+
+        // --- Item inspection UI (weight/curse/trap ground items - interact prompt + panel) ---
+        GameObject inspectGO = new GameObject("ItemInspectManager", typeof(RectTransform), typeof(ItemInspectManager));
+        inspectGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform inspectRect = inspectGO.GetComponent<RectTransform>();
+        inspectRect.anchorMin = Vector2.zero;
+        inspectRect.anchorMax = Vector2.one;
+        inspectRect.offsetMin = Vector2.zero;
+        inspectRect.offsetMax = Vector2.zero;
+
+        GameObject inspectPromptGO = new GameObject("InspectPrompt", typeof(Text));
+        inspectPromptGO.transform.SetParent(inspectGO.transform, false);
+        Text inspectPromptText = inspectPromptGO.GetComponent<Text>();
+        inspectPromptText.font = uiFont;
+        inspectPromptText.fontSize = 36;
+        inspectPromptText.alignment = TextAnchor.MiddleCenter;
+        inspectPromptText.color = Color.white;
+        inspectPromptText.text = "Appuyez sur E pour examiner";
+        RectTransform inspectPromptRect = inspectPromptText.rectTransform;
+        inspectPromptRect.anchorMin = inspectPromptRect.anchorMax = new Vector2(0.5f, 0f);
+        inspectPromptRect.pivot = new Vector2(0.5f, 0f);
+        inspectPromptRect.anchoredPosition = new Vector2(0f, 170f);
+        inspectPromptRect.sizeDelta = new Vector2(800f, 60f);
+        inspectPromptGO.SetActive(false);
+
+        GameObject inspectPanel = new GameObject("InspectPanel", typeof(Image));
+        inspectPanel.transform.SetParent(inspectGO.transform, false);
+        inspectPanel.GetComponent<Image>().color = new Color(0.05f, 0.05f, 0.08f, 0.9f);
+        RectTransform inspectPanelRect = inspectPanel.GetComponent<RectTransform>();
+        inspectPanelRect.anchorMin = inspectPanelRect.anchorMax = new Vector2(0.5f, 0f);
+        inspectPanelRect.pivot = new Vector2(0.5f, 0f);
+        inspectPanelRect.anchoredPosition = new Vector2(0f, 20f);
+        inspectPanelRect.sizeDelta = new Vector2(1200f, 260f);
+        inspectPanel.SetActive(false);
+
+        GameObject inspectNameGO = new GameObject("ItemName", typeof(Text));
+        inspectNameGO.transform.SetParent(inspectPanel.transform, false);
+        Text inspectNameText = inspectNameGO.GetComponent<Text>();
+        inspectNameText.font = uiFont;
+        inspectNameText.fontSize = 40;
+        inspectNameText.fontStyle = FontStyle.Bold;
+        inspectNameText.alignment = TextAnchor.UpperLeft;
+        inspectNameText.color = new Color(0.9f, 0.8f, 0.4f);
+        RectTransform inspectNameRect = inspectNameText.rectTransform;
+        inspectNameRect.anchorMin = new Vector2(0f, 1f);
+        inspectNameRect.anchorMax = new Vector2(1f, 1f);
+        inspectNameRect.pivot = new Vector2(0.5f, 1f);
+        inspectNameRect.anchoredPosition = new Vector2(0f, -20f);
+        inspectNameRect.sizeDelta = new Vector2(-40f, 60f);
+
+        GameObject inspectBodyGO = new GameObject("Body", typeof(Text));
+        inspectBodyGO.transform.SetParent(inspectPanel.transform, false);
+        Text inspectBodyText = inspectBodyGO.GetComponent<Text>();
+        inspectBodyText.font = uiFont;
+        inspectBodyText.fontSize = 32;
+        inspectBodyText.alignment = TextAnchor.UpperLeft;
+        inspectBodyText.color = Color.white;
+        inspectBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        inspectBodyText.verticalOverflow = VerticalWrapMode.Overflow;
+        RectTransform inspectBodyRect = inspectBodyText.rectTransform;
+        inspectBodyRect.anchorMin = new Vector2(0f, 0f);
+        inspectBodyRect.anchorMax = new Vector2(1f, 1f);
+        inspectBodyRect.pivot = new Vector2(0.5f, 0f);
+        inspectBodyRect.offsetMin = new Vector2(20f, 20f);
+        inspectBodyRect.offsetMax = new Vector2(-20f, -90f);
+
+        ItemInspectManager itemInspectManager = inspectGO.GetComponent<ItemInspectManager>();
+        itemInspectManager.player = player.transform;
+        itemInspectManager.promptGO = inspectPromptGO;
+        itemInspectManager.panel = inspectPanel;
+        itemInspectManager.nameText = inspectNameText;
+        itemInspectManager.bodyText = inspectBodyText;
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -1005,31 +1093,29 @@ public static class DungeonBootstrap
         list.Add((pos, onVerticalWall));
     }
 
-    static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon)
+    static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
+        string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
+        PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false)
     {
-        ItemDatabase.Register(new ItemDefinition { Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon });
-        entries.Add(new ItemCatalog.Entry { id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon });
+        ItemDatabase.Register(new ItemDefinition
+        {
+            Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
+            Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
+            CursedWeaponType = cursedWeaponType, IsTrap = isTrap
+        });
+        entries.Add(new ItemCatalog.Entry
+        {
+            id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
+            description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
+            cursedWeaponType = cursedWeaponType, isTrap = isTrap
+        });
     }
 
     static void SpawnItemPickup(string name, Vector2 position, string itemId, int amount, Transform parent)
     {
-        GameObject pickup = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(ItemPickup));
+        GameObject pickup = ItemPickup.SpawnAt(position, itemId, amount);
+        pickup.name = name;
         pickup.transform.SetParent(parent);
-        pickup.transform.position = position;
-        pickup.transform.localScale = Vector3.one * 0.5f;
-
-        ItemDefinition definition = ItemDatabase.Get(itemId);
-        SpriteRenderer renderer = pickup.GetComponent<SpriteRenderer>();
-        renderer.sprite = definition != null ? definition.Icon : null;
-        renderer.sortingOrder = 0;
-
-        CircleCollider2D collider = pickup.GetComponent<CircleCollider2D>();
-        collider.isTrigger = true;
-        collider.radius = 0.4f;
-
-        ItemPickup itemPickup = pickup.GetComponent<ItemPickup>();
-        itemPickup.itemId = itemId;
-        itemPickup.amount = amount;
     }
 
     static void SpawnWeaponPickup(string name, Vector2 position, Sprite sprite, PlayerController.WeaponType weapon, Transform parent)
@@ -1126,6 +1212,22 @@ public static class DungeonBootstrap
                 checkStat = StatType.None,
                 onSuccess = new DialogueOutcome { message = "Il vous montre ses articles." },
             },
+            new DialogueOption
+            {
+                text = "Lui demander de lever une malediction",
+                checkStat = StatType.Intelligence,
+                dc = 12,
+                risk = RiskTier.Safe,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Il murmure quelques mots et vous sentez un poids disparaitre.",
+                    removesCursedItem = true,
+                },
+                onFailure = new DialogueOutcome
+                {
+                    message = "Il n'y connait rien a la magie et hausse les epaules.",
+                },
+            },
         };
     }
 
@@ -1208,7 +1310,12 @@ public static class DungeonBootstrap
     static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
         => GeneratePlacementPositions(count, roomOrigin, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
 
-    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle }
+    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap }
+
+    // Chance a LootPickup slot spawns one of the special weight/curse/trap items instead of the
+    // common LootTable pool - rare environmental finds, never a kill/break reward.
+    const float SpecialLootChance = 0.15f;
+    static readonly string[] SpecialLootIds = { ItemIds.Anvil, ItemIds.CursedSword, ItemIds.TrapSack };
 
     // Bundles every sprite a decor piece might need, so SpawnRoomDecor's signature doesn't grow
     // with each new decor type.
@@ -1219,6 +1326,7 @@ public static class DungeonBootstrap
         public Sprite metalDebris;
         public Sprite barrel;
         public Sprite fuelPuddle;
+        public Sprite floorTrap;
         public Sprite explosion;
     }
 
@@ -1231,7 +1339,7 @@ public static class DungeonBootstrap
 
         foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, doors, avoid))
         {
-            switch ((DecorType)Random.Range(0, 5))
+            switch ((DecorType)Random.Range(0, 7))
             {
                 case DecorType.StoneBlock:
                     SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent);
@@ -1247,6 +1355,21 @@ public static class DungeonBootstrap
                     break;
                 case DecorType.FuelPuddle:
                     SpawnFuelPuddle(pos, sprites.fuelPuddle, parent);
+                    break;
+                case DecorType.LootPickup:
+                    if (Random.value < SpecialLootChance)
+                    {
+                        string specialId = SpecialLootIds[Random.Range(0, SpecialLootIds.Length)];
+                        SpawnItemPickup(specialId + "Pickup", pos, specialId, 1, parent);
+                    }
+                    else
+                    {
+                        LootTable.PickRandomItem(out string lootId, out int lootAmount);
+                        SpawnItemPickup(lootId + "Pickup", pos, lootId, lootAmount, parent);
+                    }
+                    break;
+                case DecorType.FloorTrap:
+                    SpawnFloorTrap(pos, sprites.floorTrap, parent);
                     break;
             }
         }
@@ -1296,6 +1419,21 @@ public static class DungeonBootstrap
         go.transform.SetParent(parent);
         go.transform.position = position;
         // Flattened into a puddle shape rather than the plain circle it's drawn as.
+        go.transform.localScale = new Vector3(1.4f, 0.7f, 1f);
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = -1;
+
+        go.GetComponent<CircleCollider2D>().isTrigger = true;
+    }
+
+    static void SpawnFloorTrap(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("FloorTrap", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(FloorTrap));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+        // Same flattened-decal look as FuelPuddle - visually unremarkable, on purpose.
         go.transform.localScale = new Vector3(1.4f, 0.7f, 1f);
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();

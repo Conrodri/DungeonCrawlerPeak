@@ -26,6 +26,7 @@ public class DestructibleObject : MonoBehaviour
         currentHealth = Mathf.Max(0, currentHealth - amount);
         if (currentHealth == 0)
         {
+            LootTable.TryDropLoot(transform.position);
             OnDestroyed?.Invoke();
             Destroy(gameObject);
         }

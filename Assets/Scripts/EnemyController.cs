@@ -145,6 +145,7 @@ public class EnemyController : MonoBehaviour
     void HandleDeath()
     {
         Debug.Log(name + " died.");
+        LootTable.TryDropLoot(transform.position);
         OnDied?.Invoke();
         Destroy(gameObject);
     }

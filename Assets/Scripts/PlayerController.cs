@@ -127,10 +127,26 @@ public class PlayerController : MonoBehaviour
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * stats.MoveSpeedMultiplier;
     }
 
+    bool weaponLocked;
+
     public void EquipWeapon(WeaponType weapon)
     {
+        if (weaponLocked) return;
         currentWeapon = weapon;
         Debug.Log("Equipped " + weapon);
+    }
+
+    // A cursed weapon-item forces itself on and can't be swapped out until UnlockWeapon runs.
+    public void ForceEquipWeapon(WeaponType weapon)
+    {
+        currentWeapon = weapon;
+        weaponLocked = true;
+        Debug.Log("Cursed weapon forced on: " + weapon);
+    }
+
+    public void UnlockWeapon()
+    {
+        weaponLocked = false;
     }
 
     void TryAttack()
