@@ -3,6 +3,8 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
 using UnityEngine.UI;
@@ -284,6 +286,11 @@ public static class DungeonBootstrap
         playerController.swordVisualSprite = swordVisualSprite;
         playerController.explosionSprite = explosionSprite;
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
+        // Starting hotbar loadout - the player can rearrange these later via drag & drop.
+        playerInventory.hotbarSlots[0] = ItemIds.Shuriken;
+        playerInventory.hotbarSlots[1] = ItemIds.Caillou;
+        playerInventory.hotbarSlots[2] = ItemIds.Baton;
+        playerInventory.hotbarSlots[3] = ItemIds.Bomb;
         PlayerStats playerStats = player.GetComponent<PlayerStats>();
         Health playerHealth = player.GetComponent<Health>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
@@ -365,6 +372,11 @@ public static class DungeonBootstrap
         canvasGO.transform.SetParent(root.transform);
         canvasGO.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
 
+        // Required for UI pointer/drag events (inventory drag & drop) - the project's Active Input
+        // Handling is Input System (New) only, so the legacy StandaloneInputModule doesn't work.
+        GameObject eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        eventSystemGO.transform.SetParent(root.transform);
+
         GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
         hudGO.transform.SetParent(canvasGO.transform, false);
         RectTransform hudRect = hudGO.GetComponent<RectTransform>();
@@ -427,6 +439,21 @@ public static class DungeonBootstrap
         hotbar.slotSize = 56f;
         hotbar.spacing = 64f;
         hotbar.fontSize = 36;
+
+        // --- Inventory screen (grid, toggled with the I key) ---
+        GameObject inventoryGO = new GameObject("InventoryUI", typeof(RectTransform), typeof(InventoryUI));
+        inventoryGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform inventoryRect = inventoryGO.GetComponent<RectTransform>();
+        inventoryRect.anchorMin = Vector2.zero;
+        inventoryRect.anchorMax = Vector2.one;
+        inventoryRect.offsetMin = Vector2.zero;
+        inventoryRect.offsetMax = Vector2.zero;
+
+        InventoryUI inventoryUI = inventoryGO.GetComponent<InventoryUI>();
+        inventoryUI.inventory = playerInventory;
+        inventoryUI.slotSize = 72f;
+        inventoryUI.spacing = 84f;
+        inventoryUI.fontSize = 32;
 
         // --- Minimap (top-right): adjacent rooms half-reveal, entered rooms fully reveal ---
         GameObject minimapGO = new GameObject("Minimap", typeof(RectTransform), typeof(MinimapController));

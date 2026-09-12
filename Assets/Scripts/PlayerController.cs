@@ -80,7 +80,7 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        if (isDead || DialogueManager.IsOpen)
+        if (isDead || DialogueManager.IsOpen || InventoryUI.IsOpen)
         {
             moveInput = Vector2.zero;
             return;
