@@ -8,7 +8,15 @@ public class EnemyController : MonoBehaviour
     public float moveSpeed = 2f;
     public int contactDamage = 1;
     public float contactCooldown = 1f;
-    public bool isElite;
+    public bool isFlying;
+    public EliteModifier modifier;
+
+    const float BobAmplitude = 0.15f;
+    const float BobSpeed = 4f;
+    const float SpeedUpMultiplier = 1.6f;
+    const float HpUpMultiplier = 2f;
+    const float BadgeHeight = 0.7f;
+    const float GlowScale = 1.8f;
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
@@ -44,6 +52,46 @@ public class EnemyController : MonoBehaviour
         roomBounds = bounds;
     }
 
+    // Boosts this enemy's stats and adds a badge (above the head) + a glow (behind the body) so
+    // the modifier reads at a glance, in addition to the stat change itself.
+    public void ApplyModifier(EliteModifier mod, Sprite badgeIcon, Sprite glowSprite, Color glowColor)
+    {
+        modifier = mod;
+        if (mod == EliteModifier.None) return;
+
+        if (mod == EliteModifier.SpeedUp)
+        {
+            moveSpeed *= SpeedUpMultiplier;
+        }
+        else if (mod == EliteModifier.HpUp)
+        {
+            health.maxHealth = Mathf.RoundToInt(health.maxHealth * HpUpMultiplier);
+            health.currentHealth = health.maxHealth;
+        }
+
+        if (glowSprite != null)
+        {
+            GameObject glowGO = new GameObject("Glow", typeof(SpriteRenderer));
+            glowGO.transform.SetParent(transform, false);
+            glowGO.transform.localScale = Vector3.one * GlowScale;
+            SpriteRenderer glowRenderer = glowGO.GetComponent<SpriteRenderer>();
+            glowRenderer.sprite = glowSprite;
+            glowRenderer.color = glowColor;
+            glowRenderer.sortingOrder = -1;
+        }
+
+        if (badgeIcon != null)
+        {
+            GameObject badgeGO = new GameObject("Badge", typeof(SpriteRenderer));
+            badgeGO.transform.SetParent(transform, false);
+            badgeGO.transform.localPosition = new Vector3(0f, BadgeHeight, 0f);
+            badgeGO.transform.localScale = Vector3.one * 0.5f;
+            SpriteRenderer badgeRenderer = badgeGO.GetComponent<SpriteRenderer>();
+            badgeRenderer.sprite = badgeIcon;
+            badgeRenderer.sortingOrder = 1;
+        }
+    }
+
     void FixedUpdate()
     {
         if (target == null) return;
@@ -66,6 +114,10 @@ public class EnemyController : MonoBehaviour
         clamped.x = Mathf.Clamp(clamped.x, b.xMin + margin, b.xMax - margin);
         clamped.y = Mathf.Clamp(clamped.y, b.yMin + margin, b.yMax - margin);
         if (clamped != rb.position) rb.position = clamped;
+
+        // Purely visual hover: nudges the rendered position, not rb.position, so it never affects
+        // physics/targeting - the next physics step resyncs the transform to rb.position anyway.
+        if (isFlying) transform.position = rb.position + new Vector2(0f, Mathf.Sin(Time.time * BobSpeed) * BobAmplitude);
     }
 
     void OnCollisionEnter2D(Collision2D collision)

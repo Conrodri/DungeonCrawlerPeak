@@ -97,8 +97,23 @@ public static class DungeonBootstrap
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
         Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
-        Sprite enemySprite = CreateCircleSprite("Assets/Art/Enemy.png", new Color(0.75f, 0.15f, 0.15f));
-        Sprite eliteSprite = CreateCircleSprite("Assets/Art/EnemyElite.png", new Color(0.95f, 0.55f, 0.05f));
+        Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
+        Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
+        Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
+        Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
+        Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
+        Sprite hpUpBadge = LoadIconPackSprite("Heart02_Bright");
+
+        RoomController.EnemyPresetEntry[] enemyPresets =
+        {
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, moveSpeed = 1.6f, maxHealth = 1, contactDamage = 1, isFlying = false },
+        };
+
+        // A whole floor sometimes commits to a single creature type, so every Monster room draws
+        // from it instead of picking its own encounter pattern.
+        EnemyType? floorTheme = Random.value < 0.3f ? (EnemyType?)(EnemyType)Random.Range(0, 3) : null;
 
         Sprite shopMarker = CreateMaskedSprite("Assets/Art/Markers/Shop.png", ChestMask, new Color(0.75f, 0.55f, 0.15f));
         Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
@@ -313,7 +328,7 @@ public static class DungeonBootstrap
             {
                 List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var d) ? d : new List<(Vector2, bool)>();
                 bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
-                    enemySprite, eliteSprite, doorBarrierSprite, doors, monsterRoomControllers);
+                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, floorTheme, doors, monsterRoomControllers);
                 if (hasElite) eliteRoomCount++;
             }
             else
@@ -1127,21 +1142,70 @@ public static class DungeonBootstrap
         return accepted;
     }
 
-    static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
-        Sprite enemySprite, Sprite eliteSprite, Sprite doorBarrierSprite,
-        List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
+    // A "collés" formation: one anchor placed with the same wall/door rejection sampling as
+    // GenerateEnemySpawnPositions, then the rest of the group scattered tightly around it.
+    static List<Vector2> GenerateClusteredPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors)
     {
-        int count = Random.Range(2, 4);
+        const float ClusterRadius = 1.2f;
+        Vector2 center = GenerateEnemySpawnPositions(1, roomOrigin, doors)[0];
+
+        List<Vector2> positions = new List<Vector2> { center };
+        for (int i = 1; i < count; i++)
+        {
+            positions.Add(center + Random.insideUnitCircle * ClusterRadius);
+        }
+        return positions;
+    }
+
+    // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
+    // paired 1:1 with EncounterPatternClustered.
+    static readonly EnemyType[][] EncounterPatterns =
+    {
+        new[] { EnemyType.Zombie, EnemyType.Zombie, EnemyType.Zombie },
+        new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.ChauveSouris },
+        new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.Zombie },
+        new[] { EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve },
+    };
+    static readonly bool[] EncounterPatternClustered = { true, false, false, true };
+
+    static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
+        RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
+        EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
+    {
+        EnemyType[] composition;
+        bool clustered;
+        if (floorTheme.HasValue)
+        {
+            composition = new EnemyType[Random.Range(2, 4)];
+            for (int i = 0; i < composition.Length; i++) composition[i] = floorTheme.Value;
+            clustered = false;
+        }
+        else
+        {
+            int patternIndex = Random.Range(0, EncounterPatterns.Length);
+            composition = EncounterPatterns[patternIndex];
+            clustered = EncounterPatternClustered[patternIndex];
+        }
+
+        int count = composition.Length;
         bool hasElite = Random.value < EliteChance;
         int eliteIndex = hasElite ? Random.Range(0, count) : -1;
+        EliteModifier eliteModifier = hasElite ? (Random.value < 0.5f ? EliteModifier.SpeedUp : EliteModifier.HpUp) : EliteModifier.None;
 
         Vector2 roomOrigin = new Vector2(originX, originY);
-        List<Vector2> positions = GenerateEnemySpawnPositions(count, roomOrigin, doors);
+        List<Vector2> positions = clustered
+            ? GenerateClusteredPositions(count, roomOrigin, doors)
+            : GenerateEnemySpawnPositions(count, roomOrigin, doors);
 
         RoomController.EnemySpawn[] recipe = new RoomController.EnemySpawn[count];
         for (int i = 0; i < count; i++)
         {
-            recipe[i] = new RoomController.EnemySpawn { localOffset = positions[i] - roomOrigin, isElite = i == eliteIndex };
+            recipe[i] = new RoomController.EnemySpawn
+            {
+                localOffset = positions[i] - roomOrigin,
+                type = composition[i],
+                modifier = i == eliteIndex ? eliteModifier : EliteModifier.None,
+            };
         }
 
         GameObject roomGO = new GameObject("MonsterRoom_" + gridPos, typeof(RoomController));
@@ -1152,8 +1216,10 @@ public static class DungeonBootstrap
         controller.roomOrigin = new Vector2(originX, originY);
         controller.roomSize = new Vector2(RoomWidth, RoomHeight);
         controller.player = player;
-        controller.enemySprite = enemySprite;
-        controller.eliteSprite = eliteSprite;
+        controller.presets = presets;
+        controller.speedUpBadge = speedUpBadge;
+        controller.hpUpBadge = hpUpBadge;
+        controller.glowSprite = glowSprite;
         controller.recipe = recipe;
 
         foreach ((Vector2 pos, bool onVerticalWall) door in doors)
@@ -1235,6 +1301,27 @@ public static class DungeonBootstrap
             {
                 float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
                 tex.SetPixel(x, y, dist <= radius ? color : clear);
+            }
+        }
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
+    }
+
+    // A soft white radial falloff (opaque center, transparent edge) meant to be tinted via
+    // SpriteRenderer.color - one shared glow sprite recolored per elite modifier.
+    static Sprite CreateGlowSprite(string path)
+    {
+        int size = TilePixelSize * 2;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Vector2 center = new Vector2(size / 2f, size / 2f);
+        float radius = size / 2f;
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                float alpha = Mathf.Clamp01(1f - dist / radius);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha * alpha));
             }
         }
         tex.Apply();

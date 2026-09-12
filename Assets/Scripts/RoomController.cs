@@ -12,7 +12,19 @@ public class RoomController : MonoBehaviour
     public struct EnemySpawn
     {
         public Vector2 localOffset;
-        public bool isElite;
+        public EnemyType type;
+        public EliteModifier modifier;
+    }
+
+    [Serializable]
+    public struct EnemyPresetEntry
+    {
+        public EnemyType type;
+        public Sprite sprite;
+        public float moveSpeed;
+        public int maxHealth;
+        public int contactDamage;
+        public bool isFlying;
     }
 
     public Vector2Int gridPos;
@@ -20,8 +32,10 @@ public class RoomController : MonoBehaviour
     public Vector2 roomSize;
     public RoomCameraController roomCamera;
     public Transform player;
-    public Sprite enemySprite;
-    public Sprite eliteSprite;
+    public EnemyPresetEntry[] presets;
+    public Sprite speedUpBadge;
+    public Sprite hpUpBadge;
+    public Sprite glowSprite;
     public EnemySpawn[] recipe;
     public List<GameObject> doorBlockers = new List<GameObject>();
     // This room's own door triggers (the ones sitting inside it) - switched solid while locked
@@ -75,15 +89,16 @@ public class RoomController : MonoBehaviour
     {
         foreach (EnemySpawn spawn in recipe)
         {
-            GameObject enemy = new GameObject(spawn.isElite ? "EliteEnemy" : "Enemy",
+            EnemyPresetEntry preset = FindPreset(spawn.type);
+
+            GameObject enemy = new GameObject(spawn.type.ToString(),
                 typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
             enemy.transform.SetParent(transform);
             enemy.transform.position = roomOrigin + spawn.localOffset;
 
             SpriteRenderer renderer = enemy.GetComponent<SpriteRenderer>();
-            renderer.sprite = spawn.isElite ? eliteSprite : enemySprite;
+            renderer.sprite = preset.sprite;
             renderer.sortingOrder = 0;
-            if (spawn.isElite) enemy.transform.localScale = Vector3.one * 1.4f;
 
             Rigidbody2D body = enemy.GetComponent<Rigidbody2D>();
             body.gravityScale = 0f;
@@ -92,20 +107,35 @@ public class RoomController : MonoBehaviour
             enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
 
             Health health = enemy.GetComponent<Health>();
-            health.maxHealth = spawn.isElite ? 4 : 2;
+            health.maxHealth = preset.maxHealth;
             health.currentHealth = health.maxHealth;
 
             EnemyController controller = enemy.GetComponent<EnemyController>();
-            controller.isElite = spawn.isElite;
-            // Damage is in half-heart units on the player's Health: a normal hit costs 0.5
-            // heart (1), an elite hit costs a full heart (2).
-            controller.contactDamage = spawn.isElite ? 2 : 1;
+            controller.moveSpeed = preset.moveSpeed;
+            controller.contactDamage = preset.contactDamage;
+            controller.isFlying = preset.isFlying;
             controller.SetTarget(player);
             controller.SetRoomBounds(new Rect(roomOrigin, roomSize));
+
+            Sprite badge = spawn.modifier == EliteModifier.SpeedUp ? speedUpBadge
+                : spawn.modifier == EliteModifier.HpUp ? hpUpBadge : null;
+            Color glowColor = spawn.modifier == EliteModifier.SpeedUp ? Color.white
+                : spawn.modifier == EliteModifier.HpUp ? Color.red : Color.clear;
+            controller.ApplyModifier(spawn.modifier, badge, glowSprite, glowColor);
+
             controller.OnDied += () => HandleEnemyDied(controller);
 
             liveEnemies.Add(controller);
         }
+    }
+
+    EnemyPresetEntry FindPreset(EnemyType type)
+    {
+        foreach (EnemyPresetEntry preset in presets)
+        {
+            if (preset.type == type) return preset;
+        }
+        return presets.Length > 0 ? presets[0] : default;
     }
 
     void HandleEnemyDied(EnemyController enemy)

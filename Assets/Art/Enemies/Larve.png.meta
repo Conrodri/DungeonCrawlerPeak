@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: fb54b2535c3bd484abb6e73bddeca0c5
+guid: f07caf0cf626d6a4c9ee08f3d62a385d
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -2485425267670201308
-    second: EnemyElite_0
+      213: -7739254876515739246
+    second: Larve_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -100,7 +100,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: EnemyElite_0
+      name: Larve_0
       rect:
         serializedVersion: 2
         x: 0
@@ -115,8 +115,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 42cccbc23eef18dd0800000000000000
-      internalID: -2485425267670201308
+      spriteID: 299d113b1b4a89490800000000000000
+      internalID: -7739254876515739246
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      EnemyElite_0: -2485425267670201308
+      Larve_0: -7739254876515739246
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
