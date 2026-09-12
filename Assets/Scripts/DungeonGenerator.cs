@@ -543,7 +543,10 @@ public static class DungeonGenerator
 
         // Required for UI pointer/drag events (inventory drag & drop) - the project's Active Input
         // Handling is Input System (New) only, so the legacy StandaloneInputModule doesn't work.
-        GameObject eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        // Reuses one if it already exists (MainMenuController creates one to run its own buttons
+        // before a floor exists at all) - a second EventSystem in the scene fights the first one.
+        GameObject eventSystemGO = GameObject.Find("EventSystem");
+        if (eventSystemGO == null) eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         eventSystemGO.transform.SetParent(root.transform);
 
         GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
