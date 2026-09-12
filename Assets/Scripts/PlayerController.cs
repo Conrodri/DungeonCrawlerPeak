@@ -14,6 +14,16 @@ public class PlayerController : MonoBehaviour
     public float sprintSpeedMultiplier = 1.6f;
     public float sprintStaminaCostPerSecond = 25f;
 
+    [Header("Dodge Roll")]
+    // Also the invulnerability window, as requested - the roll IS the i-frame, not a separate timer.
+    public float rollDuration = 0.2f;
+    public float rollSpeed = 12f;
+    // Not requested explicitly, but every other action in this class has a cooldown/cost of its
+    // own (attacks, throws, sprint) - a totally free roll would trivialize damage avoidance and
+    // waste the Endurance stat just built. Easy to zero out if unwanted.
+    public float rollCooldown = 0.5f;
+    public float rollStaminaCost = 15f;
+
     [Header("Weapon")]
     public WeaponType currentWeapon = WeaponType.Fist;
     public Sprite projectileSprite;
@@ -69,6 +79,10 @@ public class PlayerController : MonoBehaviour
     float lastThrowTime = -999f;
     bool isDead;
     bool isSprinting;
+    bool isRolling;
+    float rollEndTime = -999f;
+    float lastRollTime = -999f;
+    Vector2 rollDirection;
 
     void Awake()
     {
@@ -87,7 +101,18 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        if (isDead || DialogueManager.IsOpen || InventoryUI.IsOpen)
+        if (isDead)
+        {
+            moveInput = Vector2.zero;
+            isSprinting = false;
+            return;
+        }
+
+        // Committed to the roll until it finishes - FixedUpdate drives the movement and ends it on
+        // its own timer, so this stays correct even if a dialogue/inventory screen opens mid-roll.
+        if (isRolling) return;
+
+        if (DialogueManager.IsOpen || InventoryUI.IsOpen)
         {
             moveInput = Vector2.zero;
             isSprinting = false;
@@ -116,6 +141,9 @@ public class PlayerController : MonoBehaviour
         isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f;
         if (isSprinting) stamina.Drain(sprintStaminaCostPerSecond * Time.deltaTime);
 
+        if (kb.spaceKey.wasPressedThisFrame) TryRoll();
+        if (isRolling) return; // just started rolling this frame - no attack/hotbar until it ends
+
         // Aiming/attacking: arrow keys only, cardinal directions, no diagonals.
         Vector2 aim = Vector2.zero;
         if (kb.upArrowKey.isPressed) aim = Vector2.up;
@@ -139,8 +167,40 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Drives the roll itself (and ends it) here rather than in Update, so it still finishes
+        // and clears invulnerability even if Update starts bailing out early mid-roll (e.g. a
+        // dialogue opens, or the player dies from something invulnerability doesn't block).
+        if (isRolling)
+        {
+            rb.linearVelocity = isDead ? Vector2.zero : rollDirection * rollSpeed;
+            if (Time.time >= rollEndTime) EndRoll();
+            return;
+        }
+
         float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier : 1f);
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
+    }
+
+    void TryRoll()
+    {
+        if (Time.time - lastRollTime < rollCooldown) return;
+        if (stamina.currentStamina < rollStaminaCost) return;
+
+        // Rolls in the direction the player is currently moving; with no movement input, rolls
+        // toward the last direction they aimed/faced (aimDirection is never Vector2.zero).
+        rollDirection = moveInput != Vector2.zero ? moveInput : aimDirection;
+
+        stamina.Drain(rollStaminaCost);
+        lastRollTime = Time.time;
+        rollEndTime = Time.time + rollDuration;
+        isRolling = true;
+        health.SetInvulnerable(true);
+    }
+
+    void EndRoll()
+    {
+        isRolling = false;
+        health.SetInvulnerable(false);
     }
 
     bool weaponLocked;

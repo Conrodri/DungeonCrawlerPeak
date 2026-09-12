@@ -8,6 +8,9 @@ public class Health : MonoBehaviour
     // Chance to fully negate an incoming hit before it's applied - 0 by default, so this has no
     // effect on enemies; only the player's PlayerStats currently drives it, via Dexterity.
     public float dodgeChance;
+    // Set/cleared by PlayerController's dodge roll (see rollDuration) - a fully separate mechanic
+    // from dodgeChance's Dexterity-based coin flip, this always blocks the hit while active.
+    public bool IsInvulnerable { get; private set; }
 
     public event Action<int, int> OnHealthChanged;
     public event Action OnDeath;
@@ -20,6 +23,11 @@ public class Health : MonoBehaviour
         currentHealth = maxHealth;
     }
 
+    public void SetInvulnerable(bool value)
+    {
+        IsInvulnerable = value;
+    }
+
     public void Heal(int amount)
     {
         if (amount <= 0 || isDead) return;
@@ -29,7 +37,7 @@ public class Health : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
-        if (amount <= 0 || isDead) return;
+        if (amount <= 0 || isDead || IsInvulnerable) return;
 
         if (dodgeChance > 0f && UnityEngine.Random.value < dodgeChance)
         {
