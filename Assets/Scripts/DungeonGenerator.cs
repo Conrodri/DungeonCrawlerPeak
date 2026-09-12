@@ -158,6 +158,7 @@ public static class DungeonGenerator
         Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
         Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
         Sprite safeMarker = LoadIconPackSprite("Shield_Bright");
+        Sprite craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
@@ -205,6 +206,16 @@ public static class DungeonGenerator
         Sprite cerberusCollarSprite = CreateSolidSprite("Assets/Art/Items/CerberusCollar.png", new Color(0.75f, 0.6f, 0.15f));
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Misc, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.");
+
+        // Crafting materials - guaranteed drops from the matching decor material (see
+        // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
+        // crafting table (SpawnCraftingTable).
+        Sprite woodMaterialSprite = CreateSolidSprite("Assets/Art/Items/Wood.png", new Color(0.55f, 0.4f, 0.25f));
+        Sprite metalMaterialSprite = CreateSolidSprite("Assets/Art/Items/Metal.png", new Color(0.5f, 0.53f, 0.58f));
+        Sprite stoneMaterialSprite = CreateSolidSprite("Assets/Art/Items/Stone.png", new Color(0.42f, 0.4f, 0.38f));
+        RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.");
+        RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.");
+        RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.");
 
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
@@ -423,6 +434,7 @@ public static class DungeonGenerator
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
                     SpawnTavernNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
+                    SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, root.transform);
                 }
 
                 // Stone blocks everywhere except Start (no obstacles blocking the initial pickups),
@@ -1382,7 +1394,8 @@ public static class DungeonGenerator
                 text = "Acheter une Potion de Soin (" + HealthPotionPrice + " or)",
                 isPurchase = true,
                 purchaseItemId = ItemIds.HealthPotion,
-                purchasePrice = HealthPotionPrice,
+                costItemId = ItemIds.Gold,
+                costAmount = HealthPotionPrice,
             },
             new DialogueOption
             {
@@ -1399,6 +1412,53 @@ public static class DungeonGenerator
                         "Les salles securisees comme celle-ci sont les seules ou vous pouvez sauvegarder.",
                     },
                 },
+            },
+        };
+    }
+
+    // An inanimate crafting station, built on the exact same NpcInteractable/DialogueManager
+    // machinery as a talkable NPC (proximity prompt, E to open, numbered options) - a craft is
+    // just a "purchase" (see DialogueOption.isPurchase) paid in a material instead of gold.
+    static void SpawnCraftingTable(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("CraftingTable", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.2f;
+
+        NpcInteractable table = go.GetComponent<NpcInteractable>();
+        table.npcName = "Table de Craft";
+        table.greeting = "Des materiaux et des outils sont poses ici.";
+        table.options = new List<DialogueOption>
+        {
+            new DialogueOption
+            {
+                text = "Fabriquer un Baton (2 Bois)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.Baton,
+                costItemId = ItemIds.Wood,
+                costAmount = 2,
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer un Caillou (1 Pierre)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.Caillou,
+                costItemId = ItemIds.Stone,
+                costAmount = 1,
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer une Bombe (2 Metal)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.Bomb,
+                costItemId = ItemIds.Metal,
+                costAmount = 2,
             },
         };
     }
@@ -1514,13 +1574,13 @@ public static class DungeonGenerator
             switch ((DecorType)Random.Range(0, 7))
             {
                 case DecorType.StoneBlock:
-                    SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent);
+                    SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent, ItemIds.Stone);
                     break;
                 case DecorType.WoodDebris:
-                    SpawnDestructible("WoodDebris", pos, sprites.woodDebris, WoodDebrisHealth, WoodDebrisRequiredForce, parent);
+                    SpawnDestructible("WoodDebris", pos, sprites.woodDebris, WoodDebrisHealth, WoodDebrisRequiredForce, parent, ItemIds.Wood);
                     break;
                 case DecorType.MetalDebris:
-                    SpawnDestructible("MetalDebris", pos, sprites.metalDebris, MetalDebrisHealth, MetalDebrisRequiredForce, parent);
+                    SpawnDestructible("MetalDebris", pos, sprites.metalDebris, MetalDebrisHealth, MetalDebrisRequiredForce, parent, ItemIds.Metal);
                     break;
                 case DecorType.ExplosiveBarrel:
                     SpawnExplosiveBarrel(pos, sprites.barrel, sprites.explosion, parent);
@@ -1547,7 +1607,7 @@ public static class DungeonGenerator
         }
     }
 
-    static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent)
+    static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent, string guaranteedDropItemId = null)
     {
         GameObject go = new GameObject(name, typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(DestructibleObject));
         go.transform.SetParent(parent);
@@ -1565,6 +1625,7 @@ public static class DungeonGenerator
         DestructibleObject destructible = go.GetComponent<DestructibleObject>();
         destructible.maxHealth = maxHealth;
         destructible.requiredForce = requiredForce;
+        destructible.guaranteedDropItemId = guaranteedDropItemId;
     }
 
     static void SpawnExplosiveBarrel(Vector2 position, Sprite sprite, Sprite explosionSprite, Transform parent)

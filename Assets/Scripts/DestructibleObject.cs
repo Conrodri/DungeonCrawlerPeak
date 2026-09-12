@@ -10,6 +10,9 @@ public class DestructibleObject : MonoBehaviour
     // Minimum attacker Force needed for a hit to register at all - 0 means any attack works.
     // Explosives bypass this (see Bomb.attackerForce's default), representing "a tool built for it".
     public int requiredForce;
+    // Dropped unconditionally on destruction, on top of the chance-based LootTable roll - the
+    // crafting material a block/debris material yields (e.g. wood/metal/stone). Empty = none.
+    public string guaranteedDropItemId;
 
     public event Action OnDestroyed;
 
@@ -26,6 +29,7 @@ public class DestructibleObject : MonoBehaviour
         currentHealth = Mathf.Max(0, currentHealth - amount);
         if (currentHealth == 0)
         {
+            if (!string.IsNullOrEmpty(guaranteedDropItemId)) ItemPickup.SpawnAt(transform.position, guaranteedDropItemId, 1);
             LootTable.TryDropLoot(transform.position);
             OnDestroyed?.Invoke();
             Destroy(gameObject);

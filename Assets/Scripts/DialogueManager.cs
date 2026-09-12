@@ -190,20 +190,23 @@ public class DialogueManager : MonoBehaviour
         }));
     }
 
-    // A purchase never rolls dice - just checks/spends gold (discounted by Charisme) and hands
-    // over the item, or refuses with a message if the player is short.
+    // A purchase never rolls dice - just checks/spends a cost item and hands over the result, or
+    // refuses with a message if the player is short. Gold is discounted by Charisme (a real shop
+    // price); any other cost item (crafting materials) is paid at face value.
     void ResolvePurchase(DialogueOption option)
     {
         closing = true;
-        int price = Mathf.RoundToInt(option.purchasePrice * playerStats.ShopPriceMultiplier);
-        if (playerInventory.GetCount(ItemIds.Gold) >= price && playerInventory.RemoveAmount(ItemIds.Gold, price))
+        bool isGold = option.costItemId == ItemIds.Gold;
+        int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+
+        if (playerInventory.GetCount(option.costItemId) >= cost && playerInventory.RemoveAmount(option.costItemId, cost))
         {
             playerInventory.Add(option.purchaseItemId, 1);
-            bodyText.text = "Vous achetez l'objet pour " + price + " or.";
+            bodyText.text = isGold ? "Vous achetez l'objet pour " + cost + " or." : "Vous fabriquez l'objet.";
         }
         else
         {
-            bodyText.text = "Vous n'avez pas assez d'or (" + price + " requis).";
+            bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
         }
         StartCoroutine(CloseAfterDelay(1.5f));
     }

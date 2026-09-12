@@ -28,11 +28,14 @@ public class DialogueOption
     public RiskTier risk = RiskTier.Safe;
     public DialogueOutcome onSuccess;
     public DialogueOutcome onFailure;
-    // A purchase resolves immediately (no dice roll) by checking/spending gold instead of
-    // checkStat - see DialogueManager.ChooseOption/ResolvePurchase.
+    // A purchase resolves immediately (no dice roll) by checking/spending a cost item instead of
+    // checkStat - see DialogueManager.ChooseOption/ResolvePurchase. Same mechanism covers both a
+    // shop buying with gold (ShopPriceMultiplier/Charisme applies) and a crafting table spending
+    // materials (costItemId != Gold - no discount).
     public bool isPurchase;
     public string purchaseItemId;
-    public int purchasePrice;
+    public string costItemId = ItemIds.Gold;
+    public int costAmount;
     // Set at runtime when an Important-tier check fails - the option stays listed but can't be
     // chosen again, instead of the whole conversation ending. Persists on this instance, so it
     // stays disabled if the player leaves and re-opens the same NPC's dialogue later.

@@ -10,4 +10,7 @@ public static class ItemIds
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";
     public const string CerberusCollar = "cerberus_collar";
+    public const string Wood = "wood";
+    public const string Metal = "metal";
+    public const string Stone = "stone";
 }
