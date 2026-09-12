@@ -144,18 +144,20 @@ public class PlayerController : MonoBehaviour
         if (kb.spaceKey.wasPressedThisFrame) TryRoll();
         if (isRolling) return; // just started rolling this frame - no attack/hotbar until it ends
 
-        // Aiming/attacking: arrow keys only, cardinal directions, no diagonals.
+        // Aiming: still tracked while sprinting (so the facing is already correct the instant
+        // sprint stops), but attacking/hotbar are not - can't fight with your weapon out while
+        // running, same as the roll's commitment above.
         Vector2 aim = Vector2.zero;
         if (kb.upArrowKey.isPressed) aim = Vector2.up;
         else if (kb.downArrowKey.isPressed) aim = Vector2.down;
         else if (kb.leftArrowKey.isPressed) aim = Vector2.left;
         else if (kb.rightArrowKey.isPressed) aim = Vector2.right;
 
-        if (aim != Vector2.zero)
-        {
-            aimDirection = aim;
-            TryAttack();
-        }
+        if (aim != Vector2.zero) aimDirection = aim;
+
+        if (isSprinting) return;
+
+        if (aim != Vector2.zero) TryAttack();
 
         // Hotbar: reads whatever the player actually assigned to each slot (drag & drop, feature
         // 2) instead of assuming the starting loadout.

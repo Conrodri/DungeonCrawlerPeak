@@ -528,7 +528,7 @@ public static class DungeonGenerator
         hud.emptyColor = heartEmpty;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
 
-        // --- Stamina bar (thin bar directly under the hearts, always visible) ---
+        // --- Stamina bar (directly under the hearts, always visible) ---
         GameObject staminaBarGO = new GameObject("StaminaBar", typeof(RectTransform), typeof(Image), typeof(StaminaBarUI));
         staminaBarGO.transform.SetParent(canvasGO.transform, false);
         Image staminaBarBackground = staminaBarGO.GetComponent<Image>();
@@ -537,7 +537,7 @@ public static class DungeonGenerator
         staminaBarRect.anchorMin = staminaBarRect.anchorMax = new Vector2(0f, 1f);
         staminaBarRect.pivot = new Vector2(0f, 1f);
         staminaBarRect.anchoredPosition = new Vector2(20f, -58f);
-        staminaBarRect.sizeDelta = new Vector2(160f, 10f);
+        staminaBarRect.sizeDelta = new Vector2(160f, 16f);
 
         GameObject staminaFillGO = new GameObject("Fill", typeof(Image));
         staminaFillGO.transform.SetParent(staminaBarGO.transform, false);
@@ -552,9 +552,26 @@ public static class DungeonGenerator
         staminaFillRect.offsetMin = new Vector2(1f, 1f);
         staminaFillRect.offsetMax = new Vector2(-1f, -1f);
 
+        // Numeric readout next to the bar - a short sprint tap barely dents the bar visually and
+        // fully regenerates within under a second, easy to miss; exact numbers make any change
+        // to currentStamina unmistakable regardless of how subtle the bar itself looks.
+        GameObject staminaLabelGO = new GameObject("StaminaLabel", typeof(Text));
+        staminaLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text staminaLabel = staminaLabelGO.GetComponent<Text>();
+        staminaLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        staminaLabel.fontSize = 18;
+        staminaLabel.alignment = TextAnchor.MiddleLeft;
+        staminaLabel.color = Color.white;
+        RectTransform staminaLabelRect = staminaLabel.rectTransform;
+        staminaLabelRect.anchorMin = staminaLabelRect.anchorMax = new Vector2(0f, 1f);
+        staminaLabelRect.pivot = new Vector2(0f, 1f);
+        staminaLabelRect.anchoredPosition = new Vector2(188f, -58f);
+        staminaLabelRect.sizeDelta = new Vector2(80f, 16f);
+
         StaminaBarUI staminaBar = staminaBarGO.GetComponent<StaminaBarUI>();
         staminaBar.target = playerStamina;
         staminaBar.fill = staminaFill;
+        staminaBar.label = staminaLabel;
 
         // --- Gold counter (below the hearts) ---
         GameObject goldGO = new GameObject("GoldCounter", typeof(RectTransform), typeof(GoldCounterUI));
@@ -567,7 +584,7 @@ public static class DungeonGenerator
 
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
-        goldCounter.yOffset = -78f; // leaves room for the stamina bar sitting just under the hearts
+        goldCounter.yOffset = -82f; // leaves room for the stamina bar sitting just under the hearts
 
         // --- Stats column (below the gold counter) ---
         GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
