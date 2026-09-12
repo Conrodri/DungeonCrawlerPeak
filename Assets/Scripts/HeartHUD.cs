@@ -7,6 +7,11 @@ public class HeartHUD : MonoBehaviour
     public Sprite fullHeart;
     public Sprite halfHeart;
     public Sprite emptyHeart;
+    // The icon pack's heart sprites are plain white silhouettes - color has to be applied here
+    // per state rather than baked into the sprite itself.
+    public Color fullColor = Color.white;
+    public Color halfColor = Color.white;
+    public Color emptyColor = Color.white;
     public int maxHeartSlots = 3;
     public float spacing = 40f;
     public float heartSize = 32f;
@@ -38,6 +43,7 @@ public class HeartHUD : MonoBehaviour
 
             Image img = go.GetComponent<Image>();
             img.sprite = emptyHeart;
+            img.color = emptyColor;
 
             RectTransform rt = img.rectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
@@ -55,9 +61,9 @@ public class HeartHUD : MonoBehaviour
         for (int i = 0; i < hearts.Length; i++)
         {
             int slotValue = current - i * 2;
-            if (slotValue >= 2) hearts[i].sprite = fullHeart;
-            else if (slotValue == 1) hearts[i].sprite = halfHeart;
-            else hearts[i].sprite = emptyHeart;
+            if (slotValue >= 2) { hearts[i].sprite = fullHeart; hearts[i].color = fullColor; }
+            else if (slotValue == 1) { hearts[i].sprite = halfHeart; hearts[i].color = halfColor; }
+            else { hearts[i].sprite = emptyHeart; hearts[i].color = emptyColor; }
         }
     }
 }

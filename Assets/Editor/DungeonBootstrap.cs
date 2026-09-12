@@ -34,19 +34,6 @@ public static class DungeonBootstrap
         new Vector2Int(11, 9), new Vector2Int(8, 9), new Vector2Int(14, 3),
     };
 
-    static readonly string[] HeartMask =
-    {
-        "  XX  XX  ",
-        " XXXXXXXX ",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        " XXXXXXXX ",
-        "  XXXXXX  ",
-        "   XXXX   ",
-        "    XX    ",
-    };
-
     static readonly string[] SkullMask =
     {
         "  XXXXXX  ",
@@ -120,7 +107,7 @@ public static class DungeonBootstrap
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
         Sprite staffPickupSprite = CreateSolidSprite("Assets/Art/Items/Staff.png", new Color(0.5f, 0.25f, 0.65f));
-        Sprite goldSprite = CreateCircleSprite("Assets/Art/Items/Gold.png", new Color(0.95f, 0.82f, 0.15f));
+        Sprite goldSprite = LoadIconPackSprite("Coin_Bright");
         Sprite shurikenSprite = CreateSolidSprite("Assets/Art/Items/Shuriken.png", new Color(0.6f, 0.6f, 0.65f));
         Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
         Sprite batonSprite = CreateSolidSprite("Assets/Art/Items/Baton.png", new Color(0.5f, 0.35f, 0.2f));
@@ -137,11 +124,19 @@ public static class DungeonBootstrap
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
         Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
 
+        // The pack only has two heart styles (solid + outline), no dedicated half/empty art, so a
+        // third state is faked by re-using the outline shape at a dimmer color for "empty".
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
-        Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
-        Sprite fullHeart = CreateHeartSprite("Assets/Art/UI/HeartFull.png", heartRed, heartRed);
-        Sprite halfHeart = CreateHeartSprite("Assets/Art/UI/HeartHalf.png", heartRed, heartEmpty);
-        Sprite emptyHeart = CreateHeartSprite("Assets/Art/UI/HeartEmpty.png", heartEmpty, heartEmpty);
+        Color heartEmpty = new Color(0.4f, 0.38f, 0.4f);
+        Sprite fullHeart = LoadIconPackSprite("Heart02_Bright");
+        Sprite halfHeart = LoadIconPackSprite("Heart01_Bright");
+        Sprite emptyHeart = LoadIconPackSprite("Heart01_Bright");
+
+        Sprite forceIcon = LoadIconPackSprite("Sword_Bright");
+        Sprite agiliteIcon = LoadIconPackSprite("Bow_Bright");
+        Sprite intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
+        Sprite vitesseIcon = LoadIconPackSprite("Thunder_Bright");
+        Sprite charismeIcon = LoadIconPackSprite("Star01_Bright");
 
         Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
         Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
@@ -372,6 +367,9 @@ public static class DungeonBootstrap
         hud.fullHeart = fullHeart;
         hud.halfHeart = halfHeart;
         hud.emptyHeart = emptyHeart;
+        hud.fullColor = heartRed;
+        hud.halfColor = heartRed;
+        hud.emptyColor = heartEmpty;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
 
         // --- Gold counter (below the hearts) ---
@@ -398,6 +396,12 @@ public static class DungeonBootstrap
 
         StatsUI statsUI = statsGO.GetComponent<StatsUI>();
         statsUI.stats = playerStats;
+        statsUI.constitutionIcon = fullHeart;
+        statsUI.forceIcon = forceIcon;
+        statsUI.agiliteIcon = agiliteIcon;
+        statsUI.intelligenceIcon = intelligenceIcon;
+        statsUI.vitesseIcon = vitesseIcon;
+        statsUI.charismeIcon = charismeIcon;
 
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
@@ -1192,24 +1196,25 @@ public static class DungeonBootstrap
         return SaveTextureAsSprite(tex, path);
     }
 
-    static Sprite CreateHeartSprite(string path, Color leftColor, Color rightColor)
-    {
-        int w = HeartMask[0].Length;
-        int h = HeartMask.Length;
-        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        Color clear = new Color(0f, 0f, 0f, 0f);
+    const string IconPackAtlasPath = "Assets/Modern GDR - Free icons pack/00_Atlas/BrightIcons.png";
+    static Dictionary<string, Sprite> iconPackCache;
 
-        for (int y = 0; y < h; y++)
+    // Looks up a named sub-sprite (e.g. "Heart02_Bright") from the imported "Modern GDR - Free
+    // icons pack" atlas. Bright (white silhouette) rather than Dark (black) specifically because
+    // white is what lets Image.color actually tint it - black multiplied by any tint is still black.
+    static Sprite LoadIconPackSprite(string name)
+    {
+        if (iconPackCache == null)
         {
-            string row = HeartMask[h - 1 - y]; // texture row 0 is the bottom; mask row 0 is the visual top
-            for (int x = 0; x < w; x++)
+            iconPackCache = new Dictionary<string, Sprite>();
+            foreach (Object obj in AssetDatabase.LoadAllAssetsAtPath(IconPackAtlasPath))
             {
-                if (row[x] != 'X') { tex.SetPixel(x, y, clear); continue; }
-                tex.SetPixel(x, y, x < w / 2 ? leftColor : rightColor);
+                if (obj is Sprite sprite) iconPackCache[sprite.name] = sprite;
             }
         }
-        tex.Apply();
-        return SaveTextureAsSprite(tex, path);
+        if (!iconPackCache.TryGetValue(name, out Sprite result))
+            Debug.LogWarning("DungeonBootstrap: icon pack sprite '" + name + "' not found in " + IconPackAtlasPath);
+        return result;
     }
 
     static Sprite SaveTextureAsSprite(Texture2D tex, string path, Vector2? pivot = null)

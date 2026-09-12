@@ -1,21 +1,25 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Left-side column, below the gold counter: an icon glyph + live value per stat. Refreshes every
-// frame - cheap for six short strings, and keeps this correct even when a dialogue outcome changes
-// a stat mid-run without needing a change-notification event on PlayerStats.
+// Left-side column, below the gold counter: an icon + live value per stat. Refreshes every frame -
+// cheap for six short strings, and keeps this correct even when a dialogue outcome changes a stat
+// mid-run without needing a change-notification event on PlayerStats.
 public class StatsUI : MonoBehaviour
 {
     public PlayerStats stats;
+    public Sprite constitutionIcon;
+    public Sprite forceIcon;
+    public Sprite agiliteIcon;
+    public Sprite intelligenceIcon;
+    public Sprite vitesseIcon;
+    public Sprite charismeIcon;
 
     public float yOffset = -135f;
     public float rowSpacing = 56f;
-    public int iconFontSize = 36;
+    public float iconSize = 40f;
     public int fontSize = 32;
     [Range(0f, 1f)] public float alpha = 0.5f;
 
-    // Native Unicode glyphs instead of hand-drawn sprites - no texture/import step needed.
-    static readonly string[] Icons = { "❤", "⚔", "†", "ⓘ", "⚡", "★" }; // heart, crossed swords, dagger, info circle, lightning bolt, star
     static readonly string[] Labels = { "Constitution", "Force", "Agilite", "Intelligence", "Vitesse", "Charisme" };
 
     Text[] valueTexts;
@@ -33,27 +37,26 @@ public class StatsUI : MonoBehaviour
 
     void BuildUI()
     {
+        Sprite[] icons = { constitutionIcon, forceIcon, agiliteIcon, intelligenceIcon, vitesseIcon, charismeIcon };
         valueTexts = new Text[Labels.Length];
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
-        Color textColor = new Color(1f, 1f, 1f, alpha);
+        Color tint = new Color(1f, 1f, 1f, alpha);
 
         for (int i = 0; i < Labels.Length; i++)
         {
             float y = yOffset - i * rowSpacing;
 
-            GameObject iconGO = new GameObject(Labels[i] + "Icon", typeof(Text));
+            GameObject iconGO = new GameObject(Labels[i] + "Icon", typeof(Image));
             iconGO.transform.SetParent(transform, false);
-            Text iconText = iconGO.GetComponent<Text>();
-            iconText.font = font;
-            iconText.fontSize = iconFontSize;
-            iconText.alignment = TextAnchor.MiddleCenter;
-            iconText.color = textColor;
-            iconText.text = Icons[i];
-            RectTransform iconRt = iconText.rectTransform;
+            Image iconImg = iconGO.GetComponent<Image>();
+            iconImg.sprite = icons[i];
+            iconImg.color = tint;
+            iconImg.preserveAspect = true;
+            RectTransform iconRt = iconImg.rectTransform;
             iconRt.anchorMin = iconRt.anchorMax = new Vector2(0f, 1f);
             iconRt.pivot = new Vector2(0f, 1f);
             iconRt.anchoredPosition = new Vector2(20f, y);
-            iconRt.sizeDelta = new Vector2(iconFontSize + 4f, rowSpacing);
+            iconRt.sizeDelta = new Vector2(iconSize, iconSize);
 
             GameObject textGO = new GameObject(Labels[i] + "Text", typeof(Text));
             textGO.transform.SetParent(transform, false);
@@ -61,12 +64,12 @@ public class StatsUI : MonoBehaviour
             text.font = font;
             text.fontSize = fontSize;
             text.alignment = TextAnchor.MiddleLeft;
-            text.color = textColor;
+            text.color = tint;
             RectTransform textRt = text.rectTransform;
             textRt.anchorMin = textRt.anchorMax = new Vector2(0f, 1f);
             textRt.pivot = new Vector2(0f, 1f);
-            textRt.anchoredPosition = new Vector2(20f + iconFontSize + 16f, y);
-            textRt.sizeDelta = new Vector2(260f, rowSpacing);
+            textRt.anchoredPosition = new Vector2(20f + iconSize + 12f, y);
+            textRt.sizeDelta = new Vector2(260f, iconSize);
 
             valueTexts[i] = text;
         }
