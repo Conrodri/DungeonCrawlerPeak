@@ -235,7 +235,7 @@ public class DialogueManager : MonoBehaviour
     {
         if (outcome.itemRewardPool != null && outcome.itemRewardPool.Length > 0 && playerInventory != null)
         {
-            ItemType picked = outcome.itemRewardPool[Random.Range(0, outcome.itemRewardPool.Length)];
+            string picked = outcome.itemRewardPool[Random.Range(0, outcome.itemRewardPool.Length)];
             playerInventory.Add(picked, 1);
         }
 

@@ -4,7 +4,6 @@ using UnityEngine.UI;
 public class GoldCounterUI : MonoBehaviour
 {
     public PlayerInventory inventory;
-    public Sprite goldSprite;
     public float yOffset = -64f;
 
     Text text;
@@ -29,7 +28,8 @@ public class GoldCounterUI : MonoBehaviour
         GameObject iconGO = new GameObject("GoldIcon", typeof(Image));
         iconGO.transform.SetParent(transform, false);
         Image icon = iconGO.GetComponent<Image>();
-        icon.sprite = goldSprite;
+        ItemDefinition goldDefinition = ItemDatabase.Get(ItemIds.Gold);
+        icon.sprite = goldDefinition != null ? goldDefinition.Icon : null;
         RectTransform iconRt = icon.rectTransform;
         iconRt.anchorMin = iconRt.anchorMax = new Vector2(0f, 1f);
         iconRt.pivot = new Vector2(0f, 1f);
@@ -52,6 +52,6 @@ public class GoldCounterUI : MonoBehaviour
 
     void Refresh()
     {
-        text.text = inventory != null ? inventory.gold.ToString() : "0";
+        text.text = inventory != null ? inventory.GetCount(ItemIds.Gold).ToString() : "0";
     }
 }

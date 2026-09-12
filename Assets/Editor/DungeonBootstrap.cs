@@ -117,6 +117,17 @@ public static class DungeonBootstrap
 
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+
+        // Registered immediately (usable right away by SpawnItemPickup etc. below) and also baked
+        // into an ItemCatalog placed in the scene, so the same data re-registers itself into
+        // ItemDatabase when the game is actually played later, without DungeonBootstrap running.
+        ItemDatabase.Clear();
+        var itemEntries = new List<ItemCatalog.Entry>();
+        RegisterItem(itemEntries, ItemIds.Gold, "Or", ItemCategory.Currency, 100, goldSprite);
+        RegisterItem(itemEntries, ItemIds.Shuriken, "Shuriken", ItemCategory.Throwable, 10, shurikenSprite);
+        RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Throwable, 10, caillouSprite);
+        RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Throwable, 10, batonSprite);
+        RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Throwable, 10, bombSprite);
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
@@ -147,6 +158,10 @@ public static class DungeonBootstrap
         if (existingRoot != null) Object.DestroyImmediate(existingRoot);
 
         GameObject root = new GameObject("DungeonRoot");
+
+        GameObject itemCatalogGO = new GameObject("ItemCatalog", typeof(ItemCatalog));
+        itemCatalogGO.transform.SetParent(root.transform);
+        itemCatalogGO.GetComponent<ItemCatalog>().entries = itemEntries;
 
         GameObject gridGO = new GameObject("Grid", typeof(Grid));
         gridGO.transform.SetParent(root.transform);
@@ -267,10 +282,6 @@ public static class DungeonBootstrap
         playerController.projectileSprite = projectileSprite;
         playerController.fistVisualSprite = fistVisualSprite;
         playerController.swordVisualSprite = swordVisualSprite;
-        playerController.shurikenSprite = shurikenSprite;
-        playerController.caillouSprite = caillouSprite;
-        playerController.batonSprite = batonSprite;
-        playerController.bombSprite = bombSprite;
         playerController.explosionSprite = explosionSprite;
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerStats playerStats = player.GetComponent<PlayerStats>();
@@ -301,7 +312,7 @@ public static class DungeonBootstrap
             {
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
                     shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
-                    swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
+                    swordPickupSprite, staffPickupSprite);
 
                 if (kv.Value == RoomType.Event)
                 {
@@ -383,7 +394,6 @@ public static class DungeonBootstrap
 
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
-        goldCounter.goldSprite = goldSprite;
 
         // --- Stats column (below the gold counter) ---
         GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
@@ -414,10 +424,6 @@ public static class DungeonBootstrap
 
         HotbarUI hotbar = hotbarGO.GetComponent<HotbarUI>();
         hotbar.inventory = playerInventory;
-        hotbar.shurikenSprite = shurikenSprite;
-        hotbar.caillouSprite = caillouSprite;
-        hotbar.batonSprite = batonSprite;
-        hotbar.bombSprite = bombSprite;
         hotbar.slotSize = 56f;
         hotbar.spacing = 64f;
         hotbar.fontSize = 36;
@@ -872,7 +878,7 @@ public static class DungeonBootstrap
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
         Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker,
-        Sprite swordSprite, Sprite staffSprite, Sprite goldSprite, Sprite shurikenSprite, Sprite caillouSprite, Sprite batonSprite, Sprite bombSprite)
+        Sprite swordSprite, Sprite staffSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
 
@@ -900,11 +906,11 @@ public static class DungeonBootstrap
                 SpawnMarker("EventMarker", center, eventMarker, parent);
                 break;
             case RoomType.Start:
-                SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), goldSprite, ItemType.Gold, 5, parent);
-                SpawnItemPickup("ShurikenPickup", center + new Vector2(-0.7f, 1.5f), shurikenSprite, ItemType.Shuriken, 3, parent);
-                SpawnItemPickup("CaillouPickup", center + new Vector2(0.7f, 1.5f), caillouSprite, ItemType.Caillou, 3, parent);
-                SpawnItemPickup("BatonPickup", center + new Vector2(2f, 1.5f), batonSprite, ItemType.Baton, 3, parent);
-                SpawnItemPickup("BombPickup", center + new Vector2(0f, 2.7f), bombSprite, ItemType.Bomb, 3, parent);
+                SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), ItemIds.Gold, 5, parent);
+                SpawnItemPickup("ShurikenPickup", center + new Vector2(-0.7f, 1.5f), ItemIds.Shuriken, 3, parent);
+                SpawnItemPickup("CaillouPickup", center + new Vector2(0.7f, 1.5f), ItemIds.Caillou, 3, parent);
+                SpawnItemPickup("BatonPickup", center + new Vector2(2f, 1.5f), ItemIds.Baton, 3, parent);
+                SpawnItemPickup("BombPickup", center + new Vector2(0f, 2.7f), ItemIds.Bomb, 3, parent);
                 break;
         }
     }
@@ -919,15 +925,22 @@ public static class DungeonBootstrap
         list.Add((pos, onVerticalWall));
     }
 
-    static void SpawnItemPickup(string name, Vector2 position, Sprite sprite, ItemType type, int amount, Transform parent)
+    static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon)
+    {
+        ItemDatabase.Register(new ItemDefinition { Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon });
+        entries.Add(new ItemCatalog.Entry { id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon });
+    }
+
+    static void SpawnItemPickup(string name, Vector2 position, string itemId, int amount, Transform parent)
     {
         GameObject pickup = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(ItemPickup));
         pickup.transform.SetParent(parent);
         pickup.transform.position = position;
         pickup.transform.localScale = Vector3.one * 0.5f;
 
+        ItemDefinition definition = ItemDatabase.Get(itemId);
         SpriteRenderer renderer = pickup.GetComponent<SpriteRenderer>();
-        renderer.sprite = sprite;
+        renderer.sprite = definition != null ? definition.Icon : null;
         renderer.sortingOrder = 0;
 
         CircleCollider2D collider = pickup.GetComponent<CircleCollider2D>();
@@ -935,7 +948,7 @@ public static class DungeonBootstrap
         collider.radius = 0.4f;
 
         ItemPickup itemPickup = pickup.GetComponent<ItemPickup>();
-        itemPickup.itemType = type;
+        itemPickup.itemId = itemId;
         itemPickup.amount = amount;
     }
 
@@ -995,7 +1008,7 @@ public static class DungeonBootstrap
                 onSuccess = new DialogueOutcome
                 {
                     message = "Il tremble et vous tend un objet.",
-                    itemRewardPool = new[] { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, ItemType.Bomb, ItemType.Gold },
+                    itemRewardPool = new[] { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Bomb, ItemIds.Gold },
                 },
                 onFailure = new DialogueOutcome
                 {

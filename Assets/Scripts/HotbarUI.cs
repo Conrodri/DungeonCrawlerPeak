@@ -6,16 +6,11 @@ public class HotbarUI : MonoBehaviour
     public const int SlotCount = 5;
 
     public PlayerInventory inventory;
-    public Sprite shurikenSprite;
-    public Sprite caillouSprite;
-    public Sprite batonSprite;
-    public Sprite bombSprite;
+    // Slot 5 is reserved for a future item.
+    public string[] slotItemIds = { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Bomb, null };
     public float slotSize = 40f;
     public float spacing = 48f;
     public int fontSize = 14;
-
-    // Slot 5 is reserved for a future item.
-    readonly ItemType?[] slotTypes = { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, ItemType.Bomb, null };
 
     Text[] slotTexts;
 
@@ -36,18 +31,20 @@ public class HotbarUI : MonoBehaviour
 
     void BuildSlots()
     {
-        Sprite[] sprites = { shurikenSprite, caillouSprite, batonSprite, bombSprite, null };
         slotTexts = new Text[SlotCount];
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
 
         for (int i = 0; i < SlotCount; i++)
         {
+            string itemId = slotItemIds[i];
+            ItemDefinition definition = !string.IsNullOrEmpty(itemId) ? ItemDatabase.Get(itemId) : null;
+
             GameObject slotGO = new GameObject("Slot" + (i + 1), typeof(Image));
             slotGO.transform.SetParent(transform, false);
 
             Image img = slotGO.GetComponent<Image>();
-            img.sprite = sprites[i];
-            img.color = sprites[i] != null ? Color.white : new Color(1f, 1f, 1f, 0.15f);
+            img.sprite = definition != null ? definition.Icon : null;
+            img.color = definition != null ? Color.white : new Color(1f, 1f, 1f, 0.15f);
 
             RectTransform rt = img.rectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
@@ -78,8 +75,9 @@ public class HotbarUI : MonoBehaviour
     {
         for (int i = 0; i < SlotCount; i++)
         {
-            slotTexts[i].text = slotTypes[i].HasValue && inventory != null
-                ? inventory.GetCount(slotTypes[i].Value).ToString()
+            string itemId = slotItemIds[i];
+            slotTexts[i].text = !string.IsNullOrEmpty(itemId) && inventory != null
+                ? inventory.GetCount(itemId).ToString()
                 : "";
         }
     }

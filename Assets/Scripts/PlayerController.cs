@@ -36,16 +36,12 @@ public class PlayerController : MonoBehaviour
     public float staffRangeMultiplier = 3f;
 
     [Header("Throwables")]
-    public Sprite shurikenSprite;
-    public Sprite caillouSprite;
-    public Sprite batonSprite;
     public int throwDamage = 1;
     public float throwSpeed = 10f;
     public float throwCooldown = 0.3f;
     public float throwRangeMultiplier = 2f;
 
     [Header("Bomb")]
-    public Sprite bombSprite;
     public Sprite explosionSprite;
     public int bombDamage = 3;
     public float bombExplosionRadius = 2f;
@@ -120,9 +116,9 @@ public class PlayerController : MonoBehaviour
         }
 
         // Hotbar: slots 1-3 throw a stocked consumable, slot 4 drops a bomb. Slot 5 is reserved.
-        if (kb.digit1Key.wasPressedThisFrame) TryThrow(ItemType.Shuriken, shurikenSprite);
-        if (kb.digit2Key.wasPressedThisFrame) TryThrow(ItemType.Caillou, caillouSprite);
-        if (kb.digit3Key.wasPressedThisFrame) TryThrow(ItemType.Baton, batonSprite);
+        if (kb.digit1Key.wasPressedThisFrame) TryThrow(ItemIds.Shuriken);
+        if (kb.digit2Key.wasPressedThisFrame) TryThrow(ItemIds.Caillou);
+        if (kb.digit3Key.wasPressedThisFrame) TryThrow(ItemIds.Baton);
         if (kb.digit4Key.wasPressedThisFrame) TryThrowBomb();
     }
 
@@ -165,21 +161,22 @@ public class PlayerController : MonoBehaviour
     int ScaledPhysicalDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.PhysicalDamageMultiplier);
     int ScaledMagicDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.MagicDamageMultiplier);
 
-    void TryThrow(ItemType type, Sprite sprite)
+    void TryThrow(string itemId)
     {
         float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
         if (Time.time - lastThrowTime < cooldown) return;
-        if (!inventory.TryConsume(type)) return;
+        if (!inventory.TryConsume(itemId)) return;
 
         lastThrowTime = Time.time;
-        LaunchProjectile(sprite, ScaledPhysicalDamage(throwDamage), throwSpeed, ThrowMaxRange);
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        LaunchProjectile(definition != null ? definition.Icon : null, ScaledPhysicalDamage(throwDamage), throwSpeed, ThrowMaxRange);
     }
 
     void TryThrowBomb()
     {
         float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
         if (Time.time - lastThrowTime < cooldown) return;
-        if (!inventory.TryConsume(ItemType.Bomb)) return;
+        if (!inventory.TryConsume(ItemIds.Bomb)) return;
 
         lastThrowTime = Time.time;
 
@@ -189,8 +186,9 @@ public class PlayerController : MonoBehaviour
         GameObject go = new GameObject("Bomb", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Bomb));
         go.transform.position = spawnPos;
 
+        ItemDefinition bombDefinition = ItemDatabase.Get(ItemIds.Bomb);
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
-        renderer.sprite = bombSprite;
+        renderer.sprite = bombDefinition != null ? bombDefinition.Icon : null;
         renderer.sortingOrder = 0;
 
         Rigidbody2D bombBody = go.GetComponent<Rigidbody2D>();

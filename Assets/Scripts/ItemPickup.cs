@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class ItemPickup : MonoBehaviour
 {
-    public ItemType itemType;
+    public string itemId;
     public int amount = 1;
 
     void OnTriggerEnter2D(Collider2D other)
@@ -12,7 +12,7 @@ public class ItemPickup : MonoBehaviour
         PlayerInventory inventory = other.GetComponent<PlayerInventory>();
         if (inventory == null) return;
 
-        inventory.Add(itemType, amount);
+        inventory.Add(itemId, amount);
         Destroy(gameObject);
     }
 }

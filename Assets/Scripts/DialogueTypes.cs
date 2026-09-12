@@ -10,7 +10,7 @@ public class DialogueOutcome
 {
     public string message;
     public string[] messagePool; // if non-empty, one entry is shown at random instead of `message`
-    public ItemType[] itemRewardPool; // one entry picked at random and given to the player - empty = no item
+    public string[] itemRewardPool; // one entry picked at random and given to the player - empty = no item
     public StatType[] statPenaltyTypes; // parallel to statPenaltyAmounts - a penalty can hit several stats at once
     public int[] statPenaltyAmounts;
     public bool curse; // an extra -1 to every stat, on top of any statPenaltyTypes above
