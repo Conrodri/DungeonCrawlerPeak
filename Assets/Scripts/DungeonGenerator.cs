@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // since Build() seeds UnityEngine.Random itself before generating anything.
 public static class DungeonGenerator
 {
-    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event }
+    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event, Safe }
 
     // Sized to fill a 16:9 screen at the camera's orthographic size (RoomHeight/2) with no
     // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
@@ -104,8 +104,13 @@ public static class DungeonGenerator
         "     XX   ",
     };
 
+    // The seed the currently-loaded floor was built with - a Safe room's "rest" option saves this
+    // alongside player state, so DungeonGenerator.Build(CurrentSeed) recreates the exact same floor.
+    public static int CurrentSeed { get; private set; }
+
     public static void Build(int seed)
     {
+        CurrentSeed = seed;
         Random.InitState(seed);
 
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
@@ -152,6 +157,7 @@ public static class DungeonGenerator
         Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
         Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
         Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
+        Sprite safeMarker = LoadIconPackSprite("Shield_Bright");
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
@@ -396,7 +402,7 @@ public static class DungeonGenerator
             {
                 List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var bd) ? bd : new List<(Vector2, bool)>();
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
-                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker,
                     swordPickupSprite, staffPickupSprite);
                 SetupBossRoom(kv.Key, originX, originY, root.transform, player.transform,
                     cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers);
@@ -404,7 +410,7 @@ public static class DungeonGenerator
             else
             {
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
-                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker,
                     swordPickupSprite, staffPickupSprite);
 
                 if (kv.Value == RoomType.Event)
@@ -413,9 +419,15 @@ public static class DungeonGenerator
                     SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
                 }
 
-                // Stone blocks everywhere except Start (no obstacles blocking the initial pickups)
-                // and Boss (kept clear for the fight).
-                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss)
+                if (kv.Value == RoomType.Safe)
+                {
+                    Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
+                }
+
+                // Stone blocks everywhere except Start (no obstacles blocking the initial pickups),
+                // Boss (kept clear for the fight) and Safe (guaranteed hazard-free by design).
+                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss && kv.Value != RoomType.Safe)
                 {
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
@@ -568,6 +580,7 @@ public static class DungeonGenerator
         minimap.shopRoomGridPositions = new List<Vector2Int>();
         minimap.eventRoomGridPositions = new List<Vector2Int>();
         minimap.treasureRoomGridPositions = new List<Vector2Int>();
+        minimap.safeRoomGridPositions = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
         {
             if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
@@ -575,11 +588,13 @@ public static class DungeonGenerator
             if (kv2.Value == RoomType.Shop) minimap.shopRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Event) minimap.eventRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Treasure) minimap.treasureRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Safe) minimap.safeRoomGridPositions.Add(kv2.Key);
         }
         minimap.bossIconSprite = bossMarker;
         minimap.shopIconSprite = shopMarker;
         minimap.eventIconSprite = eventMarker;
         minimap.secretIconSprite = secretMarker;
+        minimap.safeIconSprite = safeMarker;
         minimap.outlineRingSprite = outlineRingSprite;
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
@@ -703,6 +718,7 @@ public static class DungeonGenerator
         dialogueManager.playerStats = playerStats;
         dialogueManager.playerInventory = playerInventory;
         dialogueManager.playerController = playerController;
+        dialogueManager.playerHealth = playerHealth;
         dialogueManager.diceRoll = diceRollUI;
         dialogueManager.promptGO = promptGO;
         dialogueManager.panel = dialoguePanel;
@@ -904,6 +920,8 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Shop, secretCell, start, bossDistance);
         if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
+        // Guaranteed, like Treasure/Shop - a save point must always be reachable.
+        PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
 
         return rooms;
     }
@@ -1138,7 +1156,7 @@ public static class DungeonGenerator
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
-        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker,
+        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker, Sprite safeMarker,
         Sprite swordSprite, Sprite staffSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
@@ -1165,6 +1183,9 @@ public static class DungeonGenerator
                 break;
             case RoomType.Event:
                 SpawnMarker("EventMarker", center, eventMarker, parent);
+                break;
+            case RoomType.Safe:
+                SpawnMarker("SafeMarker", center, safeMarker, parent);
                 break;
             case RoomType.Start:
                 SpawnItemPickup("GoldPickup", center + new Vector2(-2f, 1.5f), ItemIds.Gold, 5, parent);
@@ -1319,6 +1340,64 @@ public static class DungeonGenerator
                 onFailure = new DialogueOutcome
                 {
                     message = "Il n'y connait rien a la magie et hausse les epaules.",
+                },
+            },
+        };
+    }
+
+    const int HealthPotionPrice = 5;
+
+    // The Safe room's NPC: rest (heal + save - see SaveManager/DialogueManager.savesGame), buy a
+    // representative consumable (purchase flow reused as-is by future Shop rooms), and advice for
+    // newer players - covers "salle securisee" + "PNJ conseils" from the backlog in one NPC.
+    static void SpawnTavernNpc(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Le Tavernier";
+        npc.greeting = "Bienvenue, voyageur. Ici, vous ne craignez rien.";
+        npc.options = new List<DialogueOption>
+        {
+            new DialogueOption
+            {
+                text = "Se reposer (soigne et sauvegarde la partie)",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Vous vous reposez un moment. Votre progression est sauvegardee.",
+                    savesGame = true,
+                },
+            },
+            new DialogueOption
+            {
+                text = "Acheter une Potion de Soin (" + HealthPotionPrice + " or)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.HealthPotion,
+                purchasePrice = HealthPotionPrice,
+            },
+            new DialogueOption
+            {
+                text = "Demander des conseils",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome
+                {
+                    messagePool = new[]
+                    {
+                        "Les tonneaux explosifs ne reagissent qu'au feu ou a une explosion voisine - inutile de les frapper.",
+                        "Un objet maudit se colle a votre inventaire. Certains PNJ savent lever une malediction.",
+                        "Examinez un objet au sol avant de le ramasser si quelque chose vous semble louche.",
+                        "La Force determine quels blocs vous pouvez briser a mains nues - une bombe passe outre.",
+                        "Les salles securisees comme celle-ci sont les seules ou vous pouvez sauvegarder.",
+                    },
                 },
             },
         };

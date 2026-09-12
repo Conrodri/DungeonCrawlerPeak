@@ -16,6 +16,7 @@ public class DialogueOutcome
     public bool curse; // an extra -1 to every stat, on top of any statPenaltyTypes above
     public bool npcDisappearsForever; // destroys the NPC - it never comes back in this floor
     public bool removesCursedItem; // lifts PlayerInventory's cursed-item lock and any forced weapon
+    public bool savesGame; // writes a save file (see SaveManager) - only meaningful on a Safe-room NPC
 }
 
 [Serializable]
@@ -27,6 +28,11 @@ public class DialogueOption
     public RiskTier risk = RiskTier.Safe;
     public DialogueOutcome onSuccess;
     public DialogueOutcome onFailure;
+    // A purchase resolves immediately (no dice roll) by checking/spending gold instead of
+    // checkStat - see DialogueManager.ChooseOption/ResolvePurchase.
+    public bool isPurchase;
+    public string purchaseItemId;
+    public int purchasePrice;
     // Set at runtime when an Important-tier check fails - the option stays listed but can't be
     // chosen again, instead of the whole conversation ending. Persists on this instance, so it
     // stays disabled if the player leaves and re-opens the same NPC's dialogue later.

@@ -14,6 +14,7 @@ public class DialogueManager : MonoBehaviour
     public PlayerStats playerStats;
     public PlayerInventory playerInventory;
     public PlayerController playerController;
+    public Health playerHealth;
     public DiceRollUI diceRoll;
 
     public GameObject promptGO;
@@ -149,6 +150,12 @@ public class DialogueManager : MonoBehaviour
     {
         optionsText.text = "";
 
+        if (option.isPurchase)
+        {
+            ResolvePurchase(option);
+            return;
+        }
+
         if (option.checkStat == StatType.None)
         {
             Resolve(option.onSuccess, true);
@@ -181,6 +188,24 @@ public class DialogueManager : MonoBehaviour
                 Resolve(option.onFailure, apply);
             }
         }));
+    }
+
+    // A purchase never rolls dice - just checks/spends gold (discounted by Charisme) and hands
+    // over the item, or refuses with a message if the player is short.
+    void ResolvePurchase(DialogueOption option)
+    {
+        closing = true;
+        int price = Mathf.RoundToInt(option.purchasePrice * playerStats.ShopPriceMultiplier);
+        if (playerInventory.GetCount(ItemIds.Gold) >= price && playerInventory.RemoveAmount(ItemIds.Gold, price))
+        {
+            playerInventory.Add(option.purchaseItemId, 1);
+            bodyText.text = "Vous achetez l'objet pour " + price + " or.";
+        }
+        else
+        {
+            bodyText.text = "Vous n'avez pas assez d'or (" + price + " requis).";
+        }
+        StartCoroutine(CloseAfterDelay(1.5f));
     }
 
     // Same outcome handling as Resolve, but re-lists the options instead of closing the panel -
@@ -255,6 +280,12 @@ public class DialogueManager : MonoBehaviour
         {
             playerInventory.RemoveCurse();
             if (playerController != null) playerController.UnlockWeapon();
+        }
+
+        if (outcome.savesGame)
+        {
+            if (playerHealth != null) playerHealth.Heal(playerHealth.maxHealth);
+            SaveManager.Save(DungeonGenerator.CurrentSeed, playerInventory, playerStats, playerHealth, playerController);
         }
 
         // Destroying it fires NpcInteractable.OnDestroy -> NotifyNpcRemoved, which only clears the

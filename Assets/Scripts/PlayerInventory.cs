@@ -13,6 +13,7 @@ public class PlayerInventory : MonoBehaviour
     public event Action OnInventoryChanged;
 
     public int SlotCount => slots.Count;
+    public string CursedItemId => cursedItemId;
 
     void Awake()
     {
@@ -102,6 +103,44 @@ public class PlayerInventory : MonoBehaviour
     public void AssignHotbar(int hotbarIndex, string itemId)
     {
         hotbarSlots[hotbarIndex] = itemId;
+        OnInventoryChanged?.Invoke();
+    }
+
+    // Removes up to `amount` of an item across slots in one go (e.g. paying a shop price) -
+    // unlike TryConsume (always exactly 1), refuses entirely if the stock is short or cursed.
+    public bool RemoveAmount(string itemId, int amount)
+    {
+        if (itemId == cursedItemId) return false;
+        if (GetCount(itemId) < amount) return false;
+
+        int remaining = amount;
+        foreach (InventorySlot slot in slots)
+        {
+            if (remaining <= 0) break;
+            if (slot.itemId != itemId) continue;
+            int take = Mathf.Min(slot.count, remaining);
+            slot.count -= take;
+            remaining -= take;
+            if (slot.count <= 0) slot.itemId = null;
+        }
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    public InventorySlot[] GetAllSlots() => slots.ToArray();
+
+    // Used to restore a saved game - replaces the current slots/hotbar/curse state outright.
+    public void LoadState(InventorySlot[] savedSlots, string[] savedHotbarSlots, string savedCursedItemId)
+    {
+        slots.Clear();
+        if (savedSlots != null) slots.AddRange(savedSlots);
+
+        if (savedHotbarSlots != null)
+        {
+            for (int i = 0; i < hotbarSlots.Length && i < savedHotbarSlots.Length; i++) hotbarSlots[i] = savedHotbarSlots[i];
+        }
+
+        cursedItemId = savedCursedItemId;
         OnInventoryChanged?.Invoke();
     }
 

@@ -129,6 +129,7 @@ public class PlayerController : MonoBehaviour
     }
 
     bool weaponLocked;
+    public bool WeaponLocked => weaponLocked;
 
     public void EquipWeapon(WeaponType weapon)
     {
@@ -323,6 +324,9 @@ public class PlayerController : MonoBehaviour
     void HandleDeath()
     {
         isDead = true;
+        // A save is only ever a "come back later" convenience - it must never survive death,
+        // or a player could just relaunch the game to undo dying (save-scumming).
+        SaveManager.DeleteSave();
         Debug.Log("Player died.");
     }
 }

@@ -14,10 +14,12 @@ public class MinimapController : MonoBehaviour
     public List<Vector2Int> shopRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> eventRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> treasureRoomGridPositions = new List<Vector2Int>();
+    public List<Vector2Int> safeRoomGridPositions = new List<Vector2Int>();
     public Sprite bossIconSprite;
     public Sprite shopIconSprite;
     public Sprite eventIconSprite;
     public Sprite secretIconSprite;
+    public Sprite safeIconSprite;
     // A hollow-centered square (see DungeonBootstrap's CreateRingSprite) shared by every outline
     // below - plain white so each can be tinted to its own color via Image.color.
     public Sprite outlineRingSprite;
@@ -25,6 +27,7 @@ public class MinimapController : MonoBehaviour
     public Color treasureOutlineColor = new Color(0.95f, 0.85f, 0.15f, 1f);
     public Color eventOutlineColor = new Color(0.55f, 0.25f, 0.85f, 1f);
     public Color secretOutlineColor = new Color(0.05f, 0.05f, 0.05f, 1f);
+    public Color safeOutlineColor = new Color(0.3f, 0.85f, 0.5f, 1f);
     public float cellSize = 12f;
     public float spacing = 3f;
     public float maxPanelSize = 240f;
@@ -171,6 +174,7 @@ public class MinimapController : MonoBehaviour
         if (shopRoomGridPositions.Contains(gridPos)) return shopIconSprite;
         if (eventRoomGridPositions.Contains(gridPos)) return eventIconSprite;
         if (secretRoomGridPositions.Contains(gridPos)) return secretIconSprite;
+        if (safeRoomGridPositions.Contains(gridPos)) return safeIconSprite;
         return null;
     }
 
@@ -180,6 +184,7 @@ public class MinimapController : MonoBehaviour
         if (treasureRoomGridPositions.Contains(gridPos)) return treasureOutlineColor;
         if (eventRoomGridPositions.Contains(gridPos)) return eventOutlineColor;
         if (secretRoomGridPositions.Contains(gridPos)) return secretOutlineColor;
+        if (safeRoomGridPositions.Contains(gridPos)) return safeOutlineColor;
         return null;
     }
 
