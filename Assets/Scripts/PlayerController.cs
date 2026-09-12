@@ -84,7 +84,11 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        if (isDead) return;
+        if (isDead || DialogueManager.IsOpen)
+        {
+            moveInput = Vector2.zero;
+            return;
+        }
 
         var kb = Keyboard.current;
         if (kb == null)

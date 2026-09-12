@@ -135,6 +135,7 @@ public static class DungeonBootstrap
         // visual hint, on purpose (detection items are a separate future feature).
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
+        Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
 
         Color heartRed = new Color(0.85f, 0.15f, 0.2f);
         Color heartEmpty = new Color(0.25f, 0.22f, 0.24f);
@@ -277,6 +278,7 @@ public static class DungeonBootstrap
         playerController.bombSprite = bombSprite;
         playerController.explosionSprite = explosionSprite;
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
+        PlayerStats playerStats = player.GetComponent<PlayerStats>();
         Health playerHealth = player.GetComponent<Health>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
         // heart), elite hits cost 2 (a full heart).
@@ -305,6 +307,12 @@ public static class DungeonBootstrap
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
                     shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker,
                     swordPickupSprite, staffPickupSprite, goldSprite, shurikenSprite, caillouSprite, batonSprite, bombSprite);
+
+                if (kv.Value == RoomType.Event)
+                {
+                    Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+                    SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
+                }
             }
         }
 
@@ -432,6 +440,124 @@ public static class DungeonBootstrap
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
+
+        // --- Dialogue UI (bottom panel + interact prompt + dice roll popup) ---
+        Font uiFont = Font.CreateDynamicFontFromOSFont("Arial", 16);
+
+        GameObject dialogueGO = new GameObject("DialogueManager", typeof(RectTransform), typeof(DialogueManager));
+        dialogueGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform dialogueRect = dialogueGO.GetComponent<RectTransform>();
+        dialogueRect.anchorMin = Vector2.zero;
+        dialogueRect.anchorMax = Vector2.one;
+        dialogueRect.offsetMin = Vector2.zero;
+        dialogueRect.offsetMax = Vector2.zero;
+
+        GameObject promptGO = new GameObject("InteractPrompt", typeof(Text));
+        promptGO.transform.SetParent(dialogueGO.transform, false);
+        Text promptText = promptGO.GetComponent<Text>();
+        promptText.font = uiFont;
+        promptText.fontSize = 18;
+        promptText.alignment = TextAnchor.MiddleCenter;
+        promptText.color = Color.white;
+        promptText.text = "Appuyez sur E pour parler";
+        RectTransform promptRect = promptText.rectTransform;
+        promptRect.anchorMin = promptRect.anchorMax = new Vector2(0.5f, 0f);
+        promptRect.pivot = new Vector2(0.5f, 0f);
+        promptRect.anchoredPosition = new Vector2(0f, 90f);
+        promptRect.sizeDelta = new Vector2(400f, 30f);
+        promptGO.SetActive(false);
+
+        GameObject dialoguePanel = new GameObject("DialoguePanel", typeof(Image));
+        dialoguePanel.transform.SetParent(dialogueGO.transform, false);
+        dialoguePanel.GetComponent<Image>().color = new Color(0.05f, 0.05f, 0.08f, 0.9f);
+        RectTransform panelRect = dialoguePanel.GetComponent<RectTransform>();
+        panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0f);
+        panelRect.pivot = new Vector2(0.5f, 0f);
+        panelRect.anchoredPosition = new Vector2(0f, 20f);
+        panelRect.sizeDelta = new Vector2(760f, 220f);
+        dialoguePanel.SetActive(false);
+
+        GameObject npcNameGO = new GameObject("NpcName", typeof(Text));
+        npcNameGO.transform.SetParent(dialoguePanel.transform, false);
+        Text npcNameText = npcNameGO.GetComponent<Text>();
+        npcNameText.font = uiFont;
+        npcNameText.fontSize = 20;
+        npcNameText.fontStyle = FontStyle.Bold;
+        npcNameText.alignment = TextAnchor.UpperLeft;
+        npcNameText.color = new Color(0.9f, 0.8f, 0.4f);
+        RectTransform npcNameRect = npcNameText.rectTransform;
+        npcNameRect.anchorMin = new Vector2(0f, 1f);
+        npcNameRect.anchorMax = new Vector2(1f, 1f);
+        npcNameRect.pivot = new Vector2(0.5f, 1f);
+        npcNameRect.anchoredPosition = new Vector2(0f, -10f);
+        npcNameRect.sizeDelta = new Vector2(-20f, 30f);
+
+        GameObject bodyGO = new GameObject("Body", typeof(Text));
+        bodyGO.transform.SetParent(dialoguePanel.transform, false);
+        Text bodyText = bodyGO.GetComponent<Text>();
+        bodyText.font = uiFont;
+        bodyText.fontSize = 16;
+        bodyText.alignment = TextAnchor.UpperLeft;
+        bodyText.color = Color.white;
+        RectTransform bodyRect = bodyText.rectTransform;
+        bodyRect.anchorMin = new Vector2(0f, 1f);
+        bodyRect.anchorMax = new Vector2(1f, 1f);
+        bodyRect.pivot = new Vector2(0.5f, 1f);
+        bodyRect.anchoredPosition = new Vector2(0f, -45f);
+        bodyRect.sizeDelta = new Vector2(-20f, 60f);
+
+        GameObject optionsGO = new GameObject("Options", typeof(Text));
+        optionsGO.transform.SetParent(dialoguePanel.transform, false);
+        Text optionsText = optionsGO.GetComponent<Text>();
+        optionsText.font = uiFont;
+        optionsText.fontSize = 16;
+        optionsText.alignment = TextAnchor.UpperLeft;
+        optionsText.color = new Color(0.75f, 0.85f, 1f);
+        RectTransform optionsRect = optionsText.rectTransform;
+        optionsRect.anchorMin = new Vector2(0f, 0f);
+        optionsRect.anchorMax = new Vector2(1f, 1f);
+        optionsRect.pivot = new Vector2(0.5f, 0f);
+        optionsRect.offsetMin = new Vector2(10f, 10f);
+        optionsRect.offsetMax = new Vector2(-10f, -110f);
+
+        GameObject diceGO = new GameObject("DiceRoll", typeof(Image), typeof(DiceRollUI));
+        diceGO.transform.SetParent(dialogueGO.transform, false);
+        Image diceBackground = diceGO.GetComponent<Image>();
+        diceBackground.color = new Color(0.2f, 0.2f, 0.25f, 0.95f);
+        RectTransform diceRect = diceBackground.rectTransform;
+        diceRect.anchorMin = diceRect.anchorMax = new Vector2(0.5f, 0.5f);
+        diceRect.pivot = new Vector2(0.5f, 0.5f);
+        diceRect.anchoredPosition = new Vector2(0f, 80f);
+        diceRect.sizeDelta = new Vector2(260f, 90f);
+        diceGO.SetActive(false);
+
+        GameObject diceTextGO = new GameObject("RollText", typeof(Text));
+        diceTextGO.transform.SetParent(diceGO.transform, false);
+        Text diceText = diceTextGO.GetComponent<Text>();
+        diceText.font = uiFont;
+        diceText.fontSize = 28;
+        diceText.fontStyle = FontStyle.Bold;
+        diceText.alignment = TextAnchor.MiddleCenter;
+        diceText.color = Color.white;
+        RectTransform diceTextRect = diceText.rectTransform;
+        diceTextRect.anchorMin = Vector2.zero;
+        diceTextRect.anchorMax = Vector2.one;
+        diceTextRect.offsetMin = Vector2.zero;
+        diceTextRect.offsetMax = Vector2.zero;
+
+        DiceRollUI diceRollUI = diceGO.GetComponent<DiceRollUI>();
+        diceRollUI.rollText = diceText;
+        diceRollUI.background = diceBackground;
+
+        DialogueManager dialogueManager = dialogueGO.GetComponent<DialogueManager>();
+        dialogueManager.playerStats = playerStats;
+        dialogueManager.playerInventory = playerInventory;
+        dialogueManager.diceRoll = diceRollUI;
+        dialogueManager.promptGO = promptGO;
+        dialogueManager.panel = dialoguePanel;
+        dialogueManager.nameText = npcNameText;
+        dialogueManager.bodyText = bodyText;
+        dialogueManager.optionsText = optionsText;
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -564,11 +690,24 @@ public static class DungeonBootstrap
     // the Secret room's single connection from growing a second one. `maxDistanceFromStart` rejects
     // any anchor whose new leaf would reach that far or farther, so a bonus room can never tie or
     // exceed the Boss room's distance from Start (it wouldn't visually read as "the farthest room"
-    // anymore if a Shop/Treasure/etc. coincidentally matched or beat it).
+    // anymore if a Shop/Treasure/etc. coincidentally matched or beat it) - but in a small/cramped
+    // dungeon that constraint alone can starve every candidate (observed: Event's spawn rate
+    // dropping from ~50% to ~10%). Falls back in two steps rather than dropping the constraint
+    // outright: first allow tying Boss's distance (still never exceeding it - the one outcome this
+    // whole scheme exists to prevent), and only as a last resort (a genuinely tiny dungeon) place it
+    // anywhere valid at all, since the room existing beats it not existing.
     static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart)
     {
-        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
+        Vector2Int? chosen = FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart)
+            ?? FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart + 1)
+            ?? FindPlacementCandidate(rooms, protectedAnchor, dist, int.MaxValue);
+        if (chosen.HasValue) rooms[chosen.Value] = type;
+    }
+
+    static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         var candidates = new List<Vector2Int>();
 
         foreach (Vector2Int cell in rooms.Keys)
@@ -586,9 +725,7 @@ public static class DungeonBootstrap
             }
         }
 
-        if (candidates.Count == 0) return;
-        Vector2Int chosen = candidates[Random.Range(0, candidates.Count)];
-        rooms[chosen] = type;
+        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : (Vector2Int?)null;
     }
 
     static void BuildRoomGeometry(int originX, int originY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
@@ -805,6 +942,77 @@ public static class DungeonBootstrap
         marker.transform.position = position;
         marker.transform.localScale = Vector3.one * 0.6f;
         marker.GetComponent<SpriteRenderer>().sprite = sprite;
+    }
+
+    // Template NPC for the dialogue+dice-roll system - reproduces the 3-choice example exactly
+    // (threaten/ask/browse wares), DCs recalibrated from the original D10 pitch (15/7) onto the
+    // official D20 bands (15 = Hard, 10 = Easy). Future NPCs can be built the same way.
+    static void SpawnExampleNpc(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Etranger encapuchonne";
+        npc.greeting = "Un etranger vous regarde avec mefiance.";
+        npc.options = new List<DialogueOption>
+        {
+            new DialogueOption
+            {
+                text = "Le menacer pour qu'il vous cede un objet",
+                checkStat = StatType.Charisme,
+                dc = 15,
+                risk = RiskTier.Risky,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Il tremble et vous tend un objet.",
+                    itemRewardPool = new[] { ItemType.Shuriken, ItemType.Caillou, ItemType.Baton, ItemType.Bomb, ItemType.Gold },
+                },
+                onFailure = new DialogueOutcome
+                {
+                    message = "Il vous frappe, s'enfuit et crache une malediction sur vous.",
+                    statPenaltyTypes = new[] { StatType.Vitesse, StatType.Charisme },
+                    statPenaltyAmounts = new[] { 2, 2 },
+                    curse = true,
+                    npcDisappearsForever = true,
+                },
+            },
+            new DialogueOption
+            {
+                text = "Lui demander ce qu'il fait ici",
+                checkStat = StatType.Intelligence,
+                dc = 10,
+                risk = RiskTier.Important,
+                onSuccess = new DialogueOutcome
+                {
+                    messagePool = new[]
+                    {
+                        "Je fuis un contrat que je ne pouvais pas honorer.",
+                        "Je cherche un tresor perdu par mon grand-pere dans ces murs.",
+                        "Je me cache d'une guilde qui me veut du mal.",
+                        "J'explore ce donjon depuis plus longtemps que vous ne l'imaginez.",
+                    },
+                },
+                onFailure = new DialogueOutcome
+                {
+                    message = "Il n'a pas de temps a perdre avec des illettres, et s'en va.",
+                    npcDisappearsForever = true,
+                },
+            },
+            new DialogueOption
+            {
+                text = "Voir sa marchandise",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome { message = "Il vous montre ses articles." },
+            },
+        };
     }
 
     // Builds a fixed enemy "recipe" for the room (positions + elite flag) and hands it to a

@@ -26,6 +26,10 @@ public class PlayerStats : MonoBehaviour
     // Not consumed yet - no purchase flow exists in Shop rooms (marker-only so far).
     public float ShopPriceMultiplier => Mathf.Max(0f, 1f - charisme * 0.02f);
 
+    // Official 5e proficiency bonus table - the piece that scales a dialogue check's total with
+    // level, instead of a stat floor or a bigger die.
+    public int ProficiencyBonus => level >= 17 ? 6 : level >= 13 ? 5 : level >= 9 ? 4 : level >= 5 ? 3 : 2;
+
     Health health;
 
     void Awake()
@@ -38,5 +42,53 @@ public class PlayerStats : MonoBehaviour
     void Update()
     {
         health.dodgeChance = DodgeChance; // stays correct if a future feature changes dexterite
+    }
+
+    public int GetStat(StatType type)
+    {
+        switch (type)
+        {
+            case StatType.Force: return force;
+            case StatType.Dexterite: return dexterite;
+            case StatType.Intelligence: return intelligence;
+            case StatType.Vitesse: return vitesse;
+            case StatType.Constitution: return constitution;
+            case StatType.Portee: return portee;
+            case StatType.Charisme: return charisme;
+            default: return 0;
+        }
+    }
+
+    // Never drops a stat below 0. Constitution specifically also shrinks max HP by the same
+    // amount, so a Constitution penalty behaves like the D&D convention of CON affecting HP.
+    public void ApplyPenalty(StatType type, int amount)
+    {
+        if (amount <= 0) return;
+        switch (type)
+        {
+            case StatType.Force: force = Mathf.Max(0, force - amount); break;
+            case StatType.Dexterite: dexterite = Mathf.Max(0, dexterite - amount); break;
+            case StatType.Intelligence: intelligence = Mathf.Max(0, intelligence - amount); break;
+            case StatType.Vitesse: vitesse = Mathf.Max(0, vitesse - amount); break;
+            case StatType.Constitution:
+                int actualLoss = Mathf.Min(constitution, amount);
+                constitution -= actualLoss;
+                health.maxHealth = Mathf.Max(1, health.maxHealth - actualLoss);
+                health.currentHealth = Mathf.Min(health.currentHealth, health.maxHealth);
+                break;
+            case StatType.Portee: portee = Mathf.Max(0, portee - amount); break;
+            case StatType.Charisme: charisme = Mathf.Max(0, charisme - amount); break;
+        }
+    }
+
+    public void ApplyCurse()
+    {
+        ApplyPenalty(StatType.Force, 1);
+        ApplyPenalty(StatType.Dexterite, 1);
+        ApplyPenalty(StatType.Intelligence, 1);
+        ApplyPenalty(StatType.Vitesse, 1);
+        ApplyPenalty(StatType.Constitution, 1);
+        ApplyPenalty(StatType.Portee, 1);
+        ApplyPenalty(StatType.Charisme, 1);
     }
 }
