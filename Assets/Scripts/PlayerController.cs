@@ -53,13 +53,14 @@ public class PlayerController : MonoBehaviour
     public float bombSpeed = 6f;
 
     // A weapon's total reach: how far from the player its hit area extends.
-    float SwordReach => swordOffset + swordRange;
+    float SwordReach => (swordOffset + swordRange) * stats.RangeMultiplier;
     float StaffMaxRange => SwordReach * staffRangeMultiplier;
     float ThrowMaxRange => SwordReach * throwRangeMultiplier;
 
     Rigidbody2D rb;
     Health health;
     PlayerInventory inventory;
+    PlayerStats stats;
     CircleCollider2D bodyCollider;
     Vector2 moveInput;
     Vector2 aimDirection = Vector2.down;
@@ -76,6 +77,7 @@ public class PlayerController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         health = GetComponent<Health>();
         inventory = GetComponent<PlayerInventory>();
+        stats = GetComponent<PlayerStats>();
         bodyCollider = GetComponent<CircleCollider2D>();
         health.OnDeath += HandleDeath;
     }
@@ -122,7 +124,7 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed;
+        rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * stats.MoveSpeedMultiplier;
     }
 
     public void EquipWeapon(WeaponType weapon)
@@ -133,8 +135,10 @@ public class PlayerController : MonoBehaviour
 
     void TryAttack()
     {
-        float cooldown = currentWeapon == WeaponType.Fist ? fistCooldown
-            : currentWeapon == WeaponType.Sword ? swordCooldown
+        // Attack speed only affects physical weapons (Fist/Sword) - no equivalent bonus was
+        // requested for the Staff's magic cooldown.
+        float cooldown = currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier
+            : currentWeapon == WeaponType.Sword ? swordCooldown / stats.AttackSpeedMultiplier
             : staffCooldown;
 
         if (Time.time - lastAttackTime < cooldown) return;
@@ -142,24 +146,35 @@ public class PlayerController : MonoBehaviour
 
         switch (currentWeapon)
         {
-            case WeaponType.Fist: MeleeAttack(fistOffset, fistRange, fistDamage, fistVisualSprite); break;
-            case WeaponType.Sword: MeleeAttack(swordOffset, swordRange, swordDamage, swordVisualSprite); break;
-            case WeaponType.Staff: LaunchProjectile(projectileSprite, staffDamage, projectileSpeed, StaffMaxRange); break;
+            case WeaponType.Fist:
+                MeleeAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
+                break;
+            case WeaponType.Sword:
+                MeleeAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                break;
+            case WeaponType.Staff:
+                LaunchProjectile(projectileSprite, ScaledMagicDamage(staffDamage), projectileSpeed, StaffMaxRange);
+                break;
         }
     }
 
+    int ScaledPhysicalDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.PhysicalDamageMultiplier);
+    int ScaledMagicDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.MagicDamageMultiplier);
+
     void TryThrow(ItemType type, Sprite sprite)
     {
-        if (Time.time - lastThrowTime < throwCooldown) return;
+        float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
+        if (Time.time - lastThrowTime < cooldown) return;
         if (!inventory.TryConsume(type)) return;
 
         lastThrowTime = Time.time;
-        LaunchProjectile(sprite, throwDamage, throwSpeed, ThrowMaxRange);
+        LaunchProjectile(sprite, ScaledPhysicalDamage(throwDamage), throwSpeed, ThrowMaxRange);
     }
 
     void TryThrowBomb()
     {
-        if (Time.time - lastThrowTime < throwCooldown) return;
+        float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
+        if (Time.time - lastThrowTime < cooldown) return;
         if (!inventory.TryConsume(ItemType.Bomb)) return;
 
         lastThrowTime = Time.time;
@@ -182,7 +197,7 @@ public class PlayerController : MonoBehaviour
         if (bodyCollider != null) Physics2D.IgnoreCollision(bombCollider, bodyCollider);
 
         Bomb bomb = go.GetComponent<Bomb>();
-        bomb.damage = bombDamage;
+        bomb.damage = ScaledPhysicalDamage(bombDamage);
         bomb.explosionRadius = bombExplosionRadius;
         bomb.fuseTime = bombFuseTime;
         bomb.explosionSprite = explosionSprite;
