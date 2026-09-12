@@ -15,6 +15,10 @@ public class BossRoomController : MonoBehaviour
     public Transform player;
     public Vector2 roomOrigin;
     public Vector2 roomSize;
+    // Only shows the health bar once the player actually steps into this room - without this gate,
+    // BossRoomController.Start() (which runs the moment the floor loads, wherever this room sits)
+    // would bind the bar and reveal it at the top of the screen from the very first frame.
+    public RoomCameraController roomCamera;
     public List<GameObject> doorBlockers = new List<GameObject>();
     // Same shared-list convention as RoomController.exitTriggers - a door trigger registers
     // itself here at generation time via DungeonBootstrap.SpawnDoorTrigger.
@@ -24,6 +28,7 @@ public class BossRoomController : MonoBehaviour
     public string bossName = "Cerbere";
 
     bool defeated;
+    bool healthBarBound;
 
     void Start()
     {
@@ -33,8 +38,20 @@ public class BossRoomController : MonoBehaviour
             boss.SetTarget(player);
             boss.SetRoomBounds(new Rect(roomOrigin, roomSize));
             boss.OnDied += HandleBossDied;
-            if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
         }
+        if (roomCamera != null) roomCamera.OnRoomEntered += HandleRoomEntered;
+    }
+
+    void OnDestroy()
+    {
+        if (roomCamera != null) roomCamera.OnRoomEntered -= HandleRoomEntered;
+    }
+
+    void HandleRoomEntered(Vector2Int enteredGridPos)
+    {
+        if (enteredGridPos != gridPos || healthBarBound || boss == null) return;
+        healthBarBound = true;
+        if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
     }
 
     void HandleBossDied()

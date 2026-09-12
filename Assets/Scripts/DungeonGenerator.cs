@@ -223,6 +223,11 @@ public static class DungeonGenerator
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
         Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        // Ground items are flat colored circles/squares too (no dedicated art beyond a handful of
+        // icon-pack sprites) - without a marker, an NPC reads as just another item on the floor.
+        // A floating "!" above the head (same convention as EnemyController's elite badges) fixes
+        // that at a glance without needing new art.
+        Sprite npcBadgeSprite = LoadIconPackSprite("Quest01_Bright");
 
         // The pack only has two heart styles (solid + outline), no dedicated half/empty art, so a
         // third state is faked by re-using the outline shape at a dimmer color for "empty".
@@ -427,20 +432,20 @@ public static class DungeonGenerator
                 if (kv.Value == RoomType.Event)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
+                    SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, npcBadgeSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Safe)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcSprite, root.transform);
-                    SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, root.transform);
+                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcSprite, npcBadgeSprite, root.transform);
+                    SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Shop)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnMerchantNpc(center, npcSprite, root.transform);
+                    SpawnMerchantNpc(center, npcSprite, npcBadgeSprite, root.transform);
                 }
 
                 // Stone blocks everywhere except Start (no obstacles blocking the initial pickups),
@@ -485,6 +490,7 @@ public static class DungeonGenerator
             roomCam.rooms = roomEntries.ToArray();
 
             foreach (RoomController rc in monsterRoomControllers) rc.roomCamera = roomCam;
+            foreach (BossRoomController bc in bossRoomControllers) bc.roomCamera = roomCam;
 
             // Sort same-order sprites by world Y (further up the screen = further away) so the
             // player correctly passes behind tall wall tops and in front of near ones, Isaac-style.
@@ -1280,7 +1286,23 @@ public static class DungeonGenerator
     // Template NPC for the dialogue+dice-roll system - reproduces the 3-choice example exactly
     // (threaten/ask/browse wares), DCs recalibrated from the original D10 pitch (15/7) onto the
     // official D20 bands (15 = Hard, 10 = Easy). Future NPCs can be built the same way.
-    static void SpawnExampleNpc(Vector2 position, Sprite sprite, Transform parent)
+    // Floating marker above an NPC's/interactable's head, same convention as EnemyController's
+    // elite badges - the only thing that visually tells it apart from a flat-colored ground item.
+    const float NpcBadgeHeight = 1.9f;
+
+    static void AddNpcBadge(GameObject npcGO, Sprite badgeSprite)
+    {
+        if (badgeSprite == null) return;
+        GameObject badgeGO = new GameObject("Badge", typeof(SpriteRenderer));
+        badgeGO.transform.SetParent(npcGO.transform, false);
+        badgeGO.transform.localPosition = new Vector3(0f, NpcBadgeHeight, 0f);
+        badgeGO.transform.localScale = Vector3.one * 0.6f;
+        SpriteRenderer badgeRenderer = badgeGO.GetComponent<SpriteRenderer>();
+        badgeRenderer.sprite = badgeSprite;
+        badgeRenderer.sortingOrder = 1;
+    }
+
+    static void SpawnExampleNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
         go.transform.SetParent(parent);
@@ -1289,6 +1311,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
 
         go.GetComponent<CircleCollider2D>().radius = 1.5f;
 
@@ -1368,7 +1391,7 @@ public static class DungeonGenerator
     // The Safe room's NPC: rest (heal + save - see SaveManager/DialogueManager.savesGame), buy a
     // representative consumable (purchase flow reused as-is by future Shop rooms), and advice for
     // newer players - covers "salle securisee" + "PNJ conseils" from the backlog in one NPC.
-    static void SpawnTavernNpc(Vector2 position, Sprite sprite, Transform parent)
+    static void SpawnTavernNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
         go.transform.SetParent(parent);
@@ -1377,6 +1400,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
 
         go.GetComponent<CircleCollider2D>().radius = 1.5f;
 
@@ -1425,7 +1449,7 @@ public static class DungeonGenerator
     // An inanimate crafting station, built on the exact same NpcInteractable/DialogueManager
     // machinery as a talkable NPC (proximity prompt, E to open, numbered options) - a craft is
     // just a "purchase" (see DialogueOption.isPurchase) paid in a material instead of gold.
-    static void SpawnCraftingTable(Vector2 position, Sprite sprite, Transform parent)
+    static void SpawnCraftingTable(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("CraftingTable", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
         go.transform.SetParent(parent);
@@ -1434,6 +1458,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
 
         go.GetComponent<CircleCollider2D>().radius = 1.2f;
 
@@ -1471,7 +1496,7 @@ public static class DungeonGenerator
 
     // Shop rooms had a marker only until now (no purchase flow existed) - reuses the exact same
     // isPurchase mechanism as the Tavernier/Table de Craft (feature 9/10), just priced in gold.
-    static void SpawnMerchantNpc(Vector2 position, Sprite sprite, Transform parent)
+    static void SpawnMerchantNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
         go.transform.SetParent(parent);
@@ -1480,6 +1505,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
 
         go.GetComponent<CircleCollider2D>().radius = 1.5f;
 

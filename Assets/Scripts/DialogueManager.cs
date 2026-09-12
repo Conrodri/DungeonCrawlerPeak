@@ -47,7 +47,14 @@ public class DialogueManager : MonoBehaviour
             // outcome-resolution flow (which always schedules CloseAfterDelay itself), don't leave
             // the panel stuck open forever.
             if (activeNpc == null && !closing) { Close(); return; }
-            if (!waitingForResolution && !closing) HandleOptionInput();
+            if (!waitingForResolution && !closing)
+            {
+                // Lets the player back out without being forced to pick an option (e.g. a purchase
+                // they can't afford, or just changing their mind) - not allowed mid dice-roll, since
+                // the roll coroutine still expects to resolve against an open dialogue.
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) { Close(); return; }
+                HandleOptionInput();
+            }
             return;
         }
 
