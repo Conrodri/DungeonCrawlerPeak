@@ -290,7 +290,7 @@ public static class DungeonGenerator
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        Dictionary<Vector2Int, RoomType> layout = GenerateLayout();
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups);
 
         // Carve the room geometry and cut door openings for every adjacent pair.
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
@@ -309,54 +309,69 @@ public static class DungeonGenerator
             Vector2Int rightCell = cell + Vector2Int.right;
             if (layout.ContainsKey(rightCell))
             {
-                bool leftIsSecret = kv.Value == RoomType.Secret;
-                bool rightIsSecret = layout[rightCell] == RoomType.Secret;
-                // A secret wall always sits at the dead center of the wall - the wall itself gives
-                // no visual hint either way, but at least a player who suspects a given wall only
-                // needs to bomb the one predictable spot instead of the whole length of it.
-                int doorY = (leftIsSecret || rightIsSecret ? CenteredDoorOffset(RoomHeight) : RandomDoorOffset(RoomHeight)) + cell.y * StepY;
-                CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, doorY, doorY, floorMap, wallsMap, floorTile);
-
-                Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
-                Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, doorY + DoorWidth / 2f);
-
-                if (leftIsSecret || rightIsSecret)
+                if (SameGroup(cellGroups, cell, rightCell))
                 {
-                    CreateSecretDoorLink(
-                        leftIsSecret ? leftPos : rightPos, leftIsSecret ? Vector2.left : Vector2.right,
-                        leftIsSecret ? rightPos : leftPos, leftIsSecret ? Vector2.right : Vector2.left,
-                        true, secretWallSprite, root.transform);
+                    // Two cells of the same merged room - no door, just one continuous floor.
+                    OpenFullHorizontalSeam(cell.x * StepX, rightCell.x * StepX, cell.y * StepY, floorMap, wallsMap, floorTile, wallTile);
                 }
                 else
                 {
-                    AddDoorInfo(doorsByRoom, cell, leftPos, true);
-                    AddDoorInfo(doorsByRoom, rightCell, rightPos, true);
-                    pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, rightCell, true));
+                    bool leftIsSecret = kv.Value == RoomType.Secret;
+                    bool rightIsSecret = layout[rightCell] == RoomType.Secret;
+                    // A secret wall always sits at the dead center of the wall - the wall itself
+                    // gives no visual hint either way, but at least a player who suspects a given
+                    // wall only needs to bomb the one predictable spot instead of the whole length of it.
+                    int doorY = (leftIsSecret || rightIsSecret ? CenteredDoorOffset(RoomHeight) : RandomDoorOffset(RoomHeight)) + cell.y * StepY;
+                    CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, doorY, doorY, floorMap, wallsMap, floorTile);
+
+                    Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
+                    Vector2 rightPos = new Vector2((cell.x + 1) * StepX + 0.5f, doorY + DoorWidth / 2f);
+
+                    if (leftIsSecret || rightIsSecret)
+                    {
+                        CreateSecretDoorLink(
+                            leftIsSecret ? leftPos : rightPos, leftIsSecret ? Vector2.left : Vector2.right,
+                            leftIsSecret ? rightPos : leftPos, leftIsSecret ? Vector2.right : Vector2.left,
+                            true, secretWallSprite, root.transform);
+                    }
+                    else
+                    {
+                        AddDoorInfo(doorsByRoom, cell, leftPos, true);
+                        AddDoorInfo(doorsByRoom, rightCell, rightPos, true);
+                        pendingDoorLinks.Add((leftPos, Vector2.left, cell, rightPos, Vector2.right, rightCell, true));
+                    }
                 }
             }
             Vector2Int upCell = cell + Vector2Int.up;
             if (layout.ContainsKey(upCell))
             {
-                bool bottomIsSecret = kv.Value == RoomType.Secret;
-                bool topIsSecret = layout[upCell] == RoomType.Secret;
-                int doorX = (bottomIsSecret || topIsSecret ? CenteredDoorOffset(RoomWidth) : RandomDoorOffset(RoomWidth)) + cell.x * StepX;
-                CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
-
-                Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
-                Vector2 topPos = new Vector2(doorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
-
-                if (bottomIsSecret || topIsSecret)
+                if (SameGroup(cellGroups, cell, upCell))
                 {
-                    CreateSecretDoorLink(
-                        bottomIsSecret ? bottomPos : topPos, bottomIsSecret ? Vector2.down : Vector2.up,
-                        bottomIsSecret ? topPos : bottomPos, bottomIsSecret ? Vector2.up : Vector2.down,
-                        false, secretWallSprite, root.transform);
+                    OpenFullVerticalSeam(cell.y * StepY, upCell.y * StepY, cell.x * StepX, floorMap, wallsMap, floorTile, wallTile);
                 }
                 else
                 {
-                    AddDoorInfo(doorsByRoom, cell, bottomPos, false);
-                    AddDoorInfo(doorsByRoom, upCell, topPos, false);
-                    pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, upCell, false));
+                    bool bottomIsSecret = kv.Value == RoomType.Secret;
+                    bool topIsSecret = layout[upCell] == RoomType.Secret;
+                    int doorX = (bottomIsSecret || topIsSecret ? CenteredDoorOffset(RoomWidth) : RandomDoorOffset(RoomWidth)) + cell.x * StepX;
+                    CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
+
+                    Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
+                    Vector2 topPos = new Vector2(doorX + DoorWidth / 2f, (cell.y + 1) * StepY + 0.5f);
+
+                    if (bottomIsSecret || topIsSecret)
+                    {
+                        CreateSecretDoorLink(
+                            bottomIsSecret ? bottomPos : topPos, bottomIsSecret ? Vector2.down : Vector2.up,
+                            bottomIsSecret ? topPos : bottomPos, bottomIsSecret ? Vector2.up : Vector2.down,
+                            false, secretWallSprite, root.transform);
+                    }
+                    else
+                    {
+                        AddDoorInfo(doorsByRoom, cell, bottomPos, false);
+                        AddDoorInfo(doorsByRoom, upCell, topPos, false);
+                        pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, upCell, false));
+                    }
                 }
             }
         }
@@ -411,8 +426,28 @@ public static class DungeonGenerator
 
             if (kv.Value == RoomType.Monster)
             {
-                List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var d) ? d : new List<(Vector2, bool)>();
-                bool hasElite = SetupMonsterRoom(kv.Key, originX, originY, root.transform, player.transform,
+                // A multi-cell room is only ever set up once, from its anchor (top/bottom-left)
+                // cell - the other member cells contribute nothing here beyond the camera-rect
+                // entry already added above, which is what lets the camera scroll across them.
+                if (!IsGroupAnchor(kv.Key, cellGroups)) continue;
+
+                RectInt group = cellGroups[kv.Key];
+                var memberCells = new List<Vector2Int>();
+                var doors = new List<(Vector2 pos, bool onVerticalWall)>();
+                for (int gx = 0; gx < group.width; gx++)
+                {
+                    for (int gy = 0; gy < group.height; gy++)
+                    {
+                        Vector2Int member = new Vector2Int(group.xMin + gx, group.yMin + gy);
+                        memberCells.Add(member);
+                        if (doorsByRoom.TryGetValue(member, out var memberDoors)) doors.AddRange(memberDoors);
+                    }
+                }
+                Vector2 groupSize = new Vector2(
+                    group.width * RoomWidth + (group.width - 1) * Gap,
+                    group.height * RoomHeight + (group.height - 1) * Gap);
+
+                bool hasElite = SetupMonsterRoom(memberCells, originX, originY, groupSize, root.transform, player.transform,
                     enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers);
                 if (hasElite) eliteRoomCount++;
             }
@@ -457,7 +492,7 @@ public static class DungeonGenerator
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
                     List<(Vector2 pos, bool onVerticalWall)> roomDoors = doorsByRoom.TryGetValue(kv.Key, out var rd) ? rd : new List<(Vector2, bool)>();
-                    SpawnRoomDecor(roomOrigin, roomDoors, new List<Vector2> { center }, decorSprites, root.transform);
+                    SpawnRoomDecor(roomOrigin, new Vector2(RoomWidth, RoomHeight), roomDoors, new List<Vector2> { center }, decorSprites, root.transform);
                 }
             }
         }
@@ -465,7 +500,8 @@ public static class DungeonGenerator
         // Now that every Monster/Boss room's controller exists, create the door triggers and wire
         // each one to the lock state of the room it sits in.
         var monsterControllers = new Dictionary<Vector2Int, RoomController>();
-        foreach (RoomController rc in monsterRoomControllers) monsterControllers[rc.gridPos] = rc;
+        foreach (RoomController rc in monsterRoomControllers)
+            foreach (Vector2Int member in rc.memberCells) monsterControllers[member] = rc;
         var bossControllers = new Dictionary<Vector2Int, BossRoomController>();
         foreach (BossRoomController bc in bossRoomControllers) bossControllers[bc.gridPos] = bc;
 
@@ -938,7 +974,25 @@ public static class DungeonGenerator
         Debug.Log("DungeonGenerator: floor generated with " + layout.Count + " rooms (" + eliteRoomCount + " with an elite).");
     }
 
-    static Dictionary<Vector2Int, RoomType> GenerateLayout()
+    // Chance a still-plain Monster cell tries to absorb neighboring free cells into one bigger
+    // room instead of staying single-cell - purely to let some encounters use a bigger arena for
+    // more spectacular formations (see MergeMultiCellMonsterRooms).
+    // Higher than it looks like it should be: a cramped, tree-shaped layout rejects most
+    // candidate placements outright (IsMergeCandidateValid), so this is the roll to ATTEMPT a
+    // merge, not the odds of actually getting one - empirically only ~1 in 4 attempts succeeds.
+    const float MultiCellRoomChance = 0.65f;
+    // Biggest tier first - a cramped, tree-shaped layout rarely has room for an 8-cell block, so a
+    // roll that aims big cascades down through progressively smaller shapes (never below 2 cells)
+    // instead of giving up outright, so most attempts land SOME merge rather than none at all.
+    static readonly Vector2Int[][] MultiCellShapeTiers =
+    {
+        new[] { new Vector2Int(2, 4), new Vector2Int(4, 2) }, // 8 cells
+        new[] { new Vector2Int(2, 3), new Vector2Int(3, 2) }, // 6 cells
+        new[] { new Vector2Int(2, 2) }, // 4 cells
+        new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
+    };
+
+    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups)
     {
         var rooms = new Dictionary<Vector2Int, RoomType>();
         Vector2Int start = Vector2Int.zero;
@@ -997,7 +1051,120 @@ public static class DungeonGenerator
         // Guaranteed, like Treasure/Shop - a save point must always be reachable.
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
 
+        // Every cell defaults to its own 1x1 group; the merge pass below (run last, once every
+        // other room type is already placed) may absorb some plain Monster cells' free neighbors
+        // into a bigger shared group.
+        cellGroups = new Dictionary<Vector2Int, RectInt>();
+        foreach (Vector2Int cell in rooms.Keys) cellGroups[cell] = new RectInt(cell.x, cell.y, 1, 1);
+        MergeMultiCellMonsterRooms(rooms, cellGroups);
+
         return rooms;
+    }
+
+    // Opportunistically grows some plain Monster cells into a bigger rectangular room (2/4/6/8
+    // cells) by claiming currently-free neighboring cells - never touches Start/Boss/Secret/
+    // Treasure/Shop/Event/Gamble/Safe, and never a cell already absorbed by an earlier merge.
+    static void MergeMultiCellMonsterRooms(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, RectInt> cellGroups)
+    {
+        var anchors = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == RoomType.Monster) anchors.Add(kv.Key);
+        Shuffle(anchors);
+
+        foreach (Vector2Int anchor in anchors)
+        {
+            if (cellGroups[anchor].width * cellGroups[anchor].height > 1) continue; // already absorbed
+            if (Random.value > MultiCellRoomChance) continue;
+
+            int startTier = Random.Range(0, MultiCellShapeTiers.Length);
+            for (int tier = startTier; tier < MultiCellShapeTiers.Length; tier++)
+            {
+                if (TryPlaceMergedRoom(rooms, cellGroups, anchor, MultiCellShapeTiers[tier])) break;
+                // This tier's shapes don't fit around this anchor at all - fall back to a smaller
+                // one rather than leaving the anchor single-cell just because the biggest roll missed.
+            }
+        }
+    }
+
+    // Tries every shape in the tier (random order), each as all 4 rectangle corners (random
+    // order) so a cell whose only free neighbors are, say, up-and-left can still find a valid
+    // orientation. Claims the first orientation whose extra cells are all free and touch nothing
+    // outside the new rectangle.
+    static bool TryPlaceMergedRoom(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, RectInt> cellGroups, Vector2Int anchor, Vector2Int[] shapes)
+    {
+        var shapeOrder = new List<Vector2Int>(shapes);
+        Shuffle(shapeOrder);
+
+        foreach (Vector2Int shape in shapeOrder)
+        {
+            int w = shape.x, h = shape.y;
+            var corners = new List<int> { 0, 1, 2, 3 };
+            Shuffle(corners);
+
+            foreach (int corner in corners)
+            {
+                int originX = corner == 1 || corner == 3 ? anchor.x - w + 1 : anchor.x;
+                int originY = corner == 2 || corner == 3 ? anchor.y - h + 1 : anchor.y;
+                var rect = new RectInt(originX, originY, w, h);
+
+                if (!IsMergeCandidateValid(rooms, rect, anchor)) continue;
+
+                for (int x = 0; x < w; x++)
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        Vector2Int cell = new Vector2Int(originX + x, originY + y);
+                        rooms[cell] = RoomType.Monster;
+                        cellGroups[cell] = rect;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The anchor's own pre-existing neighbors are fine (that's how the merged room connects to
+    // the rest of the dungeon) - every OTHER cell in the candidate rect must be currently free and
+    // touch nothing already in `rooms` outside the rect, or claiming it would silently graft a
+    // surprise door onto some unrelated existing room.
+    static bool IsMergeCandidateValid(Dictionary<Vector2Int, RoomType> rooms, RectInt rect, Vector2Int anchor)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        for (int x = 0; x < rect.width; x++)
+        {
+            for (int y = 0; y < rect.height; y++)
+            {
+                Vector2Int cell = new Vector2Int(rect.xMin + x, rect.yMin + y);
+                if (cell == anchor) continue;
+                if (rooms.ContainsKey(cell)) return false;
+
+                foreach (Vector2Int d in dirs)
+                {
+                    Vector2Int neighbor = cell + d;
+                    if (!rooms.ContainsKey(neighbor)) continue;
+                    bool neighborInRect = neighbor.x >= rect.xMin && neighbor.x < rect.xMax && neighbor.y >= rect.yMin && neighbor.y < rect.yMax;
+                    if (!neighborInRect) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    static void Shuffle<T>(List<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    static bool IsGroupAnchor(Vector2Int cell, Dictionary<Vector2Int, RectInt> cellGroups) => cellGroups[cell].xMin == cell.x && cellGroups[cell].yMin == cell.y;
+
+    static bool SameGroup(Dictionary<Vector2Int, RectInt> cellGroups, Vector2Int a, Vector2Int b)
+    {
+        RectInt ra = cellGroups[a], rb = cellGroups[b];
+        return ra.xMin == rb.xMin && ra.yMin == rb.yMin;
     }
 
     // Returns the farthest cell whose type is one of `candidateTypes`, preferring a dead end (only
@@ -1153,6 +1320,53 @@ public static class DungeonGenerator
             Vector3Int pos = fixedIsX ? new Vector3Int(fixedCoord, doorStart + d, 0) : new Vector3Int(doorStart + d, fixedCoord, 0);
             wallsMap.SetTile(pos, null);
             floorMap.SetTile(pos, floorTile);
+        }
+    }
+
+    // Merges two adjacent cells of the SAME multi-cell room into one seamless space: removes both
+    // rooms' facing interior wall columns and opens the gap between them the same way a normal
+    // room's interior is built (floor in the middle, wall only at the outer top/bottom border) -
+    // no door, no teleport, just one continuous floor across the former seam.
+    static void OpenFullHorizontalSeam(int leftOriginX, int rightOriginX, int originY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        for (int y = 1; y < RoomHeight - 1; y++)
+        {
+            wallsMap.SetTile(new Vector3Int(leftOriginX + RoomWidth - 1, originY + y, 0), null);
+            floorMap.SetTile(new Vector3Int(leftOriginX + RoomWidth - 1, originY + y, 0), floorTile);
+            wallsMap.SetTile(new Vector3Int(rightOriginX, originY + y, 0), null);
+            floorMap.SetTile(new Vector3Int(rightOriginX, originY + y, 0), floorTile);
+        }
+        for (int gx = 0; gx < Gap; gx++)
+        {
+            int worldX = leftOriginX + RoomWidth + gx;
+            for (int y = 0; y < RoomHeight; y++)
+            {
+                bool isBorderRow = y == 0 || y == RoomHeight - 1;
+                wallsMap.SetTile(new Vector3Int(worldX, originY + y, 0), isBorderRow ? wallTile : null);
+                floorMap.SetTile(new Vector3Int(worldX, originY + y, 0), isBorderRow ? null : floorTile);
+            }
+        }
+    }
+
+    // Same as OpenFullHorizontalSeam, for two cells stacked vertically in the same merged room.
+    static void OpenFullVerticalSeam(int bottomOriginY, int topOriginY, int originX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
+    {
+        for (int x = 1; x < RoomWidth - 1; x++)
+        {
+            wallsMap.SetTile(new Vector3Int(originX + x, bottomOriginY + RoomHeight - 1, 0), null);
+            floorMap.SetTile(new Vector3Int(originX + x, bottomOriginY + RoomHeight - 1, 0), floorTile);
+            wallsMap.SetTile(new Vector3Int(originX + x, topOriginY, 0), null);
+            floorMap.SetTile(new Vector3Int(originX + x, topOriginY, 0), floorTile);
+        }
+        for (int gy = 0; gy < Gap; gy++)
+        {
+            int worldY = bottomOriginY + RoomHeight + gy;
+            for (int x = 0; x < RoomWidth; x++)
+            {
+                bool isBorderCol = x == 0 || x == RoomWidth - 1;
+                wallsMap.SetTile(new Vector3Int(originX + x, worldY, 0), isBorderCol ? wallTile : null);
+                floorMap.SetTile(new Vector3Int(originX + x, worldY, 0), isBorderCol ? null : floorTile);
+            }
         }
     }
 
@@ -1589,15 +1803,15 @@ public static class DungeonGenerator
     // Picks `count` world-space positions inside the room's walkable interior, away from its
     // walls, its own doors (so a spawn never blocks a threshold), each other, and optionally an
     // arbitrary set of points to avoid (e.g. already-placed enemies, when placing decor next).
-    static List<Vector2> GenerateEnemySpawnPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors)
-        => GeneratePlacementPositions(count, roomOrigin, doors, null, EnemySpawnWallMargin, EnemySpawnMinSpacing, EnemySpawnMinDoorDistance, 0f);
+    static List<Vector2> GenerateEnemySpawnPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors)
+        => GeneratePlacementPositions(count, roomOrigin, roomSize, doors, null, EnemySpawnWallMargin, EnemySpawnMinSpacing, EnemySpawnMinDoorDistance, 0f);
 
-    static List<Vector2> GeneratePlacementPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors,
+    static List<Vector2> GeneratePlacementPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors,
         List<Vector2> avoid, float wallMargin, float minSpacing, float minDoorDistance, float minAvoidDistance)
     {
         Rect interior = new Rect(
             roomOrigin.x + wallMargin, roomOrigin.y + wallMargin,
-            RoomWidth - wallMargin * 2f, RoomHeight - wallMargin * 2f);
+            roomSize.x - wallMargin * 2f, roomSize.y - wallMargin * 2f);
 
         List<Vector2> accepted = new List<Vector2>();
         for (int i = 0; i < count; i++)
@@ -1647,10 +1861,10 @@ public static class DungeonGenerator
 
     // A "collés" formation: one anchor placed with the same wall/door rejection sampling as
     // GenerateEnemySpawnPositions, then the rest of the group scattered tightly around it.
-    static List<Vector2> GenerateClusteredPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors)
+    static List<Vector2> GenerateClusteredPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors)
     {
         const float ClusterRadius = 1.2f;
-        Vector2 center = GenerateEnemySpawnPositions(1, roomOrigin, doors)[0];
+        Vector2 center = GenerateEnemySpawnPositions(1, roomOrigin, roomSize, doors)[0];
 
         List<Vector2> positions = new List<Vector2> { center };
         for (int i = 1; i < count; i++)
@@ -1660,8 +1874,8 @@ public static class DungeonGenerator
         return positions;
     }
 
-    static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
-        => GeneratePlacementPositions(count, roomOrigin, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
+    static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
+        => GeneratePlacementPositions(count, roomOrigin, roomSize, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
 
     enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap }
 
@@ -1683,14 +1897,15 @@ public static class DungeonGenerator
         public Sprite explosion;
     }
 
-    // 0-2 decor pieces, kept away from walls/doors and from `avoid` (already-placed enemies, or a
-    // special room's marker/NPC at its center). Each position gets a random decor type.
-    static void SpawnRoomDecor(Vector2 roomOrigin, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent)
+    // 0-2 decor pieces per cell (a multi-cell room scales up via cellCount), kept away from walls/
+    // doors and from `avoid` (already-placed enemies, or a special room's marker/NPC at its
+    // center). Each position gets a random decor type.
+    static void SpawnRoomDecor(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent, int cellCount = 1)
     {
-        int count = Random.Range(0, 3);
+        int count = Random.Range(0, 3) * cellCount;
         if (count == 0) return;
 
-        foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, doors, avoid))
+        foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, roomSize, doors, avoid))
         {
             switch ((DecorType)Random.Range(0, 7))
             {
@@ -1808,24 +2023,37 @@ public static class DungeonGenerator
     };
     static readonly bool[] EncounterPatternClustered = { true, false, false, true };
 
-    static bool SetupMonsterRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
+    static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
         DecorSprites decorSprites, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
     {
-        EnemyType[] composition;
+        Vector2Int gridPos = memberCells[0];
+        int cellCount = memberCells.Count;
+        // A multi-cell room repeats its base composition instead of a single bigger pattern - 2
+        // cells keeps the original size (a modest bump isn't worth dedicated content), 4/6/8 scale
+        // up proportionally for the bigger, more spectacular formations this feature exists for.
+        int scaleFactor = Mathf.Max(1, cellCount / 2);
+
+        EnemyType[] baseComposition;
         bool clustered;
         if (floorTheme.HasValue)
         {
-            composition = new EnemyType[Random.Range(2, 4)];
-            for (int i = 0; i < composition.Length; i++) composition[i] = floorTheme.Value;
+            baseComposition = new EnemyType[Random.Range(2, 4)];
+            for (int i = 0; i < baseComposition.Length; i++) baseComposition[i] = floorTheme.Value;
             clustered = false;
         }
         else
         {
             int patternIndex = Random.Range(0, EncounterPatterns.Length);
-            composition = EncounterPatterns[patternIndex];
+            baseComposition = EncounterPatterns[patternIndex];
             clustered = EncounterPatternClustered[patternIndex];
         }
+        // A tight cluster only makes sense at the original single-cell scale - a merged room's
+        // whole point is using the extra space, so it always spreads out instead.
+        if (cellCount > 1) clustered = false;
+
+        EnemyType[] composition = new EnemyType[baseComposition.Length * scaleFactor];
+        for (int i = 0; i < composition.Length; i++) composition[i] = baseComposition[i % baseComposition.Length];
 
         int count = composition.Length;
         bool hasElite = Random.value < EliteChance;
@@ -1834,8 +2062,8 @@ public static class DungeonGenerator
 
         Vector2 roomOrigin = new Vector2(originX, originY);
         List<Vector2> positions = clustered
-            ? GenerateClusteredPositions(count, roomOrigin, doors)
-            : GenerateEnemySpawnPositions(count, roomOrigin, doors);
+            ? GenerateClusteredPositions(count, roomOrigin, roomSize, doors)
+            : GenerateEnemySpawnPositions(count, roomOrigin, roomSize, doors);
 
         RoomController.EnemySpawn[] recipe = new RoomController.EnemySpawn[count];
         for (int i = 0; i < count; i++)
@@ -1853,8 +2081,9 @@ public static class DungeonGenerator
 
         RoomController controller = roomGO.GetComponent<RoomController>();
         controller.gridPos = gridPos;
+        controller.memberCells = memberCells.ToArray();
         controller.roomOrigin = new Vector2(originX, originY);
-        controller.roomSize = new Vector2(RoomWidth, RoomHeight);
+        controller.roomSize = roomSize;
         controller.player = player;
         controller.presets = presets;
         controller.speedUpBadge = speedUpBadge;
@@ -1868,7 +2097,7 @@ public static class DungeonGenerator
             controller.doorBlockers.Add(blocker);
         }
 
-        SpawnRoomDecor(roomOrigin, doors, positions, decorSprites, roomGO.transform);
+        SpawnRoomDecor(roomOrigin, roomSize, doors, positions, decorSprites, roomGO.transform, cellCount);
 
         controllers.Add(controller);
         return hasElite;

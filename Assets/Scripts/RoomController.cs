@@ -28,6 +28,10 @@ public class RoomController : MonoBehaviour
     }
 
     public Vector2Int gridPos;
+    // Every grid cell this room occupies - just {gridPos} for an ordinary single-cell room, or
+    // every cell of a merged multi-cell room (see DungeonGenerator.MergeMultiCellMonsterRooms).
+    // Re-entering ANY of them should be treated as re-entering this same room.
+    public Vector2Int[] memberCells = new Vector2Int[0];
     public Vector2 roomOrigin;
     public Vector2 roomSize;
     public RoomCameraController roomCamera;
@@ -47,8 +51,9 @@ public class RoomController : MonoBehaviour
     public bool IsCleared { get; private set; }
 
     // Fired once, the moment this room's original monsters are all dead - lets the minimap (and
-    // anything else) react even if the player has already left the room.
-    public event Action<Vector2Int> OnRoomCleared;
+    // anything else) react even if the player has already left the room. Carries every cell this
+    // room occupies (see memberCells) so a merged room's minimap footprint clears all at once.
+    public event Action<Vector2Int[]> OnRoomCleared;
 
     readonly List<EnemyController> liveEnemies = new List<EnemyController>();
     bool hasBeenEnteredBefore;
@@ -67,7 +72,7 @@ public class RoomController : MonoBehaviour
 
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
-        if (enteredGridPos != gridPos) return;
+        if (System.Array.IndexOf(memberCells, enteredGridPos) < 0) return;
         if (IsCleared) return; // a cleared room's monsters never come back
 
         if (!hasBeenEnteredBefore)
@@ -167,7 +172,7 @@ public class RoomController : MonoBehaviour
         if (!IsLocked && !IsCleared)
         {
             IsCleared = true;
-            OnRoomCleared?.Invoke(gridPos);
+            OnRoomCleared?.Invoke(memberCells);
         }
     }
 }

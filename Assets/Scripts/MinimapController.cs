@@ -208,12 +208,16 @@ public class MinimapController : MonoBehaviour
         UpdateLayout();
     }
 
-    void HandleRoomCleared(Vector2Int gridPos)
+    void HandleRoomCleared(Vector2Int[] memberCells)
     {
-        if (!icons.ContainsKey(gridPos)) return;
-
-        states[gridPos] = RoomState.Cleared;
-        Refresh();
+        bool any = false;
+        foreach (Vector2Int cell in memberCells)
+        {
+            if (!icons.ContainsKey(cell)) continue;
+            states[cell] = RoomState.Cleared;
+            any = true;
+        }
+        if (any) Refresh();
     }
 
     void Refresh()
