@@ -669,7 +669,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -691,6 +691,7 @@ public static class DungeonGenerator
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
+        PlayerSkills playerSkills = player.GetComponent<PlayerSkills>();
         // Starting hotbar loadout - the player can rearrange these later via drag & drop.
         playerInventory.hotbarSlots[0] = ItemIds.Shuriken;
         playerInventory.hotbarSlots[1] = ItemIds.Caillou;
@@ -1153,6 +1154,16 @@ public static class DungeonGenerator
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
+
+        // --- Skills panel (top-right, below the minimap) - see PlayerSkills/SkillsUI ---
+        GameObject skillsGO = new GameObject("SkillsUI", typeof(RectTransform), typeof(SkillsUI));
+        skillsGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform skillsRect = skillsGO.GetComponent<RectTransform>();
+        skillsRect.anchorMin = Vector2.zero;
+        skillsRect.anchorMax = Vector2.one;
+        skillsRect.offsetMin = Vector2.zero;
+        skillsRect.offsetMax = Vector2.zero;
+        skillsGO.GetComponent<SkillsUI>().skills = playerSkills;
 
         // --- Dialogue UI (bottom panel + interact prompt + dice roll popup) ---
         // Text sizes doubled (or more) across this whole block for readability, per user request -
@@ -1790,7 +1801,7 @@ public static class DungeonGenerator
         Vector2 startWorld = roomOrigin + new Vector2(3f, TutorialRoomHeight / 2f);
 
         // --- Player ---
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";

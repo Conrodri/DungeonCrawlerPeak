@@ -75,6 +75,7 @@ public class PlayerController : MonoBehaviour
     PlayerInventory inventory;
     PlayerEquipment equipment;
     PlayerStats stats;
+    PlayerSkills skills;
     CircleCollider2D bodyCollider;
     StatusIconDisplay statusIcons;
     Vector2 moveInput;
@@ -102,6 +103,7 @@ public class PlayerController : MonoBehaviour
         inventory = GetComponent<PlayerInventory>();
         equipment = GetComponent<PlayerEquipment>();
         stats = GetComponent<PlayerStats>();
+        skills = GetComponent<PlayerSkills>();
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
@@ -148,7 +150,12 @@ public class PlayerController : MonoBehaviour
         // cuts off on its own instead of going negative. Also gated on the Hole debuff.
         isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f
             && Time.time >= movementDebuffEndTime;
-        if (isSprinting) stamina.Drain(sprintStaminaCostPerSecond * Time.deltaTime);
+        if (isSprinting)
+        {
+            float staminaCostMultiplier = skills != null ? skills.SprintStaminaCostMultiplier : 1f;
+            stamina.Drain(sprintStaminaCostPerSecond * staminaCostMultiplier * Time.deltaTime);
+            if (skills != null) skills.AddUsage(SkillType.Sprint, Time.deltaTime);
+        }
 
         if (kb.spaceKey.wasPressedThisFrame) TryRoll();
         if (isRolling) return; // just started rolling this frame - no attack/hotbar until it ends
@@ -164,7 +171,9 @@ public class PlayerController : MonoBehaviour
 
         if (aim != Vector2.zero) aimDirection = aim;
 
-        if (isSprinting) return;
+        // Level 10 Sprint (see PlayerSkills.CanAttackWhileSprinting) lifts this - everyone else
+        // still can't fight with their weapon out while running.
+        if (isSprinting && (skills == null || !skills.CanAttackWhileSprinting)) return;
 
         if (aim != Vector2.zero) TryAttack();
 
@@ -188,26 +197,32 @@ public class PlayerController : MonoBehaviour
         // dialogue opens, or the player dies from something invulnerability doesn't block).
         if (isRolling)
         {
-            rb.linearVelocity = isDead ? Vector2.zero : rollDirection * rollSpeed;
+            float rollSpeedBonus = skills != null ? skills.RollSpeedBonus : 0f;
+            rb.linearVelocity = isDead ? Vector2.zero : rollDirection * rollSpeed * (1f + rollSpeedBonus);
             if (Time.time >= rollEndTime) EndRoll();
             return;
         }
 
-        float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier : 1f);
+        float sprintBonus = skills != null ? skills.SprintSpeedBonus : 0f;
+        float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier + sprintBonus : 1f);
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
     }
 
     void TryRoll()
     {
-        if (Time.time - lastRollTime < rollCooldown) return;
+        float rollCooldownMultiplier = skills != null ? skills.RollCooldownMultiplier : 1f;
+        if (Time.time - lastRollTime < rollCooldown * rollCooldownMultiplier) return;
         if (Time.time < movementDebuffEndTime) return;
-        if (stamina.currentStamina < rollStaminaCost) return;
+        float rollStaminaCostMultiplier = skills != null ? skills.RollStaminaCostMultiplier : 1f;
+        float actualRollStaminaCost = rollStaminaCost * rollStaminaCostMultiplier;
+        if (stamina.currentStamina < actualRollStaminaCost) return;
 
         // Rolls in the direction the player is currently moving; with no movement input, rolls
         // toward the last direction they aimed/faced (aimDirection is never Vector2.zero).
         rollDirection = moveInput != Vector2.zero ? moveInput : aimDirection;
 
-        stamina.Drain(rollStaminaCost);
+        stamina.Drain(actualRollStaminaCost);
+        if (skills != null) skills.AddUsage(SkillType.Roll, 1f);
         lastRollTime = Time.time;
         rollEndTime = Time.time + rollDuration;
         isRolling = true;
@@ -262,9 +277,11 @@ public class PlayerController : MonoBehaviour
     void TryAttack()
     {
         // Attack speed only affects physical weapons (Fist/Sword) - no equivalent bonus was
-        // requested for the Staff's magic cooldown.
-        float cooldown = currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier
-            : currentWeapon == WeaponType.Sword ? swordCooldown / stats.AttackSpeedMultiplier
+        // requested for the Staff's magic cooldown. Level 5 Melee (see PlayerSkills) speeds up the
+        // same two weapons further on top of Dexterite's own AttackSpeedMultiplier.
+        float meleeCooldownMultiplier = skills != null ? skills.MeleeCooldownMultiplier : 1f;
+        float cooldown = currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
+            : currentWeapon == WeaponType.Sword ? swordCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
             : staffCooldown;
 
         if (Time.time - lastAttackTime < cooldown) return;
@@ -364,12 +381,23 @@ public class PlayerController : MonoBehaviour
         bombCollider.radius = 0.2f;
         if (bodyCollider != null) Physics2D.IgnoreCollision(bombCollider, bodyCollider);
 
+        int scaledBombDamage = ScaledPhysicalDamage(bombDamage);
+        float actualBombSpeed = bombSpeed;
+        float actualBombRange = ThrowMaxRange;
+        if (skills != null)
+        {
+            scaledBombDamage = Mathf.RoundToInt(scaledBombDamage * (1f + skills.RangedDamageBonus));
+            actualBombSpeed *= skills.RangedSpeedMultiplier;
+            actualBombRange *= skills.RangedRangeMultiplier;
+            skills.AddUsage(SkillType.Ranged, 1f); // a bomb is a thrown weapon too
+        }
+
         Bomb bomb = go.GetComponent<Bomb>();
-        bomb.damage = ScaledPhysicalDamage(bombDamage);
+        bomb.damage = scaledBombDamage;
         bomb.explosionRadius = bombExplosionRadius;
         bomb.fuseTime = bombFuseTime;
         bomb.explosionSprite = explosionSprite;
-        bomb.Launch(direction, bombSpeed, ThrowMaxRange);
+        bomb.Launch(direction, actualBombSpeed, actualBombRange);
     }
 
     // Base direction is the chosen cardinal aim, but the player's current movement blends in:
@@ -382,6 +410,13 @@ public class PlayerController : MonoBehaviour
 
     void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
     {
+        if (skills != null)
+        {
+            damage = Mathf.RoundToInt(damage * (1f + skills.MeleeDamageBonus));
+            if (Random.value < skills.MeleeCritChance) damage *= 2; // level 10 unlock
+            skills.AddUsage(SkillType.Melee, 1f);
+        }
+
         Vector2 origin = (Vector2)transform.position + aimDirection * offset;
         Collider2D[] hits = Physics2D.OverlapCircleAll(origin, range);
         foreach (Collider2D hit in hits)
@@ -413,6 +448,14 @@ public class PlayerController : MonoBehaviour
 
     void LaunchProjectile(Sprite sprite, int damage, float speed, float maxDistance)
     {
+        if (skills != null)
+        {
+            damage = Mathf.RoundToInt(damage * (1f + skills.RangedDamageBonus));
+            speed *= skills.RangedSpeedMultiplier;
+            maxDistance *= skills.RangedRangeMultiplier;
+            skills.AddUsage(SkillType.Ranged, 1f);
+        }
+
         Vector2 direction = AimWithInertia();
         Vector2 spawnPos = (Vector2)transform.position + aimDirection * 0.6f;
 
