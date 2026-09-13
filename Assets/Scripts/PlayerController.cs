@@ -29,6 +29,8 @@ public class PlayerController : MonoBehaviour
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;
     public Sprite swordVisualSprite;
+    // Shown above the player's head via StatusIconDisplay while the Hole debuff is active.
+    public Sprite movementDebuffIcon;
 
     [Header("Fist")]
     public int fistDamage = 1;
@@ -73,6 +75,7 @@ public class PlayerController : MonoBehaviour
     PlayerInventory inventory;
     PlayerStats stats;
     CircleCollider2D bodyCollider;
+    StatusIconDisplay statusIcons;
     Vector2 moveInput;
     Vector2 aimDirection = Vector2.down;
     float lastAttackTime = -999f;
@@ -98,6 +101,7 @@ public class PlayerController : MonoBehaviour
         inventory = GetComponent<PlayerInventory>();
         stats = GetComponent<PlayerStats>();
         bodyCollider = GetComponent<CircleCollider2D>();
+        statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
     }
 
@@ -209,11 +213,16 @@ public class PlayerController : MonoBehaviour
         health.SetInvulnerable(false);
     }
 
+    const string MovementDebuffIconKey = "MovementDebuff";
+
     // Called by Hole on entry - takes the longer of the current and new debuff instead of
-    // resetting it, so walking across two holes in a row doesn't shorten the first one.
+    // resetting it, so walking across two holes in a row doesn't shorten the first one (and keeps
+    // the icon showing for the longer remaining duration too).
     public void ApplyMovementDebuff(float duration)
     {
         movementDebuffEndTime = Mathf.Max(movementDebuffEndTime, Time.time + duration);
+        if (statusIcons != null && movementDebuffIcon != null)
+            statusIcons.ShowIcon(MovementDebuffIconKey, movementDebuffIcon, movementDebuffEndTime - Time.time);
     }
 
     bool weaponLocked;

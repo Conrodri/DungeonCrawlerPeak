@@ -97,7 +97,7 @@ public class RoomController : MonoBehaviour
             EnemyPresetEntry preset = FindPreset(spawn.type);
 
             GameObject enemy = new GameObject(spawn.type.ToString(),
-                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyController));
+                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(EnemyController));
             enemy.transform.SetParent(transform);
             enemy.transform.position = roomOrigin + spawn.localOffset;
 

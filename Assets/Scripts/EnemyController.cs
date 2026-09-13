@@ -15,8 +15,8 @@ public class EnemyController : MonoBehaviour
     const float BobSpeed = 4f;
     const float SpeedUpMultiplier = 1.6f;
     const float HpUpMultiplier = 2f;
-    const float BadgeHeight = 0.7f;
     const float GlowScale = 1.8f;
+    const string EliteIconKey = "Elite";
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
@@ -25,6 +25,7 @@ public class EnemyController : MonoBehaviour
     Rigidbody2D rb;
     Health health;
     CircleCollider2D bodyCollider;
+    StatusIconDisplay statusIcons;
     Transform target;
     float lastHitTime = -999f;
     Rect? roomBounds;
@@ -34,6 +35,8 @@ public class EnemyController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         health = GetComponent<Health>();
         bodyCollider = GetComponent<CircleCollider2D>();
+        statusIcons = GetComponent<StatusIconDisplay>();
+        statusIcons.height = 0.7f; // shorter reach than the player's default - enemies read smaller on screen
         health.OnDeath += HandleDeath;
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
         // tilemap CompositeCollider2D can otherwise creep through a corner over many frames.
@@ -80,16 +83,7 @@ public class EnemyController : MonoBehaviour
             glowRenderer.sortingOrder = -1;
         }
 
-        if (badgeIcon != null)
-        {
-            GameObject badgeGO = new GameObject("Badge", typeof(SpriteRenderer));
-            badgeGO.transform.SetParent(transform, false);
-            badgeGO.transform.localPosition = new Vector3(0f, BadgeHeight, 0f);
-            badgeGO.transform.localScale = Vector3.one * 0.5f;
-            SpriteRenderer badgeRenderer = badgeGO.GetComponent<SpriteRenderer>();
-            badgeRenderer.sprite = badgeIcon;
-            badgeRenderer.sortingOrder = 1;
-        }
+        if (badgeIcon != null) statusIcons.ShowIcon(EliteIconKey, badgeIcon);
     }
 
     void FixedUpdate()

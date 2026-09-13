@@ -382,7 +382,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -401,6 +401,7 @@ public static class DungeonGenerator
         playerController.fistVisualSprite = fistVisualSprite;
         playerController.swordVisualSprite = swordVisualSprite;
         playerController.explosionSprite = explosionSprite;
+        playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         // Starting hotbar loadout - the player can rearrange these later via drag & drop.
         playerInventory.hotbarSlots[0] = ItemIds.Shuriken;
