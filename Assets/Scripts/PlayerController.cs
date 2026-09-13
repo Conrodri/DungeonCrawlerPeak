@@ -83,6 +83,8 @@ public class PlayerController : MonoBehaviour
     float rollEndTime = -999f;
     float lastRollTime = -999f;
     Vector2 rollDirection;
+    // Set by Hole.OnTriggerEnter2D - blocks sprint/roll until this timestamp.
+    float movementDebuffEndTime = -999f;
 
     void Awake()
     {
@@ -137,8 +139,9 @@ public class PlayerController : MonoBehaviour
         moveInput = new Vector2(x, y).normalized;
 
         // Sprint: held Shift while actually moving, gated on stamina - runs out mid-sprint and it
-        // cuts off on its own instead of going negative.
-        isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f;
+        // cuts off on its own instead of going negative. Also gated on the Hole debuff.
+        isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f
+            && Time.time >= movementDebuffEndTime;
         if (isSprinting) stamina.Drain(sprintStaminaCostPerSecond * Time.deltaTime);
 
         if (kb.spaceKey.wasPressedThisFrame) TryRoll();
@@ -186,6 +189,7 @@ public class PlayerController : MonoBehaviour
     void TryRoll()
     {
         if (Time.time - lastRollTime < rollCooldown) return;
+        if (Time.time < movementDebuffEndTime) return;
         if (stamina.currentStamina < rollStaminaCost) return;
 
         // Rolls in the direction the player is currently moving; with no movement input, rolls
@@ -203,6 +207,13 @@ public class PlayerController : MonoBehaviour
     {
         isRolling = false;
         health.SetInvulnerable(false);
+    }
+
+    // Called by Hole on entry - takes the longer of the current and new debuff instead of
+    // resetting it, so walking across two holes in a row doesn't shorten the first one.
+    public void ApplyMovementDebuff(float duration)
+    {
+        movementDebuffEndTime = Mathf.Max(movementDebuffEndTime, Time.time + duration);
     }
 
     bool weaponLocked;

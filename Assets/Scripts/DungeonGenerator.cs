@@ -2021,12 +2021,9 @@ public static class DungeonGenerator
         go.GetComponent<CircleCollider2D>().isTrigger = true;
     }
 
-    // A solid (non-trigger) collider, unlike every other decor decal above - blocks grounded
-    // movement just like a wall or DestructibleObject. isFlying enemies are exempted from it in
-    // EnemyController.Start() via Physics2D.IgnoreCollision.
     static void SpawnHole(Vector2 position, Sprite sprite, Transform parent)
     {
-        GameObject go = new GameObject("Hole", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Rigidbody2D), typeof(Hole));
+        GameObject go = new GameObject("Hole", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Hole));
         go.transform.SetParent(parent);
         go.transform.position = position;
 
@@ -2034,10 +2031,7 @@ public static class DungeonGenerator
         renderer.sprite = sprite;
         renderer.sortingOrder = -1;
 
-        go.GetComponent<CircleCollider2D>().radius = 0.45f;
-
-        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
-        body.bodyType = RigidbodyType2D.Static;
+        go.GetComponent<CircleCollider2D>().isTrigger = true;
     }
 
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
