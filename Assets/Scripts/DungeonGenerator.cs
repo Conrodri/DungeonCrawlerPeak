@@ -124,7 +124,7 @@ public static class DungeonGenerator
         CurrentFloor = floor;
         Random.InitState(seed);
 
-        Biome biome = (Biome)Random.Range(0, 6);
+        Biome biome = (Biome)Random.Range(0, 7);
         CurrentBiome = biome;
         BiomeTheme biomeTheme = BiomeTheme.Get(biome);
 
@@ -146,6 +146,13 @@ public static class DungeonGenerator
         Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
         Sprite floorTrapSprite = CreateCircleSprite("Assets/Art/Decor/FloorTrap.png", new Color(0.2f, 0.08f, 0.08f));
         Sprite holeSprite = CreateCircleSprite("Assets/Art/Decor/Hole.png", new Color(0.03f, 0.03f, 0.04f));
+        // Backrooms-only decor (see SpawnBackroomsDecor) - purely decorative, no colliders, so an
+        // absurdly-scaled chair or a door standing in the open floor is just visual "loufoque"
+        // flavor, zero gameplay risk.
+        Sprite backroomsChairSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsChair.png", new Color(0.55f, 0.4f, 0.15f));
+        Sprite backroomsPillarSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsPillar.png", new Color(0.75f, 0.68f, 0.35f));
+        Sprite backroomsDoorSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsDoor.png", new Color(0.45f, 0.32f, 0.12f));
+        Sprite backroomsStainSprite = CreateCircleSprite("Assets/Art/Decor/BackroomsStain.png", new Color(0.35f, 0.3f, 0.08f, 0.6f));
         DecorSprites decorSprites = new DecorSprites
         {
             stoneBlock = stoneBlockSprite,
@@ -155,6 +162,10 @@ public static class DungeonGenerator
             fuelPuddle = fuelPuddleSprite,
             floorTrap = floorTrapSprite,
             hole = holeSprite,
+            backroomsChair = backroomsChairSprite,
+            backroomsPillar = backroomsPillarSprite,
+            backroomsDoor = backroomsDoorSprite,
+            backroomsStain = backroomsStainSprite,
         };
         Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
@@ -2335,13 +2346,21 @@ public static class DungeonGenerator
         public Sprite floorTrap;
         public Sprite explosion;
         public Sprite hole;
+        public Sprite backroomsChair;
+        public Sprite backroomsPillar;
+        public Sprite backroomsDoor;
+        public Sprite backroomsStain;
     }
 
     // 0-2 decor pieces per cell (a multi-cell room scales up via cellCount), kept away from walls/
     // doors and from `avoid` (already-placed enemies, or a special room's marker/NPC at its
-    // center). Each position gets a random decor type.
+    // center). Each position gets a random decor type. On a Backrooms-biome floor, every room that
+    // calls this also gets a denser, purely-cosmetic layer of "loufoque" props on top (see
+    // SpawnBackroomsDecor) - every room already routes through here, so no extra call sites needed.
     static void SpawnRoomDecor(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent, int cellCount = 1)
     {
+        if (CurrentBiome == Biome.Backrooms) SpawnBackroomsDecor(roomOrigin, roomSize, doors, avoid, sprites, parent, cellCount);
+
         int count = Random.Range(0, 3) * cellCount;
         if (count == 0) return;
 
@@ -2384,6 +2403,54 @@ public static class DungeonGenerator
                     break;
             }
         }
+    }
+
+    enum BackroomsDecorType { Chair, Pillar, LoneDoor, DampStain }
+
+    // Denser than normal decor (endless-identical-room monotony is the point) and purely cosmetic
+    // - no colliders, no scripts - so an absurdly oversized chair or a door standing alone in the
+    // middle of the floor is zero gameplay risk, just visual "loufoque" flavor.
+    static void SpawnBackroomsDecor(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent, int cellCount)
+    {
+        int count = Random.Range(2, 4) * cellCount;
+        foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, roomSize, doors, avoid))
+        {
+            switch ((BackroomsDecorType)Random.Range(0, 4))
+            {
+                case BackroomsDecorType.Chair:
+                    // Wildly inconsistent scale on purpose - a chair the size of a doormat next to
+                    // one the size of a fridge, with nothing explaining why.
+                    float chairScale = Random.Range(0.6f, 2.4f);
+                    SpawnBackroomsProp("Chair", pos, sprites.backroomsChair, parent, new Vector2(chairScale, chairScale), 0f, 0);
+                    break;
+                case BackroomsDecorType.Pillar:
+                    SpawnBackroomsProp("Pillar", pos, sprites.backroomsPillar, parent, new Vector2(0.8f, 2.4f), 0f, 1);
+                    break;
+                case BackroomsDecorType.LoneDoor:
+                    // Standing in open floor, never against a wall, sometimes sideways - it leads
+                    // nowhere.
+                    float doorRotation = Random.value < 0.5f ? 0f : 90f;
+                    SpawnBackroomsProp("LoneDoor", pos, sprites.backroomsDoor, parent, new Vector2(1f, 1.8f), doorRotation, 0);
+                    break;
+                case BackroomsDecorType.DampStain:
+                    float stainScale = Random.Range(1f, 2.8f);
+                    SpawnBackroomsProp("DampStain", pos, sprites.backroomsStain, parent, new Vector2(stainScale, stainScale), 0f, -1);
+                    break;
+            }
+        }
+    }
+
+    static void SpawnBackroomsProp(string name, Vector2 position, Sprite sprite, Transform parent, Vector2 scale, float rotationZ, int sortingOrder)
+    {
+        GameObject go = new GameObject(name, typeof(SpriteRenderer));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+        go.transform.localScale = new Vector3(scale.x, scale.y, 1f);
+        go.transform.rotation = Quaternion.Euler(0f, 0f, rotationZ);
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = sortingOrder;
     }
 
     static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent, string guaranteedDropItemId = null)

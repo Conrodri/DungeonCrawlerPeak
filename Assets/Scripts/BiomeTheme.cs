@@ -60,6 +60,15 @@ public struct BiomeTheme
                     wallTopColor = new Color(0.7f, 0.68f, 0.78f),
                     wallEdgeColor = new Color(0.9f, 0.88f, 0.95f),
                 };
+            case Biome.Backrooms:
+                return new BiomeTheme
+                {
+                    displayName = "Backrooms",
+                    floorColor = new Color(0.62f, 0.56f, 0.22f),
+                    wallFaceColor = new Color(0.78f, 0.70f, 0.28f),
+                    wallTopColor = new Color(0.85f, 0.79f, 0.42f),
+                    wallEdgeColor = new Color(0.95f, 0.9f, 0.55f),
+                };
             default: // Cave
                 return new BiomeTheme
                 {
