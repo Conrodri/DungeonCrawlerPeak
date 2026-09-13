@@ -1099,7 +1099,10 @@ public static class DungeonGenerator
         RectTransform bossBarRect = bossBarBackground.rectTransform;
         bossBarRect.anchorMin = bossBarRect.anchorMax = new Vector2(0.5f, 1f);
         bossBarRect.pivot = new Vector2(0.5f, 1f);
-        bossBarRect.anchoredPosition = new Vector2(0f, -30f);
+        // Below the floor timer/biome label stack (which ends around y=-98) - was at -30, directly
+        // overlapping them, since the boss bar predates that feature and nobody checked for
+        // collision since it's only ever visible during an actual boss fight.
+        bossBarRect.anchoredPosition = new Vector2(0f, -110f);
         bossBarRect.sizeDelta = new Vector2(900f, 40f);
 
         GameObject bossBarFillGO = new GameObject("Fill", typeof(Image));

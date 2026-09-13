@@ -14,9 +14,10 @@ public class BossRoomController : MonoBehaviour
     public Vector2Int[] memberCells = new Vector2Int[0];
     public BossController boss;
     // Set here (a plain reference/value assigned at generation time survives serialization fine)
-    // and applied to the boss in Start() - BossController.SetTarget/SetRoomBounds write to plain
-    // private fields with no [SerializeField], so calling them from DungeonBootstrap (edit-time)
-    // instead of here would silently reset to null on the next Play Mode scene reload.
+    // and applied to the boss in Start()/HandleRoomEntered - BossController.SetTarget/
+    // SetRoomBounds write to plain private fields with no [SerializeField], so calling them from
+    // DungeonBootstrap (edit-time) instead of here would silently reset to null on the next Play
+    // Mode scene reload.
     public Transform player;
     public Vector2 roomOrigin;
     public Vector2 roomSize;
@@ -47,7 +48,14 @@ public class BossRoomController : MonoBehaviour
         UpdateDoors();
         if (boss != null)
         {
-            boss.SetTarget(player);
+            // Not SetTarget here - the boss stays put (no target) until the player is actually
+            // confirmed in the room (HandleRoomEntered). Same reasoning as RoomController's
+            // enemies: targeting the player's raw position from the moment the floor loads let
+            // the boss chase/drift away from its spawn point long before the player arrived - on
+            // a merged multi-cell arena (DungeonGenerator.BossArenaMergeChance) that arena can be
+            // much bigger than the room the camera is currently showing, so a boss that already
+            // wandered off could read as "no boss in this room" until the camera happened to
+            // scroll to wherever it ended up.
             boss.SetRoomBounds(new Rect(roomOrigin, roomSize));
             boss.OnDied += HandleBossDied;
         }
@@ -61,9 +69,15 @@ public class BossRoomController : MonoBehaviour
 
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
-        if (Array.IndexOf(memberCells, enteredGridPos) < 0 || healthBarBound || boss == null) return;
-        healthBarBound = true;
-        if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
+        if (Array.IndexOf(memberCells, enteredGridPos) < 0 || boss == null) return;
+
+        boss.SetTarget(player);
+
+        if (!healthBarBound)
+        {
+            healthBarBound = true;
+            if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
+        }
     }
 
     void HandleBossDied()
