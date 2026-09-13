@@ -15,11 +15,15 @@ public class MinimapController : MonoBehaviour
     public List<Vector2Int> eventRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> treasureRoomGridPositions = new List<Vector2Int>();
     public List<Vector2Int> safeRoomGridPositions = new List<Vector2Int>();
+    // Hidden until visited, same rule and reason as secretRoomGridPositions above - the Souls-like
+    // staircase down always has to be found, whatever lock (if any) also sits on top of it.
+    public List<Vector2Int> stairsRoomGridPositions = new List<Vector2Int>();
     public Sprite bossIconSprite;
     public Sprite shopIconSprite;
     public Sprite eventIconSprite;
     public Sprite secretIconSprite;
     public Sprite safeIconSprite;
+    public Sprite stairsIconSprite;
     // A hollow-centered square (see DungeonBootstrap's CreateRingSprite) shared by every outline
     // below - plain white so each can be tinted to its own color via Image.color.
     public Sprite outlineRingSprite;
@@ -175,6 +179,7 @@ public class MinimapController : MonoBehaviour
         if (eventRoomGridPositions.Contains(gridPos)) return eventIconSprite;
         if (secretRoomGridPositions.Contains(gridPos)) return secretIconSprite;
         if (safeRoomGridPositions.Contains(gridPos)) return safeIconSprite;
+        if (stairsRoomGridPositions.Contains(gridPos)) return stairsIconSprite;
         return null;
     }
 
@@ -200,7 +205,7 @@ public class MinimapController : MonoBehaviour
         foreach (Vector2Int dir in Dirs)
         {
             Vector2Int neighbor = gridPos + dir;
-            if (secretRoomGridPositions.Contains(neighbor)) continue;
+            if (secretRoomGridPositions.Contains(neighbor) || stairsRoomGridPositions.Contains(neighbor)) continue;
             if (icons.ContainsKey(neighbor) && !states.ContainsKey(neighbor)) states[neighbor] = RoomState.Adjacent;
         }
 
@@ -237,9 +242,10 @@ public class MinimapController : MonoBehaviour
         foreach (KeyValuePair<Vector2Int, GameObject> kv in iconOverlays)
         {
             bool hasEntry = states.TryGetValue(kv.Key, out RoomState state);
-            // A secret room's icon only shows once actually entered (Discovered) - never just from
-            // being adjacent, same rule as its background color never pre-revealing.
-            bool visible = secretRoomGridPositions.Contains(kv.Key) ? (hasEntry && state == RoomState.Discovered) : hasEntry;
+            // A secret or stairs room's icon only shows once actually entered (Discovered) - never
+            // just from being adjacent, same rule as its background color never pre-revealing.
+            bool hideUntilDiscovered = secretRoomGridPositions.Contains(kv.Key) || stairsRoomGridPositions.Contains(kv.Key);
+            bool visible = hideUntilDiscovered ? (hasEntry && state == RoomState.Discovered) : hasEntry;
             kv.Value.SetActive(visible);
         }
     }

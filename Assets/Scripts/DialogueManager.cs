@@ -296,7 +296,7 @@ public class DialogueManager : MonoBehaviour
         if (outcome.savesGame)
         {
             if (playerHealth != null) playerHealth.Heal(playerHealth.maxHealth);
-            SaveManager.Save(DungeonGenerator.CurrentSeed, playerInventory, playerStats, playerHealth, playerStamina, playerController);
+            SaveManager.Save(DungeonGenerator.CurrentSeed, DungeonGenerator.CurrentFloor, playerInventory, playerStats, playerHealth, playerStamina, playerController);
         }
 
         // Destroying it fires NpcInteractable.OnDestroy -> NotifyNpcRemoved, which only clears the

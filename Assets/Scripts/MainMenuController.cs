@@ -215,7 +215,7 @@ public class MainMenuController : MonoBehaviour
         SaveData data = SaveManager.Load();
         if (data == null) return;
 
-        DungeonGenerator.Build(data.seed);
+        DungeonGenerator.Build(data.seed, data.floor > 0 ? data.floor : 1);
 
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null)

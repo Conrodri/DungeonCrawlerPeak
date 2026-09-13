@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // since Build() seeds UnityEngine.Random itself before generating anything.
 public static class DungeonGenerator
 {
-    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event, Safe }
+    enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event, Safe, Stairs }
 
     // Sized to fill a 16:9 screen at the camera's orthographic size (RoomHeight/2) with no
     // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
@@ -49,6 +49,10 @@ public static class DungeonGenerator
     const float DecorMinSpacing = 2f;
     const float DecorMinDoorDistance = 2.5f;
     const float DecorMinAvoidDistance = 2f;
+
+    // Souls-like floor progression tuning (see FloorTimer/Staircase).
+    const float FloorDuration = 600f; // 10 minutes
+    const float TimedStairsUnlockFraction = 0.5f; // unlocks 5 of the 10 minutes in
 
     static readonly string[] SkullMask =
     {
@@ -107,10 +111,14 @@ public static class DungeonGenerator
     // The seed the currently-loaded floor was built with - a Safe room's "rest" option saves this
     // alongside player state, so DungeonGenerator.Build(CurrentSeed) recreates the exact same floor.
     public static int CurrentSeed { get; private set; }
+    // Which Souls-like floor this is (1 = the first). Persisted alongside the seed so "Continuer"
+    // and the Tavernier's save resume on the right floor, not always floor 1.
+    public static int CurrentFloor { get; private set; } = 1;
 
-    public static void Build(int seed)
+    public static void Build(int seed, int floor = 1)
     {
         CurrentSeed = seed;
+        CurrentFloor = floor;
         Random.InitState(seed);
 
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
@@ -160,6 +168,8 @@ public static class DungeonGenerator
         Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
         Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
         Sprite safeMarker = LoadIconPackSprite("Shield_Bright");
+        Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
+        Sprite leverSprite = CreateSolidSprite("Assets/Art/Decor/Lever.png", new Color(0.4f, 0.35f, 0.3f));
         Sprite craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
@@ -421,6 +431,9 @@ public static class DungeonGenerator
         var monsterRoomControllers = new List<RoomController>();
         var bossRoomControllers = new List<BossRoomController>();
         int eliteRoomCount = 0;
+        Vector2 stairsCenter = Vector2.zero;
+        Vector2Int stairsGridPos = Vector2Int.zero;
+        bool hasStairs = false;
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
             int originX = kv.Key.x * StepX;
@@ -488,9 +501,17 @@ public static class DungeonGenerator
                     SpawnMerchantNpc(center, npcSprite, npcBadgeSprite, root.transform);
                 }
 
+                if (kv.Value == RoomType.Stairs)
+                {
+                    stairsCenter = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+                    stairsGridPos = kv.Key;
+                    hasStairs = true;
+                }
+
                 // Stone blocks everywhere except Start (no obstacles blocking the initial pickups),
-                // Boss (kept clear for the fight), Safe and Shop (both guaranteed hazard-free by design).
-                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss && kv.Value != RoomType.Safe && kv.Value != RoomType.Shop)
+                // Boss (kept clear for the fight), Safe, Shop and Stairs (all guaranteed hazard-free by design).
+                if (kv.Value != RoomType.Start && kv.Value != RoomType.Boss && kv.Value != RoomType.Safe
+                    && kv.Value != RoomType.Shop && kv.Value != RoomType.Stairs)
                 {
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
@@ -514,6 +535,7 @@ public static class DungeonGenerator
             List<DoorTrigger> triggersB = GetExitTriggerList(link.cellB, monsterControllers, bossControllers);
             CreateDoorLink(link.posA, link.inwardA, triggersA, link.posB, link.inwardB, triggersB, root.transform);
         }
+
 
         // --- Camera: locked per-room instead of following the player continuously ---
         Camera cam = Camera.main;
@@ -628,6 +650,39 @@ public static class DungeonGenerator
         goldCounter.inventory = playerInventory;
         goldCounter.yOffset = -82f; // leaves room for the stamina bar sitting just under the hearts
 
+        // --- Floor timer (top-center countdown) - 10 minutes, then the floor collapses ---
+        GameObject floorTimerGO = new GameObject("FloorTimer", typeof(FloorTimer));
+        floorTimerGO.transform.SetParent(root.transform);
+        FloorTimer floorTimer = floorTimerGO.GetComponent<FloorTimer>();
+        floorTimer.duration = FloorDuration;
+        // A collapsing floor is an unavoidable death, unlike ordinary damage - bypasses dodge/i-frames.
+        floorTimer.OnCollapse += () => { Debug.Log("Le sol s'effondre !"); playerHealth.Kill(); };
+
+        GameObject floorTimerLabelGO = new GameObject("FloorTimerLabel", typeof(Text));
+        floorTimerLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text floorTimerLabel = floorTimerLabelGO.GetComponent<Text>();
+        floorTimerLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 32);
+        floorTimerLabel.fontSize = 32;
+        floorTimerLabel.alignment = TextAnchor.MiddleCenter;
+        floorTimerLabel.color = Color.white;
+        RectTransform floorTimerLabelRect = floorTimerLabel.rectTransform;
+        floorTimerLabelRect.anchorMin = floorTimerLabelRect.anchorMax = new Vector2(0.5f, 1f);
+        floorTimerLabelRect.pivot = new Vector2(0.5f, 1f);
+        floorTimerLabelRect.anchoredPosition = new Vector2(0f, -20f);
+        floorTimerLabelRect.sizeDelta = new Vector2(160f, 44f);
+
+        FloorTimerUI floorTimerUI = floorTimerLabelGO.AddComponent<FloorTimerUI>();
+        floorTimerUI.target = floorTimer;
+        floorTimerUI.label = floorTimerLabel;
+
+        // Now that the floor's single Boss room (if any) has its controller and FloorTimer exists,
+        // the staircase can wire whichever lock it rolled.
+        if (hasStairs)
+        {
+            SetupStaircase(stairsCenter, stairsGridPos, layout, stairsMarker, doorBarrierSprite, leverSprite,
+                floorTimer, bossRoomControllers, root.transform);
+        }
+
         // --- Stats column (below the gold counter) ---
         GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
         statsGO.transform.SetParent(canvasGO.transform, false);
@@ -696,6 +751,7 @@ public static class DungeonGenerator
         minimap.eventRoomGridPositions = new List<Vector2Int>();
         minimap.treasureRoomGridPositions = new List<Vector2Int>();
         minimap.safeRoomGridPositions = new List<Vector2Int>();
+        minimap.stairsRoomGridPositions = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
         {
             if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
@@ -704,12 +760,14 @@ public static class DungeonGenerator
             if (kv2.Value == RoomType.Event) minimap.eventRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Treasure) minimap.treasureRoomGridPositions.Add(kv2.Key);
             if (kv2.Value == RoomType.Safe) minimap.safeRoomGridPositions.Add(kv2.Key);
+            if (kv2.Value == RoomType.Stairs) minimap.stairsRoomGridPositions.Add(kv2.Key);
         }
         minimap.bossIconSprite = bossMarker;
         minimap.shopIconSprite = shopMarker;
         minimap.eventIconSprite = eventMarker;
         minimap.secretIconSprite = secretMarker;
         minimap.safeIconSprite = safeMarker;
+        minimap.stairsIconSprite = stairsMarker;
         minimap.outlineRingSprite = outlineRingSprite;
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
@@ -980,6 +1038,112 @@ public static class DungeonGenerator
         Debug.Log("DungeonGenerator: floor generated with " + layout.Count + " rooms (" + eliteRoomCount + " with an elite).");
     }
 
+    // Called by Staircase.OnTriggerEnter2D once its lock is open - a fresh floor+1 with a new
+    // random seed, carrying the player's full state across via the same Capture/Apply pair a
+    // to-disk save uses (see SaveManager), just kept in memory instead of hitting the file.
+    public static void Descend()
+    {
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player == null) return;
+
+        SaveData carry = SaveManager.Capture(CurrentSeed, CurrentFloor + 1,
+            player.GetComponent<PlayerInventory>(), player.GetComponent<PlayerStats>(),
+            player.GetComponent<Health>(), player.GetComponent<Stamina>(), player.GetComponent<PlayerController>());
+
+        Build(Random.Range(int.MinValue, int.MaxValue), CurrentFloor + 1);
+
+        GameObject newPlayer = GameObject.FindWithTag("Player");
+        if (newPlayer == null) return;
+        SaveManager.Apply(carry,
+            newPlayer.GetComponent<PlayerInventory>(), newPlayer.GetComponent<PlayerStats>(),
+            newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>());
+    }
+
+    // Rolls this floor's lock flavour and builds the physical staircase - the sole way down.
+    // BossKill/Lever/Timed each gate the same blocker; Open has none (still has to be found, since
+    // Stairs is hidden on the minimap until visited just like Secret - see MinimapController).
+    static void SetupStaircase(Vector2 center, Vector2Int gridPos, Dictionary<Vector2Int, RoomType> layout,
+        Sprite stairsSprite, Sprite blockerSprite, Sprite leverSprite, FloorTimer floorTimer,
+        List<BossRoomController> bossRoomControllers, Transform parent)
+    {
+        GameObject go = new GameObject("Staircase", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Staircase));
+        go.transform.SetParent(parent);
+        go.transform.position = center;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = stairsSprite;
+        renderer.sortingOrder = 0;
+
+        CircleCollider2D trigger = go.GetComponent<CircleCollider2D>();
+        trigger.isTrigger = true;
+        trigger.radius = 0.8f;
+
+        // Deliberately NOT a DoorBlocker (see ExplosionUtility) - a bomb must never be able to pop
+        // a locked staircase open early, unlike an ordinary locked room door.
+        GameObject blocker = new GameObject("StaircaseBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D));
+        blocker.transform.SetParent(go.transform, false);
+        SpriteRenderer blockerRenderer = blocker.GetComponent<SpriteRenderer>();
+        blockerRenderer.sprite = blockerSprite;
+        blockerRenderer.sortingOrder = 1;
+        blocker.GetComponent<BoxCollider2D>().size = Vector2.one * 1.4f;
+
+        Staircase staircase = go.GetComponent<Staircase>();
+        staircase.blocker = blocker;
+
+        StairsLockType lockType = (StairsLockType)Random.Range(0, 4);
+        // Boss is unconditionally placed every floor, but fall back safely rather than risk a
+        // permanent soft-lock if that ever stops being true.
+        if (lockType == StairsLockType.BossKill && bossRoomControllers.Count == 0) lockType = StairsLockType.Open;
+        staircase.lockType = lockType;
+
+        switch (lockType)
+        {
+            case StairsLockType.Timed:
+                staircase.floorTimer = floorTimer;
+                staircase.unlockAtElapsedSeconds = floorTimer.duration * TimedStairsUnlockFraction;
+                break;
+            case StairsLockType.BossKill:
+                bossRoomControllers[0].OnBossDefeated += staircase.Unlock;
+                break;
+            case StairsLockType.Lever:
+                Vector2Int leverRoom = FindLeverRoom(layout, gridPos);
+                Vector2 leverCenter = new Vector2(leverRoom.x * StepX + RoomWidth / 2f, leverRoom.y * StepY + RoomHeight / 2f);
+                SpawnLever(leverCenter, leverSprite, staircase, parent);
+                break;
+        }
+    }
+
+    // Picks a plain room elsewhere on the floor to host the lever - prefers an Empty room (no
+    // monsters guarding it) and only falls back to a Monster room if the floor has none.
+    static Vector2Int FindLeverRoom(Dictionary<Vector2Int, RoomType> layout, Vector2Int excludeGridPos)
+    {
+        var emptyCandidates = new List<Vector2Int>();
+        var monsterCandidates = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
+        {
+            if (kv.Key == excludeGridPos) continue;
+            if (kv.Value == RoomType.Empty) emptyCandidates.Add(kv.Key);
+            else if (kv.Value == RoomType.Monster) monsterCandidates.Add(kv.Key);
+        }
+        List<Vector2Int> candidates = emptyCandidates.Count > 0 ? emptyCandidates : monsterCandidates;
+        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : excludeGridPos;
+    }
+
+    static void SpawnLever(Vector2 position, Sprite sprite, Staircase target, Transform parent)
+    {
+        GameObject go = new GameObject("Lever", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Lever));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().isTrigger = true;
+
+        go.GetComponent<Lever>().target = target;
+    }
+
     // Chance a still-plain Monster cell tries to absorb neighboring free cells into one bigger
     // room instead of staying single-cell - purely to let some encounters use a bigger arena for
     // more spectacular formations (see MergeMultiCellMonsterRooms).
@@ -1056,6 +1220,8 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
         // Guaranteed, like Treasure/Shop - a save point must always be reachable.
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
+        // Guaranteed too - there is always exactly one way down, somewhere on the floor.
+        PlaceSpecialRoom(rooms, RoomType.Stairs, secretCell, start, bossDistance);
 
         // Every cell defaults to its own 1x1 group; the merge pass below (run last, once every
         // other room type is already placed) may absorb some plain Monster cells' free neighbors

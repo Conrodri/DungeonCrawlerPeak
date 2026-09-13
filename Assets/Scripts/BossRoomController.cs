@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -26,6 +27,10 @@ public class BossRoomController : MonoBehaviour
     public VictoryBannerUI victoryBanner;
     public BossHealthBarUI healthBar;
     public string bossName = "Cerbere";
+
+    // Lets a BossKill-locked Staircase (see DungeonGenerator.SetupStaircase) unlock the moment
+    // this floor's boss dies, without the staircase needing to poll anything itself.
+    public event Action OnBossDefeated;
 
     bool defeated;
     bool healthBarBound;
@@ -64,6 +69,7 @@ public class BossRoomController : MonoBehaviour
         LootTable.TryDropLoot(dropPos);
 
         if (victoryBanner != null) victoryBanner.ShowVictory(bossName + " est vaincu !");
+        OnBossDefeated?.Invoke();
     }
 
     void UpdateDoors()

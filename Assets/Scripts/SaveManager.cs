@@ -13,11 +13,14 @@ public static class SaveManager
 
     public static bool HasSave() => File.Exists(SavePath);
 
-    public static void Save(int seed, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
+    // Shared field-mapping between a to-disk Save and an in-memory carry-over across floors
+    // (DungeonGenerator.Descend) - avoids duplicating this list twice.
+    public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
     {
-        SaveData data = new SaveData
+        return new SaveData
         {
             seed = seed,
+            floor = floor,
             slots = inventory.GetAllSlots(),
             hotbarSlots = inventory.hotbarSlots,
             cursedItemId = inventory.CursedItemId,
@@ -37,7 +40,11 @@ public static class SaveManager
             currentWeapon = controller.currentWeapon,
             weaponLocked = controller.WeaponLocked,
         };
+    }
 
+    public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
+    {
+        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller);
         File.WriteAllText(SavePath, JsonUtility.ToJson(data));
         Debug.Log("SaveManager: game saved to " + SavePath);
     }

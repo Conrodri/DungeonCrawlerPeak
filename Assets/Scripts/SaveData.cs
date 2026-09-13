@@ -6,6 +6,7 @@ using System;
 public class SaveData
 {
     public int seed;
+    public int floor = 1;
 
     public InventorySlot[] slots;
     public string[] hotbarSlots;

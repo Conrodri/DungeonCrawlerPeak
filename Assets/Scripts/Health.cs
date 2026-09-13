@@ -28,6 +28,17 @@ public class Health : MonoBehaviour
         IsInvulnerable = value;
     }
 
+    // Guaranteed lethal hit that bypasses invulnerability and dodge - for unavoidable hazards like
+    // a collapsing floor, where no defensive stat should be able to save the player.
+    public void Kill()
+    {
+        if (isDead) return;
+        currentHealth = 0;
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+        isDead = true;
+        OnDeath?.Invoke();
+    }
+
     public void Heal(int amount)
     {
         if (amount <= 0 || isDead) return;
