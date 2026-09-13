@@ -25,6 +25,7 @@ public class RoomController : MonoBehaviour
         public int maxHealth;
         public int contactDamage;
         public bool isFlying;
+        public int xpReward;
     }
 
     public Vector2Int gridPos;
@@ -119,6 +120,7 @@ public class RoomController : MonoBehaviour
             controller.moveSpeed = preset.moveSpeed;
             controller.contactDamage = preset.contactDamage;
             controller.isFlying = preset.isFlying;
+            controller.xpReward = preset.xpReward;
             controller.SetTarget(player);
             controller.SetRoomBounds(new Rect(roomOrigin, roomSize));
 

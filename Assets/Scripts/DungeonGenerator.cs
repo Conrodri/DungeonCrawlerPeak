@@ -33,7 +33,10 @@ public static class DungeonGenerator
     // Spawn placement tuning (see GenerateEnemySpawnPositions): distance kept from walls, doors,
     // and other spawned enemies.
     const float EnemySpawnWallMargin = 3f;
-    const float EnemySpawnMinDoorDistance = 3f;
+    // Bumped from 3 - per feedback, spawning this close to the door the player just walked
+    // through (combined with no activation delay, since fixed separately - see
+    // EnemyController.ActivationDelay) felt like an ambush rather than a room to size up.
+    const float EnemySpawnMinDoorDistance = 5f;
     const float EnemySpawnMinSpacing = 3f;
     const int EnemySpawnMaxAttempts = 30;
 
@@ -173,9 +176,9 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] enemyPresets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, moveSpeed = 1.6f, maxHealth = 1, contactDamage = 1, isFlying = false },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 3 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, moveSpeed = 1.6f, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
         };
 
         // A whole floor sometimes commits to a single creature type, so every Monster room draws
@@ -582,6 +585,10 @@ public static class DungeonGenerator
         canvasGO.transform.SetParent(root.transform);
         canvasGO.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
 
+        // Shared hover tooltip (item name/description) - see InventorySlotUI.OnPointerEnter.
+        GameObject tooltipGO = new GameObject("TooltipUI", typeof(TooltipUI));
+        tooltipGO.transform.SetParent(canvasGO.transform, false);
+
         // Required for UI pointer/drag events (inventory drag & drop) - the project's Active Input
         // Handling is Input System (New) only, so the legacy StandaloneInputModule doesn't work.
         // Reuses one if it already exists (MainMenuController creates one to run its own buttons
@@ -665,6 +672,48 @@ public static class DungeonGenerator
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
         goldCounter.yOffset = -82f; // leaves room for the stamina bar sitting just under the hearts
+
+        // --- Experience bar (below the gold counter) - no XP/level visual existed at all before ---
+        GameObject xpBarGO = new GameObject("ExperienceBar", typeof(RectTransform), typeof(Image), typeof(ExperienceBarUI));
+        xpBarGO.transform.SetParent(canvasGO.transform, false);
+        Image xpBarBackground = xpBarGO.GetComponent<Image>();
+        xpBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform xpBarRect = xpBarBackground.rectTransform;
+        xpBarRect.anchorMin = xpBarRect.anchorMax = new Vector2(0f, 1f);
+        xpBarRect.pivot = new Vector2(0f, 1f);
+        xpBarRect.anchoredPosition = new Vector2(20f, -106f);
+        xpBarRect.sizeDelta = new Vector2(160f, 16f);
+
+        GameObject xpFillGO = new GameObject("Fill", typeof(Image));
+        xpFillGO.transform.SetParent(xpBarGO.transform, false);
+        Image xpFill = xpFillGO.GetComponent<Image>();
+        xpFill.color = new Color(0.4f, 0.65f, 0.9f);
+        xpFill.type = Image.Type.Filled;
+        xpFill.fillMethod = Image.FillMethod.Horizontal;
+        xpFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform xpFillRect = xpFill.rectTransform;
+        xpFillRect.anchorMin = Vector2.zero;
+        xpFillRect.anchorMax = Vector2.one;
+        xpFillRect.offsetMin = new Vector2(1f, 1f);
+        xpFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject xpLabelGO = new GameObject("ExperienceLabel", typeof(Text));
+        xpLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text xpLabel = xpLabelGO.GetComponent<Text>();
+        xpLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        xpLabel.fontSize = 18;
+        xpLabel.alignment = TextAnchor.MiddleLeft;
+        xpLabel.color = Color.white;
+        RectTransform xpLabelRect = xpLabel.rectTransform;
+        xpLabelRect.anchorMin = xpLabelRect.anchorMax = new Vector2(0f, 1f);
+        xpLabelRect.pivot = new Vector2(0f, 1f);
+        xpLabelRect.anchoredPosition = new Vector2(188f, -106f);
+        xpLabelRect.sizeDelta = new Vector2(100f, 16f);
+
+        ExperienceBarUI xpBar = xpBarGO.GetComponent<ExperienceBarUI>();
+        xpBar.target = playerStats;
+        xpBar.fill = xpFill;
+        xpBar.label = xpLabel;
 
         // --- Floor timer (top-center countdown) - 10 minutes, then the floor collapses ---
         GameObject floorTimerGO = new GameObject("FloorTimer", typeof(FloorTimer));
@@ -1219,7 +1268,7 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] presets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 3 },
         };
         RoomController.EnemySpawn[] recipe =
         {
@@ -2407,9 +2456,9 @@ public static class DungeonGenerator
 
     enum BackroomsDecorType { Chair, Pillar, LoneDoor, DampStain }
 
-    // Denser than normal decor (endless-identical-room monotony is the point) and purely cosmetic
-    // - no colliders, no scripts - so an absurdly oversized chair or a door standing alone in the
-    // middle of the floor is zero gameplay risk, just visual "loufoque" flavor.
+    // Denser than normal decor (endless-identical-room monotony is the point). Pillar/LoneDoor are
+    // solid - per feedback, a room full of decor you walk straight through didn't feel obstructive
+    // enough - while Chair/DampStain stay purely cosmetic (no collider, no script).
     static void SpawnBackroomsDecor(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid, DecorSprites sprites, Transform parent, int cellCount)
     {
         int count = Random.Range(2, 4) * cellCount;
@@ -2421,28 +2470,30 @@ public static class DungeonGenerator
                     // Wildly inconsistent scale on purpose - a chair the size of a doormat next to
                     // one the size of a fridge, with nothing explaining why.
                     float chairScale = Random.Range(0.6f, 2.4f);
-                    SpawnBackroomsProp("Chair", pos, sprites.backroomsChair, parent, new Vector2(chairScale, chairScale), 0f, 0);
+                    SpawnBackroomsProp("Chair", pos, sprites.backroomsChair, parent, new Vector2(chairScale, chairScale), 0f, 0, false);
                     break;
                 case BackroomsDecorType.Pillar:
-                    SpawnBackroomsProp("Pillar", pos, sprites.backroomsPillar, parent, new Vector2(0.8f, 2.4f), 0f, 1);
+                    SpawnBackroomsProp("Pillar", pos, sprites.backroomsPillar, parent, new Vector2(0.8f, 2.4f), 0f, 1, true);
                     break;
                 case BackroomsDecorType.LoneDoor:
                     // Standing in open floor, never against a wall, sometimes sideways - it leads
-                    // nowhere.
+                    // nowhere, but you still can't walk through it.
                     float doorRotation = Random.value < 0.5f ? 0f : 90f;
-                    SpawnBackroomsProp("LoneDoor", pos, sprites.backroomsDoor, parent, new Vector2(1f, 1.8f), doorRotation, 0);
+                    SpawnBackroomsProp("LoneDoor", pos, sprites.backroomsDoor, parent, new Vector2(1f, 1.8f), doorRotation, 0, true);
                     break;
                 case BackroomsDecorType.DampStain:
                     float stainScale = Random.Range(1f, 2.8f);
-                    SpawnBackroomsProp("DampStain", pos, sprites.backroomsStain, parent, new Vector2(stainScale, stainScale), 0f, -1);
+                    SpawnBackroomsProp("DampStain", pos, sprites.backroomsStain, parent, new Vector2(stainScale, stainScale), 0f, -1, false);
                     break;
             }
         }
     }
 
-    static void SpawnBackroomsProp(string name, Vector2 position, Sprite sprite, Transform parent, Vector2 scale, float rotationZ, int sortingOrder)
+    static void SpawnBackroomsProp(string name, Vector2 position, Sprite sprite, Transform parent, Vector2 scale, float rotationZ, int sortingOrder, bool solid)
     {
-        GameObject go = new GameObject(name, typeof(SpriteRenderer));
+        GameObject go = solid
+            ? new GameObject(name, typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D))
+            : new GameObject(name, typeof(SpriteRenderer));
         go.transform.SetParent(parent);
         go.transform.position = position;
         go.transform.localScale = new Vector3(scale.x, scale.y, 1f);
@@ -2451,6 +2502,15 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = sortingOrder;
+
+        if (solid)
+        {
+            // Sized in LOCAL space (0.7 of a unit before the transform's own scale stretches it),
+            // so a taller/wider prop still blocks roughly its drawn footprint instead of always a
+            // fixed 1x1 regardless of how comically oversized the sprite scale made it look.
+            go.GetComponent<BoxCollider2D>().size = Vector2.one * 0.7f;
+            go.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+        }
     }
 
     static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent, string guaranteedDropItemId = null)

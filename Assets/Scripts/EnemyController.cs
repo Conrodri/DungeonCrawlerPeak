@@ -10,6 +10,7 @@ public class EnemyController : MonoBehaviour
     public float contactCooldown = 1f;
     public bool isFlying;
     public EliteModifier modifier;
+    public int xpReward = 1;
 
     const float BobAmplitude = 0.15f;
     const float BobSpeed = 4f;
@@ -17,6 +18,10 @@ public class EnemyController : MonoBehaviour
     const float HpUpMultiplier = 2f;
     const float GlowScale = 1.8f;
     const string EliteIconKey = "Elite";
+    // Grace period after spawning (room entry, or a reset re-entry) before this enemy starts
+    // chasing - per feedback, mobs closing in the instant the player steps through a door felt
+    // too fast/too close to react to.
+    const float ActivationDelay = 1f;
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
@@ -29,6 +34,7 @@ public class EnemyController : MonoBehaviour
     Transform target;
     float lastHitTime = -999f;
     Rect? roomBounds;
+    float activeAtTime;
 
     void Awake()
     {
@@ -41,6 +47,7 @@ public class EnemyController : MonoBehaviour
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
         // tilemap CompositeCollider2D can otherwise creep through a corner over many frames.
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        activeAtTime = Time.time + ActivationDelay;
     }
 
     public void SetTarget(Transform t)
@@ -88,7 +95,11 @@ public class EnemyController : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (target == null) return;
+        if (target == null || Time.time < activeAtTime)
+        {
+            rb.linearVelocity = Vector2.zero;
+            return;
+        }
 
         Vector2 toTarget = (Vector2)target.position - rb.position;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
@@ -140,6 +151,7 @@ public class EnemyController : MonoBehaviour
     {
         Debug.Log(name + " died.");
         LootTable.TryDropLoot(transform.position);
+        if (target != null) target.GetComponent<PlayerStats>()?.AddExperience(xpReward);
         OnDied?.Invoke();
         Destroy(gameObject);
     }

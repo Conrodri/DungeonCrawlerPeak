@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 // Shared drag & drop behaviour for both the InventoryUI grid slots and the HotbarUI slots, so an
 // item can be reordered within the inventory or dragged onto a hotbar slot to equip it.
-public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
+public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, IPointerEnterHandler, IPointerExitHandler
 {
     public PlayerInventory inventory;
     public bool isHotbarSlot;
@@ -19,6 +19,7 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
     {
         if (string.IsNullOrEmpty(ItemId)) return;
         draggedFrom = this;
+        if (TooltipUI.Instance != null) TooltipUI.Instance.Hide();
 
         ItemDefinition definition = ItemDatabase.Get(ItemId);
         Canvas canvas = GetComponentInParent<Canvas>();
@@ -67,5 +68,23 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
             inventory.AssignHotbar(index, sourceId);
         }
         // Hotbar -> inventory: no-op, a hotbar slot is only a reference to an inventory item.
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        string itemId = ItemId;
+        if (string.IsNullOrEmpty(itemId) || TooltipUI.Instance == null) return;
+
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition == null) return;
+
+        string body = definition.Description;
+        if (definition.Weight > 0) body += (string.IsNullOrEmpty(body) ? "" : "\n") + "Necessite Force " + definition.Weight + ".";
+        TooltipUI.Instance.Show(definition.DisplayName, body, eventData.position);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (TooltipUI.Instance != null) TooltipUI.Instance.Hide();
     }
 }

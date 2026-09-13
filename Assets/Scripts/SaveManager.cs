@@ -25,6 +25,8 @@ public static class SaveManager
             hotbarSlots = inventory.hotbarSlots,
             cursedItemId = inventory.CursedItemId,
             level = stats.level,
+            experience = stats.experience,
+            experienceToNextLevel = stats.experienceToNextLevel,
             force = stats.force,
             dexterite = stats.dexterite,
             intelligence = stats.intelligence,
@@ -65,6 +67,8 @@ public static class SaveManager
         inventory.LoadState(data.slots, data.hotbarSlots, data.cursedItemId);
 
         stats.level = data.level;
+        stats.experience = data.experience;
+        stats.experienceToNextLevel = data.experienceToNextLevel > 0 ? data.experienceToNextLevel : stats.experienceToNextLevel;
         stats.force = data.force;
         stats.dexterite = data.dexterite;
         stats.intelligence = data.intelligence;

@@ -36,6 +36,9 @@ public class BossRoomController : MonoBehaviour
     // this floor's boss dies, without the staircase needing to poll anything itself.
     public event Action OnBossDefeated;
 
+    // A boss is worth far more than a regular kill - big enough to reliably push a level on its own.
+    const int BossXpReward = 20;
+
     bool defeated;
     bool healthBarBound;
 
@@ -71,6 +74,7 @@ public class BossRoomController : MonoBehaviour
         Vector2 dropPos = boss.transform.position;
         ItemPickup.SpawnAt(dropPos, ItemIds.CerberusCollar, 1);
         LootTable.TryDropLoot(dropPos);
+        if (player != null) player.GetComponent<PlayerStats>()?.AddExperience(BossXpReward);
 
         if (victoryBanner != null) victoryBanner.ShowVictory(bossName + " est vaincu !");
         OnBossDefeated?.Invoke();

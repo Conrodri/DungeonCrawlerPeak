@@ -13,6 +13,8 @@ public class SaveData
     public string cursedItemId;
 
     public int level;
+    public int experience;
+    public int experienceToNextLevel;
     public int force;
     public int dexterite;
     public int intelligence;

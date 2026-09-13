@@ -1,13 +1,22 @@
+using System;
 using UnityEngine;
 
 // D&D-style stat block. Level starts at 1; each raw stat drives exactly one gameplay multiplier
-// below. Nothing here changes these values over time yet - no XP/level-up flow, no stat allocation
-// UI. That arrives with the NPC dialogue/dice-roll feature, which will grant or penalize stats.
+// below. No stat-allocation-on-level-up flow yet (level only feeds ProficiencyBonus so far) - XP
+// is earned from kills (see EnemyController/BossRoomController) purely to make level go up and be
+// visible (ExperienceBarUI); a dialogue outcome can still change raw stats directly regardless.
 [RequireComponent(typeof(Health))]
 [RequireComponent(typeof(Stamina))]
 public class PlayerStats : MonoBehaviour
 {
     public int level = 1;
+    public int experience;
+    public int experienceToNextLevel = ExperienceBase;
+    const int ExperienceBase = 10;
+    const int ExperiencePerLevel = 5;
+
+    public event Action<int, int, int> OnExperienceChanged; // (experience, experienceToNextLevel, level)
+
     public int force = 1;
     public int dexterite = 1;
     public int intelligence = 1;
@@ -99,6 +108,23 @@ public class PlayerStats : MonoBehaviour
                 stamina.currentStamina = Mathf.Min(stamina.currentStamina, stamina.maxStamina);
                 break;
         }
+    }
+
+    // Called on every enemy/boss kill (see EnemyController.HandleDeath/BossRoomController.
+    // HandleBossDied). Loops rather than a single add in case one big reward (a boss) clears
+    // several levels at once.
+    public void AddExperience(int amount)
+    {
+        if (amount <= 0) return;
+
+        experience += amount;
+        while (experience >= experienceToNextLevel)
+        {
+            experience -= experienceToNextLevel;
+            level++;
+            experienceToNextLevel = ExperienceBase + (level - 1) * ExperiencePerLevel;
+        }
+        OnExperienceChanged?.Invoke(experience, experienceToNextLevel, level);
     }
 
     public void ApplyCurse()
