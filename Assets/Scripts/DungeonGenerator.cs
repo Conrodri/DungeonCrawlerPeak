@@ -467,7 +467,18 @@ public static class DungeonGenerator
         {
             int originX = kv.Key.x * StepX;
             int originY = kv.Key.y * StepY;
-            roomEntries.Add(new RoomCameraController.RoomEntry { gridPos = kv.Key, rect = new Rect(originX, originY, RoomWidth, RoomHeight) });
+            // `rect` stays this one cell's own bounds (drives exactly-which-cell detection, so
+            // MinimapController's walked-over reveal and RoomController's per-cell gating keep
+            // firing per member cell same as before). `cameraRect` spans the WHOLE merged group
+            // (see OpenFullHorizontalSeam/OpenFullVerticalSeam) so the camera doesn't recentre on
+            // a single 22x12 cell the instant the player crosses a former seam inside a duo/trio/
+            // quad room - reduces to the same single-cell rect automatically when unmerged.
+            roomEntries.Add(new RoomCameraController.RoomEntry
+            {
+                gridPos = kv.Key,
+                rect = new Rect(originX, originY, RoomWidth, RoomHeight),
+                cameraRect = GroupWorldRect(cellGroups[kv.Key])
+            });
 
             if (kv.Value == RoomType.Monster)
             {
@@ -1663,6 +1674,17 @@ public static class DungeonGenerator
     }
 
     static bool IsGroupAnchor(Vector2Int cell, Dictionary<Vector2Int, RectInt> cellGroups) => cellGroups[cell].xMin == cell.x && cellGroups[cell].yMin == cell.y;
+
+    // World-space rect covering an entire merged group (same size formula as GatherGroup's
+    // groupSize) - reduces to the plain single-cell rect when the group is unmerged (1x1).
+    static Rect GroupWorldRect(RectInt group)
+    {
+        return new Rect(
+            group.xMin * StepX,
+            group.yMin * StepY,
+            group.width * RoomWidth + (group.width - 1) * Gap,
+            group.height * RoomHeight + (group.height - 1) * Gap);
+    }
 
     // Shared by the Monster and Boss population branches: collects every cell in the anchor's
     // merged group, every door on any of those cells, and the group's total world-space size.
