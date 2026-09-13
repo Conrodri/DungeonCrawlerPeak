@@ -616,6 +616,13 @@ public static class DungeonGenerator
         hud.emptyColor = heartEmpty;
         hud.maxHeartSlots = playerHealth.maxHealth / 2;
 
+        // Shared by every fillAmount-driven bar below (Stamina/Experience/Boss health) - an Image
+        // left with no sprite at all apparently never got its Filled-type geometry to actually
+        // redraw on fillAmount changes (confirmed via diagnostic logging: the numeric value was
+        // always correct, the bar itself never visibly moved). A plain white sprite, tinted per
+        // bar via Image.color exactly like every other UI graphic here, fixes that.
+        Sprite uiFillSprite = CreateSolidSprite("Assets/Art/UI/Fill.png", Color.white);
+
         // --- Stamina bar (directly under the hearts, always visible) ---
         GameObject staminaBarGO = new GameObject("StaminaBar", typeof(RectTransform), typeof(Image), typeof(StaminaBarUI));
         staminaBarGO.transform.SetParent(canvasGO.transform, false);
@@ -630,6 +637,7 @@ public static class DungeonGenerator
         GameObject staminaFillGO = new GameObject("Fill", typeof(Image));
         staminaFillGO.transform.SetParent(staminaBarGO.transform, false);
         Image staminaFill = staminaFillGO.GetComponent<Image>();
+        staminaFill.sprite = uiFillSprite;
         staminaFill.color = new Color(0.75f, 0.7f, 0.15f);
         staminaFill.type = Image.Type.Filled;
         staminaFill.fillMethod = Image.FillMethod.Horizontal;
@@ -688,6 +696,7 @@ public static class DungeonGenerator
         GameObject xpFillGO = new GameObject("Fill", typeof(Image));
         xpFillGO.transform.SetParent(xpBarGO.transform, false);
         Image xpFill = xpFillGO.GetComponent<Image>();
+        xpFill.sprite = uiFillSprite;
         xpFill.color = new Color(0.4f, 0.65f, 0.9f);
         xpFill.type = Image.Type.Filled;
         xpFill.fillMethod = Image.FillMethod.Horizontal;
@@ -1096,6 +1105,7 @@ public static class DungeonGenerator
         GameObject bossBarFillGO = new GameObject("Fill", typeof(Image));
         bossBarFillGO.transform.SetParent(bossBarGO.transform, false);
         Image bossBarFill = bossBarFillGO.GetComponent<Image>();
+        bossBarFill.sprite = uiFillSprite;
         bossBarFill.color = new Color(0.75f, 0.1f, 0.1f);
         bossBarFill.type = Image.Type.Filled;
         bossBarFill.fillMethod = Image.FillMethod.Horizontal;
