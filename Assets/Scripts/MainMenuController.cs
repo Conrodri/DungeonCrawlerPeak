@@ -85,10 +85,14 @@ public class MainMenuController : MonoBehaviour
         y -= 80f;
         CreateButton(panel.transform, "Quitter", font, y, OnQuit);
 
-        BuildSettingsPanel(menuCanvas.transform, font);
+        settingsPanel = BuildSettingsPanel(menuCanvas.transform, font);
     }
 
-    Button CreateButton(Transform parent, string label, Font font, float y, UnityEngine.Events.UnityAction onClick)
+    // Shared with PauseMenuUI's construction (see DungeonGenerator.Build) - the in-game pause menu
+    // needs the exact same button/settings-panel look, so this stays static and parameter-only
+    // (no instance field references) instead of duplicating ~60 lines of UI boilerplate. See
+    // feedback_code_reuse_library.
+    public static Button CreateButton(Transform parent, string label, Font font, float y, UnityEngine.Events.UnityAction onClick)
     {
         GameObject go = new GameObject(label + "Button", typeof(Image), typeof(Button));
         go.transform.SetParent(parent, false);
@@ -120,9 +124,11 @@ public class MainMenuController : MonoBehaviour
         return button;
     }
 
-    void BuildSettingsPanel(Transform parent, Font font)
+    // Static/shared for the same reason as CreateButton above - PauseMenuUI reuses this verbatim
+    // for its in-game settings panel instead of a duplicate copy.
+    public static GameObject BuildSettingsPanel(Transform parent, Font font)
     {
-        settingsPanel = new GameObject("SettingsPanel", typeof(Image));
+        GameObject settingsPanel = new GameObject("SettingsPanel", typeof(Image));
         settingsPanel.transform.SetParent(parent, false);
         Image bg = settingsPanel.GetComponent<Image>();
         bg.color = new Color(0.08f, 0.08f, 0.1f, 0.98f);
@@ -178,9 +184,10 @@ public class MainMenuController : MonoBehaviour
         CreateButton(settingsPanel.transform, "Retour", font, -170f, () => settingsPanel.SetActive(false));
 
         settingsPanel.SetActive(false);
+        return settingsPanel;
     }
 
-    void BuildSliderVisuals(Slider slider)
+    public static void BuildSliderVisuals(Slider slider)
     {
         GameObject bgGO = new GameObject("Background", typeof(Image));
         bgGO.transform.SetParent(slider.transform, false);

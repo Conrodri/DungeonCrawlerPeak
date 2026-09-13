@@ -1193,6 +1193,47 @@ public static class DungeonGenerator
         deathScreen.mainMenu = Object.FindFirstObjectByType<MainMenuController>();
         playerHealth.OnDeath += deathScreen.Show;
 
+        // --- Pause menu (Echap, hidden by default) - Reprendre/Parametres/Quitter au menu ---
+        GameObject pauseGO = new GameObject("PauseMenu", typeof(RectTransform), typeof(Image), typeof(PauseMenuUI));
+        pauseGO.transform.SetParent(canvasGO.transform, false);
+        Image pauseBg = pauseGO.GetComponent<Image>();
+        pauseBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        RectTransform pauseRect = pauseBg.rectTransform;
+        pauseRect.anchorMin = Vector2.zero;
+        pauseRect.anchorMax = Vector2.one;
+        pauseRect.offsetMin = Vector2.zero;
+        pauseRect.offsetMax = Vector2.zero;
+
+        GameObject pauseTitleGO = new GameObject("Title", typeof(Text));
+        pauseTitleGO.transform.SetParent(pauseGO.transform, false);
+        Text pauseTitle = pauseTitleGO.GetComponent<Text>();
+        pauseTitle.text = "Pause";
+        pauseTitle.font = uiFont;
+        pauseTitle.fontSize = 48;
+        pauseTitle.fontStyle = FontStyle.Bold;
+        pauseTitle.alignment = TextAnchor.MiddleCenter;
+        pauseTitle.color = Color.white;
+        RectTransform pauseTitleRect = pauseTitle.rectTransform;
+        pauseTitleRect.anchorMin = pauseTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        pauseTitleRect.pivot = new Vector2(0.5f, 1f);
+        pauseTitleRect.anchoredPosition = new Vector2(0f, -100f);
+        pauseTitleRect.sizeDelta = new Vector2(800f, 100f);
+
+        // Fetched before the buttons below so their onClick can reference it directly, instead of
+        // wiring listeners in a separate pass after the fact.
+        PauseMenuUI pauseMenu = pauseGO.GetComponent<PauseMenuUI>();
+
+        MainMenuController.CreateButton(pauseGO.transform, "Reprendre", uiFont, -260f, pauseMenu.Resume);
+        MainMenuController.CreateButton(pauseGO.transform, "Parametres", uiFont, -340f, pauseMenu.ToggleSettings);
+        MainMenuController.CreateButton(pauseGO.transform, "Quitter au menu principal", uiFont, -420f, pauseMenu.QuitToMenu);
+        GameObject pauseSettingsPanel = MainMenuController.BuildSettingsPanel(pauseGO.transform, uiFont);
+
+        pauseGO.SetActive(false);
+
+        pauseMenu.root = pauseGO;
+        pauseMenu.settingsPanel = pauseSettingsPanel;
+        pauseMenu.mainMenu = deathScreen.mainMenu;
+
         // --- Boss health bar (top-center, hidden until a boss binds to it) ---
         GameObject bossBarGO = new GameObject("BossHealthBar", typeof(RectTransform), typeof(Image), typeof(BossHealthBarUI));
         bossBarGO.transform.SetParent(canvasGO.transform, false);
