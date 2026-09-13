@@ -24,4 +24,17 @@ public static class ItemIds
     public const string LeatherBelt = "leather_belt";
     public const string LeatherKneepads = "leather_kneepads";
     public const string SimpleRing = "simple_ring";
+
+    // Real shop wares (see DungeonGenerator.SpawnMerchantNpc) - one of the 8 stat rings is picked
+    // at random each floor rather than sold all at once.
+    public const string RingForce = "ring_force";
+    public const string RingDexterite = "ring_dexterite";
+    public const string RingIntelligence = "ring_intelligence";
+    public const string RingVitesse = "ring_vitesse";
+    public const string RingConstitution = "ring_constitution";
+    public const string RingPortee = "ring_portee";
+    public const string RingCharisme = "ring_charisme";
+    public const string RingEndurance = "ring_endurance";
+    public const string AntiHoleBoots = "anti_hole_boots";
+    public const string VisionGlasses = "vision_glasses";
 }

@@ -73,6 +73,7 @@ public class PlayerController : MonoBehaviour
     Health health;
     Stamina stamina;
     PlayerInventory inventory;
+    PlayerEquipment equipment;
     PlayerStats stats;
     CircleCollider2D bodyCollider;
     StatusIconDisplay statusIcons;
@@ -99,6 +100,7 @@ public class PlayerController : MonoBehaviour
         health = GetComponent<Health>();
         stamina = GetComponent<Stamina>();
         inventory = GetComponent<PlayerInventory>();
+        equipment = GetComponent<PlayerEquipment>();
         stats = GetComponent<PlayerStats>();
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
@@ -225,6 +227,10 @@ public class PlayerController : MonoBehaviour
     // the icon showing for the longer remaining duration too).
     public void ApplyMovementDebuff(float duration)
     {
+        // Anti-hole boots (see EquipmentSlotType.Boots/ItemIds.AntiHoleBoots) - immune outright,
+        // never even shows the debuff icon.
+        if (equipment != null && equipment.Get(EquipmentSlotType.Boots) == ItemIds.AntiHoleBoots) return;
+
         movementDebuffEndTime = Mathf.Max(movementDebuffEndTime, Time.time + duration);
         if (statusIcons != null && movementDebuffIcon != null)
             statusIcons.ShowIcon(MovementDebuffIconKey, movementDebuffIcon, movementDebuffEndTime - Time.time);

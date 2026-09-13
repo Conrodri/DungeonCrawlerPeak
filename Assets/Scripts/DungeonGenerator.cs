@@ -324,6 +324,36 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
             "Se porte a n'importe quel doigt.", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft);
 
+        // Real shop wares (see SpawnMerchantNpc) - 8 stat rings (one random one sold per floor),
+        // anti-hole boots (immune to the Hole debuff - see PlayerController.ApplyMovementDebuff),
+        // vision glasses (reveals a secret room's bombable wall - see SecretWallBlocker).
+        (string id, string name, StatType stat, Color color)[] ringDefs =
+        {
+            (ItemIds.RingForce, "Anneau de Force", StatType.Force, new Color(0.75f, 0.2f, 0.15f)),
+            (ItemIds.RingDexterite, "Anneau de Dexterite", StatType.Dexterite, new Color(0.2f, 0.65f, 0.25f)),
+            (ItemIds.RingIntelligence, "Anneau d'Intelligence", StatType.Intelligence, new Color(0.2f, 0.35f, 0.85f)),
+            (ItemIds.RingVitesse, "Anneau de Vitesse", StatType.Vitesse, new Color(0.2f, 0.75f, 0.8f)),
+            (ItemIds.RingConstitution, "Anneau de Constitution", StatType.Constitution, new Color(0.85f, 0.5f, 0.15f)),
+            (ItemIds.RingPortee, "Anneau de Portee", StatType.Portee, new Color(0.55f, 0.25f, 0.75f)),
+            (ItemIds.RingCharisme, "Anneau de Charisme", StatType.Charisme, new Color(0.85f, 0.4f, 0.65f)),
+            (ItemIds.RingEndurance, "Anneau d'Endurance", StatType.Endurance, new Color(0.85f, 0.75f, 0.2f)),
+        };
+        foreach (var ring in ringDefs)
+        {
+            Sprite ringSprite = CreateCircleSprite("Assets/Art/Items/" + ring.id + ".png", ring.color);
+            RegisterItem(itemEntries, ring.id, ring.name, ItemCategory.Equipment, 1, ringSprite,
+                "+1 " + ring.stat + " tant qu'il est equipe.", isEquipment: true,
+                equipmentSlot: EquipmentSlotType.RingLeft, ringBonusStat: ring.stat);
+        }
+
+        Sprite antiHoleBootsSprite = CreateSolidSprite("Assets/Art/Items/AntiHoleBoots.png", new Color(0.35f, 0.28f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipment, 1, antiHoleBootsSprite,
+            "Immunise contre le ralentissement des trous au sol.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots);
+
+        Sprite visionGlassesSprite = CreateSolidSprite("Assets/Art/Items/VisionGlasses.png", new Color(0.5f, 0.7f, 0.85f));
+        RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipment, 1, visionGlassesSprite,
+            "Revele les murs dissimulant une salle secrete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head);
+
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
@@ -519,6 +549,7 @@ public static class DungeonGenerator
         playerInventory.hotbarSlots[2] = ItemIds.Baton;
         playerInventory.hotbarSlots[3] = ItemIds.Bomb;
         PlayerStats playerStats = player.GetComponent<PlayerStats>();
+        playerEquipment.stats = playerStats;
         Health playerHealth = player.GetComponent<Health>();
         Stamina playerStamina = player.GetComponent<Stamina>();
         // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
@@ -2358,21 +2389,21 @@ public static class DungeonGenerator
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
         PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0,
-        bool isEquipment = false, EquipmentSlotType equipmentSlot = default)
+        bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None)
     {
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
             CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount,
-            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot
+            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat
         });
         entries.Add(new ItemCatalog.Entry
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
             cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount,
-            isEquipment = isEquipment, equipmentSlot = equipmentSlot
+            isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat
         });
     }
 
@@ -2653,8 +2684,27 @@ public static class DungeonGenerator
             BuyOption("Acheter un Collier Simple (10 or)", ItemIds.SimpleNecklace, 10),
             BuyOption("Acheter une Ceinture de Cuir (6 or)", ItemIds.LeatherBelt, 6),
             BuyOption("Acheter des Genouilleres de Cuir (6 or)", ItemIds.LeatherKneepads, 6),
-            BuyOption("Acheter un Anneau Simple (15 or)", ItemIds.SimpleRing, 15),
+            RollRandomRingOption(),
+            BuyOption("Acheter des Bottes Anti-Trous (20 or)", ItemIds.AntiHoleBoots, 20),
+            BuyOption("Acheter des Lunettes de Vision (20 or)", ItemIds.VisionGlasses, 20),
         };
+    }
+
+    static readonly string[] ShopRingIds =
+    {
+        ItemIds.RingForce, ItemIds.RingDexterite, ItemIds.RingIntelligence, ItemIds.RingVitesse,
+        ItemIds.RingConstitution, ItemIds.RingPortee, ItemIds.RingCharisme, ItemIds.RingEndurance,
+    };
+
+    // One of the 8 stat rings, re-rolled every time a Shop room is populated (i.e. every floor) -
+    // "anneau +1 dans une stat random" reads as "which ring you can buy is random", not that a
+    // single shared item id rolls a different stat per copy (which InventorySlot's simple
+    // itemId+count stacking has no room to represent per-instance anyway).
+    static DialogueOption RollRandomRingOption()
+    {
+        string ringId = ShopRingIds[Random.Range(0, ShopRingIds.Length)];
+        ItemDefinition definition = ItemDatabase.Get(ringId);
+        return BuyOption("Acheter un " + definition.DisplayName + " (15 or)", ringId, 15);
     }
 
     static DialogueOption BuyOption(string text, string itemId, int goldPrice)

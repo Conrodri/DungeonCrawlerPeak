@@ -18,6 +18,11 @@ public class PlayerEquipment : MonoBehaviour
     public const int RingSlotsPerHand = 5;
     public string[] ringsLeft = new string[RingSlotsPerHand];
     public string[] ringsRight = new string[RingSlotsPerHand];
+    // Set at generation time alongside the other Player components - needed to apply/revoke a
+    // ring's stat bonus (see Set/ApplyItemEffects). Other equipment effects (anti-hole boots,
+    // vision glasses) are just plain Get() checks at their point of use instead, since they're not
+    // continuous stat deltas that need to be added/removed symmetrically.
+    public PlayerStats stats;
 
     public event Action OnEquipmentChanged;
 
@@ -46,6 +51,10 @@ public class PlayerEquipment : MonoBehaviour
 
     public void Set(EquipmentSlotType slot, int ringIndex, string itemId)
     {
+        string old = Get(slot, ringIndex);
+        if (old == itemId) return;
+        RemoveItemEffects(old);
+
         switch (slot)
         {
             case EquipmentSlotType.Head: head = itemId; break;
@@ -58,6 +67,22 @@ public class PlayerEquipment : MonoBehaviour
             case EquipmentSlotType.RingLeft: ringsLeft[ringIndex] = itemId; break;
             case EquipmentSlotType.RingRight: ringsRight[ringIndex] = itemId; break;
         }
+
+        ApplyItemEffects(itemId);
         OnEquipmentChanged?.Invoke();
+    }
+
+    void ApplyItemEffects(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId) || stats == null) return;
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition != null && definition.RingBonusStat != StatType.None) stats.ApplyBonus(definition.RingBonusStat, 1);
+    }
+
+    void RemoveItemEffects(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId) || stats == null) return;
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition != null && definition.RingBonusStat != StatType.None) stats.ApplyPenalty(definition.RingBonusStat, 1);
     }
 }

@@ -110,6 +110,35 @@ public class PlayerStats : MonoBehaviour
         }
     }
 
+    // Symmetric counterpart to ApplyPenalty (adds instead of subtracts, same per-stat side effects
+    // for Constitution/Endurance) - used to grant/revoke an equipped ring's +1 (see
+    // PlayerEquipment.ApplyItemEffects/RemoveItemEffects) without duplicating the Constitution/
+    // Endurance -> max HP/Stamina wiring a third time.
+    public void ApplyBonus(StatType type, int amount)
+    {
+        if (amount <= 0) return;
+        switch (type)
+        {
+            case StatType.Force: force += amount; break;
+            case StatType.Dexterite: dexterite += amount; break;
+            case StatType.Intelligence: intelligence += amount; break;
+            case StatType.Vitesse: vitesse += amount; break;
+            case StatType.Constitution:
+                constitution += amount;
+                health.maxHealth += amount;
+                health.currentHealth += amount;
+                break;
+            case StatType.Portee: portee += amount; break;
+            case StatType.Charisme: charisme += amount; break;
+            case StatType.Endurance:
+                endurance += amount;
+                stamina.maxStamina += amount * StaminaPerEndurance;
+                stamina.regenPerSecond += amount * StaminaRegenPerEndurance;
+                stamina.currentStamina += amount * StaminaPerEndurance;
+                break;
+        }
+    }
+
     // Called on every enemy/boss kill (see EnemyController.HandleDeath/BossRoomController.
     // HandleBossDied). Loops rather than a single add in case one big reward (a boss) clears
     // several levels at once.

@@ -21,4 +21,7 @@ public class ItemDefinition
     // flag next to a non-nullable default value survives Unity's serialization; Nullable doesn't.
     public bool IsEquipment;
     public EquipmentSlotType EquipmentSlot;
+    // StatType.None = no bonus. Only meaningful on a ring (see PlayerEquipment.ApplyItemEffects) -
+    // grants a flat +1 to this stat while equipped, -1 back on unequip.
+    public StatType RingBonusStat;
 }
