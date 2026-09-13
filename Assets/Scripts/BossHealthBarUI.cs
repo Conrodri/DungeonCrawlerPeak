@@ -14,6 +14,8 @@ public class BossHealthBarUI : MonoBehaviour
     public Image fill;
 
     Health target;
+    // Temporary diagnostic - see StaminaBarUI.lastLogTime.
+    float lastLogTime = -999f;
 
     public void Bind(Health health)
     {
@@ -22,12 +24,22 @@ public class BossHealthBarUI : MonoBehaviour
 
         target.OnDeath += HandleDeath;
         if (root != null) root.SetActive(true);
+        Debug.Log("[BossHealthBarUI] Bind called, target=" + health.name + " root active=" + (root != null && root.activeInHierarchy));
     }
 
     void Update()
     {
         if (target == null || fill == null) return;
-        fill.fillAmount = target.maxHealth > 0 ? (float)target.currentHealth / target.maxHealth : 0f;
+        float fillValue = target.maxHealth > 0 ? (float)target.currentHealth / target.maxHealth : 0f;
+        fill.fillAmount = fillValue;
+
+        if (Time.time - lastLogTime > 2f)
+        {
+            lastLogTime = Time.time;
+            Debug.Log("[BossHealthBarUI] hp=" + target.currentHealth + "/" + target.maxHealth
+                + " fillAmount=" + fillValue + " fillActive=" + fill.gameObject.activeInHierarchy
+                + " rootActive=" + (root != null && root.activeInHierarchy));
+        }
     }
 
     void HandleDeath()

@@ -10,10 +10,22 @@ public class ExperienceBarUI : MonoBehaviour
     public Image fill;
     public Text label;
 
+    // Temporary diagnostic - see StaminaBarUI.lastLogTime.
+    float lastLogTime = -999f;
+
     void Update()
     {
         if (target == null) return;
-        if (fill != null) fill.fillAmount = target.experienceToNextLevel > 0 ? (float)target.experience / target.experienceToNextLevel : 0f;
+        float fillValue = target.experienceToNextLevel > 0 ? (float)target.experience / target.experienceToNextLevel : 0f;
+        if (fill != null) fill.fillAmount = fillValue;
         if (label != null) label.text = "Niveau " + target.level;
+
+        if (Time.time - lastLogTime > 2f)
+        {
+            lastLogTime = Time.time;
+            Debug.Log("[ExperienceBarUI] xp=" + target.experience + "/" + target.experienceToNextLevel + " level=" + target.level
+                + " fillAmount=" + fillValue + " fillActive=" + (fill != null && fill.gameObject.activeInHierarchy)
+                + " selfActive=" + gameObject.activeInHierarchy);
+        }
     }
 }

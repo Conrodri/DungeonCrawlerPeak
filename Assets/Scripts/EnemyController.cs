@@ -24,7 +24,14 @@ public class EnemyController : MonoBehaviour
     // room entry rather than on spawn: every enemy on the floor is created at floor-generation
     // time, long before the player ever reaches most rooms, so a spawn-time delay had already
     // elapsed by the time it mattered.
-    const float ActivationDelay = 0.5f;
+    const float ActivationDelay = 0.75f;
+    // Chasing enemies otherwise beeline straight for the exact same point (the player) with no
+    // awareness of each other, so a pack converges into a single overlapping stack right next to
+    // whoever they're chasing - the room-entry fix stops them drifting together from far away, but
+    // does nothing once they're all actually closing in at once. This pushes each enemy away from
+    // any other enemy within SeparationRadius, blended with the chase direction.
+    const float SeparationRadius = 1.4f;
+    const float SeparationStrength = 1.8f;
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
@@ -99,6 +106,8 @@ public class EnemyController : MonoBehaviour
         if (badgeIcon != null) statusIcons.ShowIcon(EliteIconKey, badgeIcon);
     }
 
+    static readonly Collider2D[] SeparationBuffer = new Collider2D[8];
+
     void FixedUpdate()
     {
         if (target == null || Time.time < activeAtTime)
@@ -109,7 +118,24 @@ public class EnemyController : MonoBehaviour
 
         Vector2 toTarget = (Vector2)target.position - rb.position;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
-        rb.linearVelocity = toTarget * moveSpeed;
+
+        Vector2 separation = Vector2.zero;
+        int hitCount = Physics2D.OverlapCircleNonAlloc(rb.position, SeparationRadius, SeparationBuffer);
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider2D hit = SeparationBuffer[i];
+            if (hit == bodyCollider) continue;
+            EnemyController other = hit.GetComponent<EnemyController>();
+            if (other == null) continue;
+
+            Vector2 away = rb.position - other.rb.position;
+            float dist = away.magnitude;
+            if (dist > 0.001f) separation += away / dist / dist; // stronger the closer they are
+        }
+
+        Vector2 moveDir = toTarget + separation * SeparationStrength;
+        if (moveDir.sqrMagnitude > 0.0001f) moveDir.Normalize();
+        rb.linearVelocity = moveDir * moveSpeed;
     }
 
     // Runs after Unity's physics step has already resolved this frame's collisions, so it catches
