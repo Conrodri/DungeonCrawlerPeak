@@ -606,6 +606,7 @@ public static class DungeonGenerator
 
         // --- Camera: locked per-room instead of following the player continuously ---
         Camera cam = Camera.main;
+        RoomCameraController roomCam = null;
         if (cam != null)
         {
             cam.orthographic = true;
@@ -614,7 +615,7 @@ public static class DungeonGenerator
             cam.orthographicSize = RoomHeight / 2f;
             cam.transform.position = new Vector3(startWorld.x, startWorld.y, cam.transform.position.z);
 
-            RoomCameraController roomCam = cam.GetComponent<RoomCameraController>();
+            roomCam = cam.GetComponent<RoomCameraController>();
             if (roomCam == null) roomCam = cam.gameObject.AddComponent<RoomCameraController>();
             roomCam.target = player.transform;
             roomCam.rooms = roomEntries.ToArray();
@@ -1143,6 +1144,49 @@ public static class DungeonGenerator
         VictoryBannerUI victoryBanner = victoryGO.GetComponent<VictoryBannerUI>();
         victoryBanner.root = victoryGO;
         victoryBanner.bannerText = victoryText;
+
+        // --- Room-type announcement (top of screen, hidden by default) ---
+        GameObject announceGO = new GameObject("RoomAnnouncement", typeof(RectTransform), typeof(RoomAnnouncementUI));
+        announceGO.transform.SetParent(canvasGO.transform, false);
+
+        GameObject announceTextGO = new GameObject("Text", typeof(Text));
+        announceTextGO.transform.SetParent(announceGO.transform, false);
+        Text announceText = announceTextGO.GetComponent<Text>();
+        announceText.font = uiFont;
+        announceText.fontSize = 32;
+        announceText.fontStyle = FontStyle.Bold;
+        announceText.alignment = TextAnchor.MiddleCenter;
+        announceText.color = Color.white;
+        RectTransform announceTextRect = announceText.rectTransform;
+        announceTextRect.anchorMin = new Vector2(0.5f, 1f);
+        announceTextRect.anchorMax = new Vector2(0.5f, 1f);
+        announceTextRect.pivot = new Vector2(0.5f, 1f);
+        announceTextRect.anchoredPosition = new Vector2(0f, -160f);
+        announceTextRect.sizeDelta = new Vector2(900f, 60f);
+        announceGO.SetActive(false);
+
+        RoomAnnouncementUI roomAnnouncement = announceGO.GetComponent<RoomAnnouncementUI>();
+        roomAnnouncement.root = announceGO;
+        roomAnnouncement.label = announceText;
+
+        if (roomCam != null)
+        {
+            RoomType? lastAnnouncedType = null;
+            roomCam.OnRoomEntered += enteredGridPos =>
+            {
+                if (!layout.TryGetValue(enteredGridPos, out RoomType enteredType)) return;
+                // Suppresses re-announcing on every cell crossed while wandering a single merged
+                // multi-cell room (OnRoomEntered fires once per cell - see RoomCameraController) -
+                // only a genuine change of room type re-triggers it. At most one room of each
+                // special type exists per floor (see PlaceSpecialRoom), so this never misses a
+                // real transition either.
+                if (enteredType == lastAnnouncedType) return;
+                lastAnnouncedType = enteredType;
+
+                string message = RoomAnnouncementText(enteredType);
+                if (message != null) roomAnnouncement.Show(message);
+            };
+        }
 
         // --- Death screen (full-screen, hidden until the player dies - see DeathScreenUI) ---
         GameObject deathGO = new GameObject("DeathScreen", typeof(RectTransform), typeof(Image), typeof(DeathScreenUI));
@@ -2006,6 +2050,21 @@ public static class DungeonGenerator
 
     static bool IsGatedRoomType(RoomType type) =>
         type == RoomType.Boss || type == RoomType.Safe || type == RoomType.Shop || type == RoomType.Stairs;
+
+    // Null for a type that shouldn't announce itself (Start/Monster/Empty - the common case, no
+    // need to call out every ordinary room the player walks into).
+    static string RoomAnnouncementText(RoomType type) => type switch
+    {
+        RoomType.Boss => "Vous entrez dans une salle de boss",
+        RoomType.Safe => "Vous entrez dans une salle securisee",
+        RoomType.Shop => "Vous entrez dans une boutique",
+        RoomType.Treasure => "Vous entrez dans une salle au tresor",
+        RoomType.Event => "Vous entrez dans une salle d'evenement",
+        RoomType.Gamble => "Vous entrez dans une salle de pari",
+        RoomType.Secret => "Vous avez decouvert une salle secrete !",
+        RoomType.Stairs => "Vous entrez dans la salle de l'escalier",
+        _ => null,
+    };
 
     // Opens each room's own threshold on a shared vertical boundary. No corridor connects them -
     // DoorTrigger teleports the player straight across instead.
