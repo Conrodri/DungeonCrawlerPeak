@@ -118,6 +118,131 @@ public static class DungeonGenerator
         "     XX   ",
     };
 
+    // Monster/boss silhouettes (see enemyPresets/BossFamilyFor) - flat recognizable shapes instead
+    // of a plain tinted circle, same mask-to-texture approach as the markers above.
+    static readonly string[] ZombieMask =
+    {
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXX    ",
+        " XXXXXXX  ",
+        "XXXXXXXXX ",
+        "XXXXXXXXX ",
+        "XX XXXX X ",
+        "XX XXXX X ",
+        "XX      X ",
+        "XX      X ",
+    };
+    static readonly string[] ChauveSourisMask =
+    {
+        "XX      XX",
+        "XXX    XXX",
+        " XXX  XXX ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   X  X   ",
+        "   X  X   ",
+    };
+    static readonly string[] LarveMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+    };
+    static readonly string[] AnacondaMask =
+    {
+        "XXXX      ",
+        "XXXXX     ",
+        " XXXXX    ",
+        "  XXXXX   ",
+        "   XXXXX  ",
+        "    XXXXX ",
+        "     XXXXX",
+        "      XXXX",
+        "       XXX",
+        "        XX",
+    };
+    static readonly string[] EntMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "  X    X  ",
+        " X      X ",
+    };
+    static readonly string[] GolemMask =
+    {
+        " XXXXXXXX ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXX XX XXX",
+        "XXX XX XXX",
+        "XXX    XXX",
+        "XXX    XXX",
+        "XX      XX",
+    };
+    static readonly string[] KrakenMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "X X X X X ",
+        " X X X X X",
+        "X X X X X ",
+    };
+    static readonly string[] CerbereMask =
+    {
+        " XX XX XX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XX XX XX X",
+        "XX XX XX X",
+        "X   X   X ",
+        "X   X   X ",
+    };
+    static readonly string[] AigleMask =
+    {
+        "X        X",
+        "XX      XX",
+        " XXX  XXX ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+    static readonly string[] ArpenteurMask =
+    {
+        "   XXXX   ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        "  XX  XX  ",
+        "  XX  XX  ",
+        "  XX  XX  ",
+    };
+
     // A locked staircase's blocker - vertical bars with a top/bottom frame, transparent gaps in
     // between, so the Exit_Bright icon underneath (see SetupStaircase, sortingOrder 0 vs. the
     // blocker's 1) stays visible through the cage instead of being fully hidden by a solid square.
@@ -178,9 +303,9 @@ public static class DungeonGenerator
         // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
         // was never run, so a missing/unbaked asset never means an invisible player.
         Sprite playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
-        Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
-        Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
-        Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
+        Sprite zombieSprite = CreateMaskedSprite("Assets/Art/Enemies/Zombie.png", ZombieMask, new Color(0.25f, 0.4f, 0.2f));
+        Sprite chauveSourisSprite = CreateMaskedSprite("Assets/Art/Enemies/ChauveSouris.png", ChauveSourisMask, new Color(0.3f, 0.15f, 0.35f));
+        Sprite larveSprite = CreateMaskedSprite("Assets/Art/Enemies/Larve.png", LarveMask, new Color(0.8f, 0.85f, 0.5f));
         Sprite bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
         Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
@@ -1625,7 +1750,7 @@ public static class DungeonGenerator
         // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
         // was never run, so a missing/unbaked asset never means an invisible player.
         Sprite playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
-        Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
+        Sprite zombieSprite = CreateMaskedSprite("Assets/Art/Enemies/Zombie.png", ZombieMask, new Color(0.25f, 0.4f, 0.2f));
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
@@ -3337,6 +3462,7 @@ public static class DungeonGenerator
         public string zoneName, villeName, regionName;
         public Color color;
         public string dropItemId;
+        public string[] mask;
     }
 
     struct BossTierStats
@@ -3359,14 +3485,14 @@ public static class DungeonGenerator
     // literal golem, just a different zone).
     static BossFamily BossFamilyFor(Biome biome) => biome switch
     {
-        Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale },
-        Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard },
-        Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore },
-        Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle },
-        Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar },
-        Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog },
-        Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment },
-        _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar },
+        Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale, mask = AnacondaMask },
+        Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard, mask = EntMask },
+        Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore, mask = GolemMask },
+        Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle, mask = KrakenMask },
+        Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask },
+        Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog, mask = AigleMask },
+        Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment, mask = ArpenteurMask },
+        _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask },
     };
 
     static string BossNameFor(BossFamily family, BossTier tier) => tier switch
@@ -3396,10 +3522,12 @@ public static class DungeonGenerator
         Vector2 center = roomOrigin + roomSize / 2f;
         string bossName = BossNameFor(family, tier);
 
-        // A fresh sprite per boss instance (cheap - see CreateCircleSprite) rather than a shared
-        // one baked once per floor: tier is folded into the mask so Zone/Ville/Region read as
-        // visually distinct at a glance even within the same biome family, not just numerically.
-        Sprite bossSprite = CreateMaskedSprite("Assets/Art/Enemies/Boss_" + gridPos + ".png", BossTierMaskFor(tier), family.color);
+        // A fresh sprite per boss instance (cheap - see CreateMaskedSprite) rather than a shared
+        // one baked once per floor: the family's own silhouette (snake/golem/eagle/...) at every
+        // tier, darkened for the weak Zone version and lightened toward white for the imposing
+        // Region one, on top of the size bump below - so Zone/Ville/Region read as visually
+        // distinct without needing 3x as many hand-drawn silhouettes per family.
+        Sprite bossSprite = CreateMaskedSprite("Assets/Art/Enemies/Boss_" + gridPos + ".png", family.mask, BossTierColorFor(family.color, tier));
 
         GameObject bossGO = new GameObject(bossName, typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
         bossGO.transform.SetParent(parent);
@@ -3457,37 +3585,15 @@ public static class DungeonGenerator
         controllers.Add(controller);
     }
 
-    // A round body for Zone/Ville (the family's color fills a circle, same silhouette as every
-    // other procedural creature in the game) and a spikier silhouette for Region, so the hardest
-    // tier of any family reads as visually distinct even at a glance.
-    static readonly string[] BossRoundMask =
+    // Darker/duller for the weak Zone tier, the family's plain color for Ville, lightened toward
+    // white for the imposing Region tier - keeps alpha untouched (a plain Color * float would also
+    // scale it, silently making Zone bosses partly transparent).
+    static Color BossTierColorFor(Color baseColor, BossTier tier) => tier switch
     {
-        "  XXXXXX  ",
-        " XXXXXXXX ",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        " XXXXXXXX ",
-        "  XXXXXX  ",
+        BossTier.Zone => new Color(baseColor.r * 0.7f, baseColor.g * 0.7f, baseColor.b * 0.7f, baseColor.a),
+        BossTier.Region => Color.Lerp(baseColor, Color.white, 0.35f),
+        _ => baseColor,
     };
-    static readonly string[] BossSpikedMask =
-    {
-        "X.X.XX.X.X",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "XXXXXXXXXX",
-        "X.X.XX.X.X",
-    };
-
-    static string[] BossTierMaskFor(BossTier tier) => tier == BossTier.Region ? BossSpikedMask : BossRoundMask;
 
     static GameObject SpawnDoorBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
     {
