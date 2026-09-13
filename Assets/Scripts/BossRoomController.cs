@@ -8,6 +8,10 @@ using UnityEngine;
 public class BossRoomController : MonoBehaviour
 {
     public Vector2Int gridPos;
+    // Every grid cell this room occupies - {gridPos} for an ordinary single-cell Boss room, or
+    // every cell of a merged arena (see DungeonGenerator.BossArenaMergeChance). Same convention as
+    // RoomController.memberCells.
+    public Vector2Int[] memberCells = new Vector2Int[0];
     public BossController boss;
     // Set here (a plain reference/value assigned at generation time survives serialization fine)
     // and applied to the boss in Start() - BossController.SetTarget/SetRoomBounds write to plain
@@ -54,7 +58,7 @@ public class BossRoomController : MonoBehaviour
 
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
-        if (enteredGridPos != gridPos || healthBarBound || boss == null) return;
+        if (Array.IndexOf(memberCells, enteredGridPos) < 0 || healthBarBound || boss == null) return;
         healthBarBound = true;
         if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
     }

@@ -340,7 +340,10 @@ public static class DungeonGenerator
                     // A secret wall always sits at the dead center of the wall - the wall itself
                     // gives no visual hint either way, but at least a player who suspects a given
                     // wall only needs to bomb the one predictable spot instead of the whole length of it.
-                    int doorY = (leftIsSecret || rightIsSecret ? CenteredDoorOffset(RoomHeight) : RandomDoorOffset(RoomHeight)) + cell.y * StepY;
+                    // Boss/Safe/Shop/Stairs get the same centered treatment for a different reason -
+                    // these read as a deliberate gate into a set-piece room, not an organic doorway.
+                    bool useGateOffset = leftIsSecret || rightIsSecret || IsGatedRoomType(kv.Value) || IsGatedRoomType(layout[rightCell]);
+                    int doorY = (useGateOffset ? CenteredDoorOffset(RoomHeight) : RandomDoorOffset(RoomHeight)) + cell.y * StepY;
                     CarveHorizontalDoor(cell.x * StepX, (cell.x + 1) * StepX, doorY, doorY, floorMap, wallsMap, floorTile);
 
                     Vector2 leftPos = new Vector2(cell.x * StepX + RoomWidth - 0.5f, doorY + DoorWidth / 2f);
@@ -372,7 +375,8 @@ public static class DungeonGenerator
                 {
                     bool bottomIsSecret = kv.Value == RoomType.Secret;
                     bool topIsSecret = layout[upCell] == RoomType.Secret;
-                    int doorX = (bottomIsSecret || topIsSecret ? CenteredDoorOffset(RoomWidth) : RandomDoorOffset(RoomWidth)) + cell.x * StepX;
+                    bool useGateOffsetV = bottomIsSecret || topIsSecret || IsGatedRoomType(kv.Value) || IsGatedRoomType(layout[upCell]);
+                    int doorX = (useGateOffsetV ? CenteredDoorOffset(RoomWidth) : RandomDoorOffset(RoomWidth)) + cell.x * StepX;
                     CarveVerticalDoor(cell.y * StepY, (cell.y + 1) * StepY, doorX, doorX, floorMap, wallsMap, floorTile);
 
                     Vector2 bottomPos = new Vector2(doorX + DoorWidth / 2f, cell.y * StepY + RoomHeight - 0.5f);
@@ -454,21 +458,7 @@ public static class DungeonGenerator
                 // entry already added above, which is what lets the camera scroll across them.
                 if (!IsGroupAnchor(kv.Key, cellGroups)) continue;
 
-                RectInt group = cellGroups[kv.Key];
-                var memberCells = new List<Vector2Int>();
-                var doors = new List<(Vector2 pos, bool onVerticalWall)>();
-                for (int gx = 0; gx < group.width; gx++)
-                {
-                    for (int gy = 0; gy < group.height; gy++)
-                    {
-                        Vector2Int member = new Vector2Int(group.xMin + gx, group.yMin + gy);
-                        memberCells.Add(member);
-                        if (doorsByRoom.TryGetValue(member, out var memberDoors)) doors.AddRange(memberDoors);
-                    }
-                }
-                Vector2 groupSize = new Vector2(
-                    group.width * RoomWidth + (group.width - 1) * Gap,
-                    group.height * RoomHeight + (group.height - 1) * Gap);
+                GatherGroup(kv.Key, cellGroups, doorsByRoom, out List<Vector2Int> memberCells, out var doors, out Vector2 groupSize);
 
                 bool hasElite = SetupMonsterRoom(memberCells, originX, originY, groupSize, root.transform, player.transform,
                     enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers);
@@ -476,11 +466,16 @@ public static class DungeonGenerator
             }
             else if (kv.Value == RoomType.Boss)
             {
-                List<(Vector2 pos, bool onVerticalWall)> doors = doorsByRoom.TryGetValue(kv.Key, out var bd) ? bd : new List<(Vector2, bool)>();
+                // Same anchor-only rule as Monster - a merged Boss arena (see BossArenaMergeChance)
+                // is set up once from its anchor cell too.
+                if (!IsGroupAnchor(kv.Key, cellGroups)) continue;
+
+                GatherGroup(kv.Key, cellGroups, doorsByRoom, out List<Vector2Int> memberCells, out var doors, out Vector2 groupSize);
+
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
                     shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker,
                     swordPickupSprite, staffPickupSprite);
-                SetupBossRoom(kv.Key, originX, originY, root.transform, player.transform,
+                SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
                     cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers);
             }
             else
@@ -1362,7 +1357,7 @@ public static class DungeonGenerator
 
     // Chance a still-plain Monster cell tries to absorb neighboring free cells into one bigger
     // room instead of staying single-cell - purely to let some encounters use a bigger arena for
-    // more spectacular formations (see MergeMultiCellMonsterRooms).
+    // more spectacular formations (see MergeMultiCellRooms).
     // Higher than it looks like it should be: a cramped, tree-shaped layout rejects most
     // candidate placements outright (IsMergeCandidateValid), so this is the roll to ATTEMPT a
     // merge, not the odds of actually getting one - empirically only ~1 in 4 attempts succeeds.
@@ -1374,6 +1369,18 @@ public static class DungeonGenerator
     {
         new[] { new Vector2Int(2, 4), new Vector2Int(4, 2) }, // 8 cells
         new[] { new Vector2Int(2, 3), new Vector2Int(3, 2) }, // 6 cells
+        new[] { new Vector2Int(2, 2) }, // 4 cells
+        new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
+    };
+
+    // A Souls-like boss arena should almost always read as bigger than an ordinary room - much
+    // higher chance than Monster's opportunistic roll. Capped at 4 cells rather than reusing the
+    // 6/8-cell tiers: a single boss (no formation to spread out, unlike Monster rooms) risks
+    // reading as empty in an arena that big - revisit the cap if that turns out wrong in play.
+    // 2-cell fallback for a cramped layout.
+    const float BossArenaMergeChance = 0.85f;
+    static readonly Vector2Int[][] BossArenaShapeTiers =
+    {
         new[] { new Vector2Int(2, 2) }, // 4 cells
         new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
     };
@@ -1439,34 +1446,42 @@ public static class DungeonGenerator
         // Guaranteed too - there is always exactly one way down, somewhere on the floor.
         PlaceSpecialRoom(rooms, RoomType.Stairs, secretCell, start, bossDistance);
 
-        // Every cell defaults to its own 1x1 group; the merge pass below (run last, once every
-        // other room type is already placed) may absorb some plain Monster cells' free neighbors
-        // into a bigger shared group.
+        // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
+        // other room type is already placed) may absorb some cells' free neighbors into a bigger
+        // shared group. Boss goes first (and is weighted much higher) so a Souls-like arena gets
+        // first pick of whatever free cells surround it, before Monster's opportunistic merge -
+        // there's only ever one Boss cell, so this is a single roll, not a whole pass.
         cellGroups = new Dictionary<Vector2Int, RectInt>();
         foreach (Vector2Int cell in rooms.Keys) cellGroups[cell] = new RectInt(cell.x, cell.y, 1, 1);
-        MergeMultiCellMonsterRooms(rooms, cellGroups);
+        MergeMultiCellRooms(rooms, cellGroups, RoomType.Boss, BossArenaMergeChance, BossArenaShapeTiers);
+        MergeMultiCellRooms(rooms, cellGroups, RoomType.Monster, MultiCellRoomChance, MultiCellShapeTiers);
 
         return rooms;
     }
 
-    // Opportunistically grows some plain Monster cells into a bigger rectangular room (2/4/6/8
-    // cells) by claiming currently-free neighboring cells - never touches Start/Boss/Secret/
-    // Treasure/Shop/Event/Gamble/Safe, and never a cell already absorbed by an earlier merge.
-    static void MergeMultiCellMonsterRooms(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, RectInt> cellGroups)
+    // Opportunistically grows every still-single-cell room of `targetType` into a bigger
+    // rectangular room by claiming currently-free neighboring cells - generic over which type is
+    // growing (Monster's opportunistic spectacle, Boss's near-guaranteed Souls-like arena) so both
+    // reuse the same placement/validity logic instead of two near-duplicate implementations.
+    // IsMergeCandidateValid already refuses any cell bordering an unrelated existing room from
+    // outside the new rect, so this can never silently graft a surprise connection onto Secret (or
+    // anything else) regardless of which type is doing the merging.
+    static void MergeMultiCellRooms(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, RectInt> cellGroups,
+        RoomType targetType, float chance, Vector2Int[][] shapeTiers)
     {
         var anchors = new List<Vector2Int>();
-        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == RoomType.Monster) anchors.Add(kv.Key);
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == targetType) anchors.Add(kv.Key);
         Shuffle(anchors);
 
         foreach (Vector2Int anchor in anchors)
         {
             if (cellGroups[anchor].width * cellGroups[anchor].height > 1) continue; // already absorbed
-            if (Random.value > MultiCellRoomChance) continue;
+            if (Random.value > chance) continue;
 
-            int startTier = Random.Range(0, MultiCellShapeTiers.Length);
-            for (int tier = startTier; tier < MultiCellShapeTiers.Length; tier++)
+            int startTier = Random.Range(0, shapeTiers.Length);
+            for (int tier = startTier; tier < shapeTiers.Length; tier++)
             {
-                if (TryPlaceMergedRoom(rooms, cellGroups, anchor, MultiCellShapeTiers[tier])) break;
+                if (TryPlaceMergedRoom(rooms, cellGroups, anchor, shapeTiers[tier])) break;
                 // This tier's shapes don't fit around this anchor at all - fall back to a smaller
                 // one rather than leaving the anchor single-cell just because the biggest roll missed.
             }
@@ -1476,9 +1491,12 @@ public static class DungeonGenerator
     // Tries every shape in the tier (random order), each as all 4 rectangle corners (random
     // order) so a cell whose only free neighbors are, say, up-and-left can still find a valid
     // orientation. Claims the first orientation whose extra cells are all free and touch nothing
-    // outside the new rectangle.
+    // outside the new rectangle. Absorbed cells take the anchor's own type (Monster stays Monster,
+    // Boss stays Boss) - see the population loop's IsGroupAnchor guard, which is what keeps a
+    // multi-cell Boss room from spawning a second boss out of its extra cells.
     static bool TryPlaceMergedRoom(Dictionary<Vector2Int, RoomType> rooms, Dictionary<Vector2Int, RectInt> cellGroups, Vector2Int anchor, Vector2Int[] shapes)
     {
+        RoomType anchorType = rooms[anchor];
         var shapeOrder = new List<Vector2Int>(shapes);
         Shuffle(shapeOrder);
 
@@ -1501,7 +1519,7 @@ public static class DungeonGenerator
                     for (int y = 0; y < h; y++)
                     {
                         Vector2Int cell = new Vector2Int(originX + x, originY + y);
-                        rooms[cell] = RoomType.Monster;
+                        rooms[cell] = anchorType;
                         cellGroups[cell] = rect;
                     }
                 }
@@ -1548,6 +1566,29 @@ public static class DungeonGenerator
     }
 
     static bool IsGroupAnchor(Vector2Int cell, Dictionary<Vector2Int, RectInt> cellGroups) => cellGroups[cell].xMin == cell.x && cellGroups[cell].yMin == cell.y;
+
+    // Shared by the Monster and Boss population branches: collects every cell in the anchor's
+    // merged group, every door on any of those cells, and the group's total world-space size.
+    static void GatherGroup(Vector2Int anchor, Dictionary<Vector2Int, RectInt> cellGroups,
+        Dictionary<Vector2Int, List<(Vector2 pos, bool onVerticalWall)>> doorsByRoom,
+        out List<Vector2Int> memberCells, out List<(Vector2 pos, bool onVerticalWall)> doors, out Vector2 groupSize)
+    {
+        RectInt group = cellGroups[anchor];
+        memberCells = new List<Vector2Int>();
+        doors = new List<(Vector2 pos, bool onVerticalWall)>();
+        for (int gx = 0; gx < group.width; gx++)
+        {
+            for (int gy = 0; gy < group.height; gy++)
+            {
+                Vector2Int member = new Vector2Int(group.xMin + gx, group.yMin + gy);
+                memberCells.Add(member);
+                if (doorsByRoom.TryGetValue(member, out var memberDoors)) doors.AddRange(memberDoors);
+            }
+        }
+        groupSize = new Vector2(
+            group.width * RoomWidth + (group.width - 1) * Gap,
+            group.height * RoomHeight + (group.height - 1) * Gap);
+    }
 
     static bool SameGroup(Dictionary<Vector2Int, RectInt> cellGroups, Vector2Int a, Vector2Int b)
     {
@@ -1677,12 +1718,16 @@ public static class DungeonGenerator
         return Random.Range(DoorMargin, maxOffset + 1);
     }
 
-    // Dead center of the wall, used only for a secret room's wall so there's exactly one spot to
-    // bomb along its length instead of a random one.
+    // Dead center of the wall, used for a secret room's wall (so there's exactly one spot to bomb
+    // along its length) and for Boss/Safe/Shop/Stairs (so their entrance reads as a deliberate
+    // gate rather than a random doorway - see IsGatedRoomType).
     static int CenteredDoorOffset(int wallLength)
     {
         return (wallLength - DoorWidth) / 2;
     }
+
+    static bool IsGatedRoomType(RoomType type) =>
+        type == RoomType.Boss || type == RoomType.Safe || type == RoomType.Shop || type == RoomType.Stairs;
 
     // Opens each room's own threshold on a shared vertical boundary. No corridor connects them -
     // DoorTrigger teleports the player straight across instead.
@@ -2510,12 +2555,14 @@ public static class DungeonGenerator
 
     const int BossHealth = 40;
 
-    static void SetupBossRoom(Vector2Int gridPos, int originX, int originY, Transform parent, Transform player,
+    static void SetupBossRoom(Vector2Int gridPos, List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         Sprite bossSprite, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
         List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers)
     {
         Vector2 roomOrigin = new Vector2(originX, originY);
-        Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
+        // Centered on the whole merged arena, not just the anchor cell, so a bigger Boss room
+        // doesn't leave the boss sitting in a corner.
+        Vector2 center = roomOrigin + roomSize / 2f;
 
         GameObject bossGO = new GameObject("Cerberus", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
         bossGO.transform.SetParent(parent);
@@ -2544,10 +2591,11 @@ public static class DungeonGenerator
 
         BossRoomController controller = roomGO.GetComponent<BossRoomController>();
         controller.gridPos = gridPos;
+        controller.memberCells = memberCells.ToArray();
         controller.boss = boss;
         controller.player = player;
         controller.roomOrigin = roomOrigin;
-        controller.roomSize = new Vector2(RoomWidth, RoomHeight);
+        controller.roomSize = roomSize;
 
         foreach ((Vector2 pos, bool onVerticalWall) door in doors)
         {
