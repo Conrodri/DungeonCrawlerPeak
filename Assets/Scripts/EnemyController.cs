@@ -40,6 +40,19 @@ public class EnemyController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
     }
 
+    // isFlying is only assigned by RoomController right after this GameObject is created - after
+    // Awake() already ran - so the Hole crossing exemption has to wait until Start().
+    void Start()
+    {
+        if (!isFlying) return;
+
+        foreach (Hole hole in FindObjectsByType<Hole>(FindObjectsSortMode.None))
+        {
+            Collider2D holeCollider = hole.GetComponent<Collider2D>();
+            if (holeCollider != null) Physics2D.IgnoreCollision(bodyCollider, holeCollider);
+        }
+    }
+
     public void SetTarget(Transform t)
     {
         target = t;

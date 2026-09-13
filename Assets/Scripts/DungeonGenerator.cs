@@ -127,6 +127,7 @@ public static class DungeonGenerator
         Sprite barrelSprite = CreateSolidSprite("Assets/Art/Decor/Barrel.png", new Color(0.5f, 0.25f, 0.15f));
         Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
         Sprite floorTrapSprite = CreateCircleSprite("Assets/Art/Decor/FloorTrap.png", new Color(0.2f, 0.08f, 0.08f));
+        Sprite holeSprite = CreateCircleSprite("Assets/Art/Decor/Hole.png", new Color(0.03f, 0.03f, 0.04f));
         DecorSprites decorSprites = new DecorSprites
         {
             stoneBlock = stoneBlockSprite,
@@ -135,6 +136,7 @@ public static class DungeonGenerator
             barrel = barrelSprite,
             fuelPuddle = fuelPuddleSprite,
             floorTrap = floorTrapSprite,
+            hole = holeSprite,
         };
         Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
@@ -1880,7 +1882,7 @@ public static class DungeonGenerator
     static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
         => GeneratePlacementPositions(count, roomOrigin, roomSize, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
 
-    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap }
+    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap, Hole }
 
     // Chance a LootPickup slot spawns one of the special weight/curse/trap items instead of the
     // common LootTable pool - rare environmental finds, never a kill/break reward.
@@ -1898,6 +1900,7 @@ public static class DungeonGenerator
         public Sprite fuelPuddle;
         public Sprite floorTrap;
         public Sprite explosion;
+        public Sprite hole;
     }
 
     // 0-2 decor pieces per cell (a multi-cell room scales up via cellCount), kept away from walls/
@@ -1910,7 +1913,7 @@ public static class DungeonGenerator
 
         foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, roomSize, doors, avoid))
         {
-            switch ((DecorType)Random.Range(0, 7))
+            switch ((DecorType)Random.Range(0, 8))
             {
                 case DecorType.StoneBlock:
                     SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent, ItemIds.Stone);
@@ -1941,6 +1944,9 @@ public static class DungeonGenerator
                     break;
                 case DecorType.FloorTrap:
                     SpawnFloorTrap(pos, sprites.floorTrap, parent);
+                    break;
+                case DecorType.Hole:
+                    SpawnHole(pos, sprites.hole, parent);
                     break;
             }
         }
@@ -2013,6 +2019,25 @@ public static class DungeonGenerator
         renderer.sortingOrder = -1;
 
         go.GetComponent<CircleCollider2D>().isTrigger = true;
+    }
+
+    // A solid (non-trigger) collider, unlike every other decor decal above - blocks grounded
+    // movement just like a wall or DestructibleObject. isFlying enemies are exempted from it in
+    // EnemyController.Start() via Physics2D.IgnoreCollision.
+    static void SpawnHole(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("Hole", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Rigidbody2D), typeof(Hole));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = -1;
+
+        go.GetComponent<CircleCollider2D>().radius = 0.45f;
+
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
+        body.bodyType = RigidbodyType2D.Static;
     }
 
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
