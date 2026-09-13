@@ -58,12 +58,29 @@ public class RoomController : MonoBehaviour
 
     readonly List<EnemyController> liveEnemies = new List<EnemyController>();
     bool hasBeenEnteredBefore;
+    // Whether the player is currently inside this room (any of memberCells) - drives whether
+    // enemies have a target at all. Without this, every enemy on the floor was targeting the
+    // player's raw world position from the moment the floor loaded, regardless of which room the
+    // player was actually in - clamped to its own room by SetRoomBounds, but still drifting
+    // toward whichever wall faced the player the whole time they explored elsewhere, so a room
+    // could already have its monsters waiting right at the door by the time it was opened.
+    bool playerPresent;
 
     void Start()
     {
         SpawnEnemies();
         UpdateDoors();
-        if (roomCamera != null) roomCamera.OnRoomEntered += HandleRoomEntered;
+        if (roomCamera != null)
+        {
+            roomCamera.OnRoomEntered += HandleRoomEntered;
+        }
+        else
+        {
+            // No room-transition tracking available (the tutorial's single hand-built room has no
+            // RoomCameraController) - there's only one room, so the player is always in it.
+            playerPresent = true;
+            ArmEnemies();
+        }
     }
 
     void OnDestroy()
@@ -73,13 +90,29 @@ public class RoomController : MonoBehaviour
 
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
-        if (System.Array.IndexOf(memberCells, enteredGridPos) < 0) return;
+        bool isMine = System.Array.IndexOf(memberCells, enteredGridPos) >= 0;
+
+        if (!isMine)
+        {
+            // The player just entered some OTHER room - if they were in this one, they just left
+            // it. Clear every live enemy's target so they stop chasing (and moving at all) the
+            // instant the player is no longer around to see it.
+            if (playerPresent)
+            {
+                playerPresent = false;
+                foreach (EnemyController enemy in liveEnemies) if (enemy != null) enemy.SetTarget(null);
+            }
+            return;
+        }
+
+        playerPresent = true;
         if (IsCleared) return; // a cleared room's monsters never come back
 
         if (!hasBeenEnteredBefore)
         {
             hasBeenEnteredBefore = true;
-            return; // first arrival - the initial roster is already freshly spawned
+            ArmEnemies(); // first arrival - roster already spawned untargeted, arm it now
+            return;
         }
 
         foreach (EnemyController enemy in liveEnemies)
@@ -89,6 +122,14 @@ public class RoomController : MonoBehaviour
         liveEnemies.Clear();
         SpawnEnemies();
         UpdateDoors();
+        ArmEnemies();
+    }
+
+    // Gives every currently-live enemy its target (and, via EnemyController.SetTarget, a fresh
+    // activation delay) - called only once the player is actually confirmed inside the room.
+    void ArmEnemies()
+    {
+        foreach (EnemyController enemy in liveEnemies) if (enemy != null) enemy.SetTarget(player);
     }
 
     void SpawnEnemies()
@@ -121,7 +162,8 @@ public class RoomController : MonoBehaviour
             controller.contactDamage = preset.contactDamage;
             controller.isFlying = preset.isFlying;
             controller.xpReward = preset.xpReward;
-            controller.SetTarget(player);
+            // Untargeted until ArmEnemies() confirms the player is actually in the room - see
+            // playerPresent above.
             controller.SetRoomBounds(new Rect(roomOrigin, roomSize));
 
             Sprite badge = spawn.modifier == EliteModifier.SpeedUp ? speedUpBadge

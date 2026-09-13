@@ -18,9 +18,12 @@ public class EnemyController : MonoBehaviour
     const float HpUpMultiplier = 2f;
     const float GlowScale = 1.8f;
     const string EliteIconKey = "Elite";
-    // Grace period after spawning (room entry, or a reset re-entry) before this enemy starts
-    // chasing - per feedback, mobs closing in the instant the player steps through a door felt
-    // too fast/too close to react to.
+    // Grace period after the player is confirmed in the room (SetTarget, from RoomController.
+    // ArmEnemies) before this enemy starts chasing - per feedback, mobs closing in the instant
+    // the player steps through a door felt too fast/too close to react to. Deliberately armed on
+    // room entry rather than on spawn: every enemy on the floor is created at floor-generation
+    // time, long before the player ever reaches most rooms, so a spawn-time delay had already
+    // elapsed by the time it mattered.
     const float ActivationDelay = 1f;
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
@@ -47,12 +50,15 @@ public class EnemyController : MonoBehaviour
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
         // tilemap CompositeCollider2D can otherwise creep through a corner over many frames.
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        activeAtTime = Time.time + ActivationDelay;
     }
 
+    // Also (re-)arms the activation delay whenever a real target is given - see RoomController.
+    // ArmEnemies/HandleRoomEntered, which is the only caller and only calls this once the player
+    // is actually confirmed inside the room (null when they leave, to stop the enemy in place).
     public void SetTarget(Transform t)
     {
         target = t;
+        if (t != null) activeAtTime = Time.time + ActivationDelay;
     }
 
     // Hard confinement to the spawning room, independent of wall/door-blocker collisions - an
