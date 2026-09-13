@@ -36,15 +36,15 @@ public class BossRoomController : MonoBehaviour
     // bossDefeatedThisFloor was already true - Start() destroys the boss immediately instead of
     // letting it fight again, so resuming a save never re-grants its loot/XP or replays the fight.
     public bool startDefeated;
+    // Tier-specific reward (see DungeonGenerator.BossTierStatsFor) - a floor now has 3 bosses
+    // (Zone/Ville/Region) instead of 1, each a different power level of the same biome family.
+    public string dropItemId;
+    public float dropChance;
+    public int xpReward;
 
     // Lets a BossKill-locked Staircase (see DungeonGenerator.SetupStaircase) unlock the moment
     // this floor's boss dies, without the staircase needing to poll anything itself.
     public event Action OnBossDefeated;
-
-    // A boss is worth far more than a regular kill - big enough to reliably push a level on its
-    // own. Was 20 - cut alongside every other XP source (see DungeonGenerator's enemyPresets) per
-    // explicit request to slow leveling down now that a level-up also grants attribute points.
-    const int BossXpReward = 10;
 
     bool defeated;
     bool healthBarBound;
@@ -106,9 +106,9 @@ public class BossRoomController : MonoBehaviour
         UpdateDoors();
 
         Vector2 dropPos = boss.transform.position;
-        ItemPickup.SpawnAt(dropPos, ItemIds.CerberusCollar, 1);
+        if (!string.IsNullOrEmpty(dropItemId) && UnityEngine.Random.value < dropChance) ItemPickup.SpawnAt(dropPos, dropItemId, 1);
         LootTable.TryDropLoot(dropPos);
-        if (player != null) player.GetComponent<PlayerStats>()?.AddExperience(BossXpReward);
+        if (player != null) player.GetComponent<PlayerStats>()?.AddExperience(xpReward);
 
         if (victoryBanner != null) victoryBanner.ShowVictory(bossName + " est vaincu !");
         OnBossDefeated?.Invoke();

@@ -37,4 +37,14 @@ public static class ItemIds
     public const string RingEndurance = "ring_endurance";
     public const string AntiHoleBoots = "anti_hole_boots";
     public const string VisionGlasses = "vision_glasses";
+
+    // Boss trophies (see DungeonGenerator.BossFamilyFor) - one per biome family, shared across its
+    // 3 power tiers (Zone/Ville/Region only change drop CHANCE and stats, not which item drops).
+    // The Cave family reuses CerberusCollar above rather than a new id.
+    public const string AnacondaScale = "anaconda_scale";
+    public const string EntHeartshard = "ent_heartshard";
+    public const string GolemCore = "golem_core";
+    public const string KrakenTentacle = "kraken_tentacle";
+    public const string EagleCog = "eagle_cog";
+    public const string WandererFragment = "wanderer_fragment";
 }

@@ -181,7 +181,6 @@ public static class DungeonGenerator
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
-        Sprite cerberusSprite = CreateCircleSprite("Assets/Art/Enemies/Cerberus.png", new Color(0.15f, 0.1f, 0.1f));
         Sprite bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
         Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
@@ -288,6 +287,27 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Neck);
+
+        // The other 6 boss family trophies (see BossFamilyFor) - plain collectible drops, not
+        // equipment (only the Cerberus Collar was singled out for that earlier).
+        Sprite anacondaScaleSprite = CreateCircleSprite("Assets/Art/Items/AnacondaScale.png", new Color(0.2f, 0.55f, 0.2f));
+        RegisterItem(itemEntries, ItemIds.AnacondaScale, "Ecaille d'Anaconda Royale", ItemCategory.Misc, 1, anacondaScaleSprite,
+            "Une ecaille massive, encore luisante. Un trophee de votre victoire.");
+        Sprite entHeartshardSprite = CreateCircleSprite("Assets/Art/Items/EntHeartshard.png", new Color(0.35f, 0.28f, 0.12f));
+        RegisterItem(itemEntries, ItemIds.EntHeartshard, "Eclat de Coeur d'Ent", ItemCategory.Misc, 1, entHeartshardSprite,
+            "Un fragment de bois anime, encore chaud de seve. Un trophee de votre victoire.");
+        Sprite golemCoreSprite = CreateCircleSprite("Assets/Art/Items/GolemCore.png", new Color(0.55f, 0.56f, 0.6f));
+        RegisterItem(itemEntries, ItemIds.GolemCore, "Noyau du Golem d'Acier", ItemCategory.Misc, 1, golemCoreSprite,
+            "Le noyau qui animait un golem de fer et d'acier. Un trophee de votre victoire.");
+        Sprite krakenTentacleSprite = CreateCircleSprite("Assets/Art/Items/KrakenTentacle.png", new Color(0.1f, 0.25f, 0.45f));
+        RegisterItem(itemEntries, ItemIds.KrakenTentacle, "Tentacule Petrifiee du Kraken", ItemCategory.Misc, 1, krakenTentacleSprite,
+            "Une ventouse geante, figee net. Un trophee de votre victoire.");
+        Sprite eagleCogSprite = CreateCircleSprite("Assets/Art/Items/EagleCog.png", new Color(0.75f, 0.7f, 0.55f));
+        RegisterItem(itemEntries, ItemIds.EagleCog, "Rouage de l'Aigle Mecanique", ItemCategory.Misc, 1, eagleCogSprite,
+            "Un rouage dore, encore tiede des mecanismes de l'aigle. Un trophee de votre victoire.");
+        Sprite wandererFragmentSprite = CreateCircleSprite("Assets/Art/Items/WandererFragment.png", new Color(0.65f, 0.6f, 0.25f));
+        RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.Misc, 1, wandererFragmentSprite,
+            "Un morceau de moquette jaune, etrangement lourd. Un trophee de votre victoire.");
 
         // Crafting materials - guaranteed drops from the matching decor material (see
         // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
@@ -430,7 +450,7 @@ public static class DungeonGenerator
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups);
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers);
 
         // Carve the room geometry and cut door openings for every adjacent pair.
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
@@ -610,8 +630,17 @@ public static class DungeonGenerator
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
                     shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker,
                     swordPickupSprite, staffPickupSprite);
+
+                // The merge pass above can reposition which cell ends up as the group's technical
+                // anchor (bottom-left corner) - the cell GenerateLayout actually assigned a tier to
+                // is still guaranteed to be SOME member of this group, just maybe not kv.Key itself.
+                Vector2Int tieredCell = memberCells.Find(c => bossTiers.ContainsKey(c));
+                BossTier tier = bossTiers.TryGetValue(tieredCell, out BossTier foundTier) ? foundTier : BossTier.Ville;
+                BossFamily family = BossFamilyFor(CurrentBiome);
+                BossTierStats tierStats = BossTierStatsFor(tier);
+
                 SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
-                    cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
+                    family, tier, tierStats, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
             }
             else
             {
@@ -1816,7 +1845,18 @@ public static class DungeonGenerator
                 staircase.unlockAtElapsedSeconds = floorTimer.duration * TimedStairsUnlockFraction;
                 break;
             case StairsLockType.BossKill:
-                bossRoomControllers[0].OnBossDefeated += staircase.Unlock;
+                // A floor now has 3 bosses (Zone/Ville/Region) instead of 1 - requires ALL of them
+                // dead, not just whichever happened to be first in the list, or a Ville/Zone boss
+                // left alive would never block anything despite the lock existing to gate progress.
+                int bossesRemaining = bossRoomControllers.Count;
+                foreach (BossRoomController bossRoom in bossRoomControllers)
+                {
+                    bossRoom.OnBossDefeated += () =>
+                    {
+                        bossesRemaining--;
+                        if (bossesRemaining <= 0) staircase.Unlock();
+                    };
+                }
                 break;
             case StairsLockType.Lever:
                 Vector2Int leverRoom = FindLeverRoom(layout, gridPos);
@@ -1887,7 +1927,7 @@ public static class DungeonGenerator
         new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
     };
 
-    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups)
+    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers)
     {
         var rooms = new Dictionary<Vector2Int, RoomType>();
         Vector2Int start = Vector2Int.zero;
@@ -1936,6 +1976,17 @@ public static class DungeonGenerator
         Vector2Int secretCell = FindFarthestRoom(rooms, bossCell, normalTypes);
         rooms[secretCell] = RoomType.Secret;
 
+        // Three bosses per floor now (explicit request), each a different power tier of the same
+        // biome-themed family (see BossFamilyFor/BossTierStatsFor) - the single farthest cell above
+        // is always the hardest (Region), matching "extremely hard, furthest away". The other two
+        // are ordinary dead-end placements like every other bonus room, so they land somewhere
+        // reachable well before the player is strong enough for the real fight at the end.
+        bossTiers = new Dictionary<Vector2Int, BossTier> { [bossCell] = BossTier.Region };
+        if (PlaceSpecialRoom(rooms, RoomType.Boss, secretCell, start, bossDistance, out Vector2Int villeBossCell))
+            bossTiers[villeBossCell] = BossTier.Ville;
+        if (PlaceSpecialRoom(rooms, RoomType.Boss, secretCell, start, bossDistance, out Vector2Int zoneBossCell))
+            bossTiers[zoneBossCell] = BossTier.Zone;
+
         // Stairs goes FIRST and is the only one of these with a hard fallback: PlaceSpecialRoom's
         // three distance thresholds all draw from the same shrinking pool of "dead end" cells, and
         // previously Stairs was placed LAST - after Treasure/Shop/Event/Gamble/Safe had already
@@ -1966,7 +2017,8 @@ public static class DungeonGenerator
         // other room type is already placed) may absorb some cells' free neighbors into a bigger
         // shared group. Boss goes first (and is weighted much higher) so a Souls-like arena gets
         // first pick of whatever free cells surround it, before Monster's opportunistic merge -
-        // there's only ever one Boss cell, so this is a single roll, not a whole pass.
+        // MergeMultiCellRooms already iterates every cell of the given type, so it needs no change
+        // now that there are 3 Boss cells instead of 1 - each independently rolls its own chance.
         cellGroups = new Dictionary<Vector2Int, RectInt>();
         foreach (Vector2Int cell in rooms.Keys) cellGroups[cell] = new RectInt(cell.x, cell.y, 1, 1);
         MergeMultiCellRooms(rooms, cellGroups, RoomType.Boss, BossArenaMergeChance, BossArenaShapeTiers);
@@ -2196,13 +2248,20 @@ public static class DungeonGenerator
     // (currently only Stairs) need to know so they can fall back to ForcePlaceStairs instead of
     // silently generating a floor without one.
     static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart)
+        => PlaceSpecialRoom(rooms, type, protectedAnchor, start, maxDistanceFromStart, out _);
+
+    // Out-param overload - lets a caller that places several rooms of the SAME type (the two extra
+    // Boss encounters, see bossTiers below) know exactly which cell each individual call landed on,
+    // instead of having to guess from a shared RoomType afterward.
+    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, out Vector2Int chosenCell)
     {
         Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
         Vector2Int? chosen = FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart)
             ?? FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart + 1)
             ?? FindPlacementCandidate(rooms, protectedAnchor, dist, int.MaxValue);
-        if (!chosen.HasValue) return false;
+        if (!chosen.HasValue) { chosenCell = default; return false; }
         rooms[chosen.Value] = type;
+        chosenCell = chosen.Value;
         return true;
     }
 
@@ -3268,21 +3327,84 @@ public static class DungeonGenerator
         return hasElite;
     }
 
-    const int BossHealth = 40;
+    // A floor has 3 bosses now (explicit request) - one from each power tier, all the same
+    // biome-themed family (see BossFamilyFor). Zone is an early, easy encounter; Region is the
+    // single farthest room on the floor and the real final fight.
+    enum BossTier { Zone, Ville, Region }
+
+    struct BossFamily
+    {
+        public string zoneName, villeName, regionName;
+        public Color color;
+        public string dropItemId;
+    }
+
+    struct BossTierStats
+    {
+        public int health;
+        public int contactDamage;
+        public float chargeSpeed;
+        public int volleyDamage;
+        public int volleyCount;
+        public float moveSpeed;
+        public float dropChance;
+        public int xpReward;
+    }
+
+    // One family per biome, each with a name for all 3 tiers - stats/drop chance come from
+    // BossTierStatsFor instead, so every family scales identically regardless of theme. Cave
+    // reuses the existing Cerberus (a hellhound already fits "guards the depths"); the other 6 are
+    // new, including both of the user's own examples (SkyCastle eagle, Cave... reassigned to a
+    // steel golem in City instead so Cerberus's existing lore/drop item isn't wasted - still a
+    // literal golem, just a different zone).
+    static BossFamily BossFamilyFor(Biome biome) => biome switch
+    {
+        Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale },
+        Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard },
+        Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore },
+        Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle },
+        Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar },
+        Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog },
+        Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment },
+        _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar },
+    };
+
+    static string BossNameFor(BossFamily family, BossTier tier) => tier switch
+    {
+        BossTier.Zone => family.zoneName,
+        BossTier.Ville => family.villeName,
+        _ => family.regionName,
+    };
+
+    // "un boss de zone facile drop 1/3 fois un item, un de ville difficile drop 1/2x un item et un
+    // de region extremement difficile drop toujours un item" - stats scale with it too, since a
+    // boss that's only harder to loot from but not to fight would be a strange difficulty curve.
+    static BossTierStats BossTierStatsFor(BossTier tier) => tier switch
+    {
+        BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = 1.3f, dropChance = 1f / 3f, xpReward = 6 },
+        BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = 1.5f, dropChance = 0.5f, xpReward = 10 },
+        _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = 1.8f, dropChance = 1f, xpReward = 16 },
+    };
 
     static void SetupBossRoom(Vector2Int gridPos, List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
-        Sprite bossSprite, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
+        BossFamily family, BossTier tier, BossTierStats stats, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
         List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers, bool startDefeated)
     {
         Vector2 roomOrigin = new Vector2(originX, originY);
         // Centered on the whole merged arena, not just the anchor cell, so a bigger Boss room
         // doesn't leave the boss sitting in a corner.
         Vector2 center = roomOrigin + roomSize / 2f;
+        string bossName = BossNameFor(family, tier);
 
-        GameObject bossGO = new GameObject("Cerberus", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
+        // A fresh sprite per boss instance (cheap - see CreateCircleSprite) rather than a shared
+        // one baked once per floor: tier is folded into the mask so Zone/Ville/Region read as
+        // visually distinct at a glance even within the same biome family, not just numerically.
+        Sprite bossSprite = CreateMaskedSprite("Assets/Art/Enemies/Boss_" + gridPos + ".png", BossTierMaskFor(tier), family.color);
+
+        GameObject bossGO = new GameObject(bossName, typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
         bossGO.transform.SetParent(parent);
         bossGO.transform.position = center;
-        bossGO.transform.localScale = Vector3.one * 1.6f;
+        bossGO.transform.localScale = Vector3.one * (tier == BossTier.Region ? 2f : tier == BossTier.Ville ? 1.6f : 1.25f);
 
         SpriteRenderer renderer = bossGO.GetComponent<SpriteRenderer>();
         renderer.sprite = bossSprite;
@@ -3295,11 +3417,16 @@ public static class DungeonGenerator
         bossGO.GetComponent<CircleCollider2D>().radius = 0.6f;
 
         Health health = bossGO.GetComponent<Health>();
-        health.maxHealth = BossHealth;
+        health.maxHealth = stats.health;
         health.currentHealth = health.maxHealth;
 
         BossController boss = bossGO.GetComponent<BossController>();
         boss.projectileSprite = bossProjectileSprite;
+        boss.contactDamage = stats.contactDamage;
+        boss.chargeSpeed = stats.chargeSpeed;
+        boss.volleyDamage = stats.volleyDamage;
+        boss.volleyProjectileCount = stats.volleyCount;
+        boss.moveSpeed = stats.moveSpeed;
 
         GameObject roomGO = new GameObject("BossRoom_" + gridPos, typeof(BossRoomController));
         roomGO.transform.SetParent(parent);
@@ -3312,6 +3439,10 @@ public static class DungeonGenerator
         controller.roomOrigin = roomOrigin;
         controller.roomSize = roomSize;
         controller.startDefeated = startDefeated;
+        controller.bossName = bossName;
+        controller.dropItemId = family.dropItemId;
+        controller.dropChance = stats.dropChance;
+        controller.xpReward = stats.xpReward;
         // See the matching subscription in SetupMonsterRoom - keeps DungeonGenerator's live
         // tracking accurate even for a boss restored as already-dead (Start() re-fires this, see
         // BossRoomController), so a later re-save still reflects it.
@@ -3325,6 +3456,38 @@ public static class DungeonGenerator
 
         controllers.Add(controller);
     }
+
+    // A round body for Zone/Ville (the family's color fills a circle, same silhouette as every
+    // other procedural creature in the game) and a spikier silhouette for Region, so the hardest
+    // tier of any family reads as visually distinct even at a glance.
+    static readonly string[] BossRoundMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] BossSpikedMask =
+    {
+        "X.X.XX.X.X",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "X.X.XX.X.X",
+    };
+
+    static string[] BossTierMaskFor(BossTier tier) => tier == BossTier.Region ? BossSpikedMask : BossRoundMask;
 
     static GameObject SpawnDoorBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
     {
