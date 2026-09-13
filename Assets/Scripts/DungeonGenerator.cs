@@ -1092,7 +1092,6 @@ public static class DungeonGenerator
         bossBarRect.pivot = new Vector2(0.5f, 1f);
         bossBarRect.anchoredPosition = new Vector2(0f, -30f);
         bossBarRect.sizeDelta = new Vector2(900f, 40f);
-        bossBarGO.SetActive(false);
 
         GameObject bossBarFillGO = new GameObject("Fill", typeof(Image));
         bossBarFillGO.transform.SetParent(bossBarGO.transform, false);
@@ -1110,6 +1109,13 @@ public static class DungeonGenerator
         BossHealthBarUI bossHealthBar = bossBarGO.GetComponent<BossHealthBarUI>();
         bossHealthBar.root = bossBarGO;
         bossHealthBar.fill = bossBarFill;
+
+        // Deactivated only now, after the Fill child and its Image are fully built - creating a
+        // child Graphic under an already-inactive parent risked it never getting a first proper
+        // mesh/material rebuild once later reactivated by Bind(), leaving fillAmount changes
+        // updating the logical value (confirmed correct via the diagnostic log) without ever
+        // being redrawn.
+        bossBarGO.SetActive(false);
 
         foreach (BossRoomController bossRoomController in bossRoomControllers)
         {
