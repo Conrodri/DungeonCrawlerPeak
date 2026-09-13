@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -15,12 +16,15 @@ public static class SaveManager
 
     // Shared field-mapping between a to-disk Save and an in-memory carry-over across floors
     // (DungeonGenerator.Descend) - avoids duplicating this list twice.
-    public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
+    public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
+        IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
     {
         return new SaveData
         {
             seed = seed,
             floor = floor,
+            clearedRooms = clearedRooms != null ? new List<Vector2Int>(clearedRooms) : new List<Vector2Int>(),
+            bossDefeated = bossDefeated,
             slots = inventory.GetAllSlots(),
             hotbarSlots = inventory.hotbarSlots,
             cursedItemId = inventory.CursedItemId,
@@ -44,9 +48,10 @@ public static class SaveManager
         };
     }
 
-    public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
+    public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
+        IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
     {
-        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller);
+        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, clearedRooms, bossDefeated);
         File.WriteAllText(SavePath, JsonUtility.ToJson(data));
         Debug.Log("SaveManager: game saved to " + SavePath);
     }

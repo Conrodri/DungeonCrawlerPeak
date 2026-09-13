@@ -14,8 +14,15 @@ public class MainMenuController : MonoBehaviour
 
     void Start()
     {
-        // A leftover DungeonRoot only exists here because Dungeon/Generate Floor (an Editor-only
-        // preview shortcut) baked one into the scene - a real launch always starts at the menu.
+        ReturnToMenu();
+    }
+
+    // Tears down any in-progress run and rebuilds the menu UI. Used both for the game's real entry
+    // point (Start(), where a leftover DungeonRoot only exists because Dungeon/Generate Floor - an
+    // Editor-only preview shortcut - baked one into the scene) and to return here mid-session (see
+    // DeathScreenUI, shown after the player dies).
+    public void ReturnToMenu()
+    {
         // DestroyImmediate, not Destroy: Destroy is deferred to end of frame, so BuildUI()'s
         // GameObject.Find("EventSystem") check right below would still find the old root's
         // EventSystem (about to be destroyed along with it), skip creating a new one, and leave
@@ -221,7 +228,7 @@ public class MainMenuController : MonoBehaviour
         SaveData data = SaveManager.Load();
         if (data == null) return;
 
-        DungeonGenerator.Build(data.seed, data.floor > 0 ? data.floor : 1);
+        DungeonGenerator.Build(data.seed, data.floor > 0 ? data.floor : 1, data.clearedRooms, data.bossDefeated);
 
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null)

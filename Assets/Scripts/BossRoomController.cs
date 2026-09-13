@@ -32,6 +32,10 @@ public class BossRoomController : MonoBehaviour
     public VictoryBannerUI victoryBanner;
     public BossHealthBarUI healthBar;
     public string bossName = "Cerbere";
+    // Set at generation time (see DungeonGenerator.SetupBossRoom) when restoring a save whose
+    // bossDefeatedThisFloor was already true - Start() destroys the boss immediately instead of
+    // letting it fight again, so resuming a save never re-grants its loot/XP or replays the fight.
+    public bool startDefeated;
 
     // Lets a BossKill-locked Staircase (see DungeonGenerator.SetupStaircase) unlock the moment
     // this floor's boss dies, without the staircase needing to poll anything itself.
@@ -45,6 +49,20 @@ public class BossRoomController : MonoBehaviour
 
     void Start()
     {
+        if (startDefeated)
+        {
+            defeated = true;
+            if (boss != null) Destroy(boss.gameObject);
+            boss = null;
+            UpdateDoors();
+            // Still raised (see SetupStaircase's subscription happening synchronously during
+            // Build(), well before this deferred Start() call) so a BossKill-locked staircase on a
+            // resumed save correctly starts unlocked instead of waiting for a fight that already
+            // happened last session.
+            OnBossDefeated?.Invoke();
+            return;
+        }
+
         UpdateDoors();
         if (boss != null)
         {

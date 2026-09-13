@@ -139,11 +139,28 @@ public static class DungeonGenerator
     // across a save/continue, since it's re-derived from the seed the same way the layout is.
     public static Biome CurrentBiome { get; private set; }
 
-    public static void Build(int seed, int floor = 1)
+    // Which Monster rooms (by grid cell, any member of RoomController.memberCells) have been fully
+    // cleared on the CURRENTLY LOADED floor, and whether its boss is dead - tracked live as
+    // RoomController.OnRoomCleared/BossRoomController.OnBossDefeated fire (see SetupMonsterRoom/
+    // SetupBossRoom), reset at the top of every Build()/BuildTutorial(). A Safe room's "rest"
+    // reads these into the save file (see DialogueManager) so "Continuer" can restore them via
+    // Build's clearedRooms/bossDefeated parameters below - without this, resuming a save
+    // regenerated the exact same layout (same seed) but with zero memory of progress within it,
+    // so every monster and the boss respawned on every reload.
+    static readonly HashSet<Vector2Int> clearedRoomsThisFloor = new HashSet<Vector2Int>();
+    static bool bossDefeatedThisFloor;
+    public static IEnumerable<Vector2Int> ClearedRoomsThisFloor => clearedRoomsThisFloor;
+    public static bool BossDefeatedThisFloor => bossDefeatedThisFloor;
+
+    public static void Build(int seed, int floor = 1, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
     {
         CurrentSeed = seed;
         CurrentFloor = floor;
         Random.InitState(seed);
+
+        clearedRoomsThisFloor.Clear();
+        if (clearedRooms != null) foreach (Vector2Int cell in clearedRooms) clearedRoomsThisFloor.Add(cell);
+        bossDefeatedThisFloor = bossDefeated;
 
         Biome biome = (Biome)Random.Range(0, 7);
         CurrentBiome = biome;
@@ -507,8 +524,9 @@ public static class DungeonGenerator
 
                 GatherGroup(kv.Key, cellGroups, doorsByRoom, out List<Vector2Int> memberCells, out var doors, out Vector2 groupSize);
 
+                bool startCleared = memberCells.Exists(c => clearedRoomsThisFloor.Contains(c));
                 bool hasElite = SetupMonsterRoom(memberCells, originX, originY, groupSize, root.transform, player.transform,
-                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers);
+                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers, startCleared);
                 if (hasElite) eliteRoomCount++;
             }
             else if (kv.Value == RoomType.Boss)
@@ -523,7 +541,7 @@ public static class DungeonGenerator
                     shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker,
                     swordPickupSprite, staffPickupSprite);
                 SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
-                    cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers);
+                    cerberusSprite, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
             }
             else
             {
@@ -872,6 +890,12 @@ public static class DungeonGenerator
         minimap.treasureRoomGridPositions = new List<Vector2Int>();
         minimap.safeRoomGridPositions = new List<Vector2Int>();
         minimap.stairsRoomGridPositions = new List<Vector2Int>();
+        // Rooms restored as already-cleared (see clearedRoomsThisFloor) never fire
+        // RoomController.OnRoomCleared - that only happens live, and MinimapController hasn't
+        // subscribed to it yet at this point in the same frame anyway (its own Start() runs later)
+        // - so it needs this list to color them green from the very first frame instead of
+        // reading as freshly-undiscovered on a resumed save.
+        minimap.preClearedRoomGridPositions = new List<Vector2Int>(clearedRoomsThisFloor);
         foreach (KeyValuePair<Vector2Int, RoomType> kv2 in layout)
         {
             if (kv2.Value == RoomType.Secret) minimap.secretRoomGridPositions.Add(kv2.Key);
@@ -1120,6 +1144,55 @@ public static class DungeonGenerator
         victoryBanner.root = victoryGO;
         victoryBanner.bannerText = victoryText;
 
+        // --- Death screen (full-screen, hidden until the player dies - see DeathScreenUI) ---
+        GameObject deathGO = new GameObject("DeathScreen", typeof(RectTransform), typeof(Image), typeof(DeathScreenUI));
+        deathGO.transform.SetParent(canvasGO.transform, false);
+        Image deathBg = deathGO.GetComponent<Image>();
+        deathBg.color = new Color(0.03f, 0.02f, 0.02f, 0.92f);
+        RectTransform deathRect = deathBg.rectTransform;
+        deathRect.anchorMin = Vector2.zero;
+        deathRect.anchorMax = Vector2.one;
+        deathRect.offsetMin = Vector2.zero;
+        deathRect.offsetMax = Vector2.zero;
+
+        GameObject deathTitleGO = new GameObject("Title", typeof(Text));
+        deathTitleGO.transform.SetParent(deathGO.transform, false);
+        Text deathTitle = deathTitleGO.GetComponent<Text>();
+        deathTitle.text = "VOUS ETES MORT";
+        deathTitle.font = uiFont;
+        deathTitle.fontSize = 64;
+        deathTitle.fontStyle = FontStyle.Bold;
+        deathTitle.alignment = TextAnchor.MiddleCenter;
+        deathTitle.color = new Color(0.8f, 0.15f, 0.15f);
+        RectTransform deathTitleRect = deathTitle.rectTransform;
+        deathTitleRect.anchorMin = new Vector2(0.5f, 0.5f);
+        deathTitleRect.anchorMax = new Vector2(0.5f, 0.5f);
+        deathTitleRect.pivot = new Vector2(0.5f, 0.5f);
+        deathTitleRect.anchoredPosition = new Vector2(0f, 30f);
+        deathTitleRect.sizeDelta = new Vector2(1200f, 120f);
+
+        GameObject deathPromptGO = new GameObject("Prompt", typeof(Text));
+        deathPromptGO.transform.SetParent(deathGO.transform, false);
+        Text deathPrompt = deathPromptGO.GetComponent<Text>();
+        deathPrompt.text = "Appuyez sur ESPACE pour retourner au menu";
+        deathPrompt.font = uiFont;
+        deathPrompt.fontSize = 26;
+        deathPrompt.alignment = TextAnchor.MiddleCenter;
+        deathPrompt.color = new Color(0.85f, 0.85f, 0.85f);
+        RectTransform deathPromptRect = deathPrompt.rectTransform;
+        deathPromptRect.anchorMin = new Vector2(0.5f, 0.5f);
+        deathPromptRect.anchorMax = new Vector2(0.5f, 0.5f);
+        deathPromptRect.pivot = new Vector2(0.5f, 0.5f);
+        deathPromptRect.anchoredPosition = new Vector2(0f, -40f);
+        deathPromptRect.sizeDelta = new Vector2(900f, 60f);
+
+        deathGO.SetActive(false);
+
+        DeathScreenUI deathScreen = deathGO.GetComponent<DeathScreenUI>();
+        deathScreen.root = deathGO;
+        deathScreen.mainMenu = Object.FindFirstObjectByType<MainMenuController>();
+        playerHealth.OnDeath += deathScreen.Show;
+
         // --- Boss health bar (top-center, hidden until a boss binds to it) ---
         GameObject bossBarGO = new GameObject("BossHealthBar", typeof(RectTransform), typeof(Image), typeof(BossHealthBarUI));
         bossBarGO.transform.SetParent(canvasGO.transform, false);
@@ -1202,6 +1275,8 @@ public static class DungeonGenerator
         Random.InitState(seed);
         CurrentSeed = seed;
         CurrentFloor = 0;
+        clearedRoomsThisFloor.Clear();
+        bossDefeatedThisFloor = false;
 
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
@@ -2740,7 +2815,7 @@ public static class DungeonGenerator
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
-        DecorSprites decorSprites, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers)
+        DecorSprites decorSprites, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers, bool startCleared)
     {
         Vector2Int gridPos = memberCells[0];
         int cellCount = memberCells.Count;
@@ -2808,6 +2883,11 @@ public static class DungeonGenerator
         controller.hpUpBadge = hpUpBadge;
         controller.glowSprite = glowSprite;
         controller.recipe = recipe;
+        controller.startCleared = startCleared;
+        // Feeds a resumed save's progress back into DungeonGenerator's live tracking (see
+        // clearedRoomsThisFloor) so re-saving later still reflects everything cleared so far,
+        // restored rooms included - not just whatever gets freshly cleared after resuming.
+        controller.OnRoomCleared += cells => { foreach (Vector2Int c in cells) clearedRoomsThisFloor.Add(c); };
 
         foreach ((Vector2 pos, bool onVerticalWall) door in doors)
         {
@@ -2825,7 +2905,7 @@ public static class DungeonGenerator
 
     static void SetupBossRoom(Vector2Int gridPos, List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         Sprite bossSprite, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
-        List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers)
+        List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers, bool startDefeated)
     {
         Vector2 roomOrigin = new Vector2(originX, originY);
         // Centered on the whole merged arena, not just the anchor cell, so a bigger Boss room
@@ -2864,6 +2944,11 @@ public static class DungeonGenerator
         controller.player = player;
         controller.roomOrigin = roomOrigin;
         controller.roomSize = roomSize;
+        controller.startDefeated = startDefeated;
+        // See the matching subscription in SetupMonsterRoom - keeps DungeonGenerator's live
+        // tracking accurate even for a boss restored as already-dead (Start() re-fires this, see
+        // BossRoomController), so a later re-save still reflects it.
+        controller.OnBossDefeated += () => bossDefeatedThisFloor = true;
 
         foreach ((Vector2 pos, bool onVerticalWall) door in doors)
         {

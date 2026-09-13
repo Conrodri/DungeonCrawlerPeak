@@ -47,6 +47,11 @@ public class RoomController : MonoBehaviour
     // (see DoorTrigger.SetLocked) to block LEAVING, with no visible barrier needed. Entering a
     // locked room is never blocked this way - only leaving it before it's cleared.
     public List<DoorTrigger> exitTriggers = new List<DoorTrigger>();
+    // Set at generation time (see DungeonGenerator.SetupMonsterRoom) when restoring a save whose
+    // clearedRoomsThisFloor already includes one of memberCells - skips SpawnEnemies() entirely
+    // instead of spawning a fresh roster and immediately despawning it, so a resumed save never
+    // re-triggers loot/XP or a visible respawn-then-clear flicker.
+    public bool startCleared;
 
     public bool IsLocked { get; private set; }
     public bool IsCleared { get; private set; }
@@ -68,7 +73,18 @@ public class RoomController : MonoBehaviour
 
     void Start()
     {
-        SpawnEnemies();
+        if (startCleared)
+        {
+            // IsCleared is already true before UpdateDoors() runs, so its own
+            // "just became cleared" branch never re-fires OnRoomCleared here - the minimap already
+            // learned about this room directly (see DungeonGenerator's preClearedRoomGridPositions)
+            // rather than through that event, which nothing has subscribed to yet this early anyway.
+            IsCleared = true;
+        }
+        else
+        {
+            SpawnEnemies();
+        }
         UpdateDoors();
         if (roomCamera != null)
         {

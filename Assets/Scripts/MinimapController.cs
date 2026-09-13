@@ -18,6 +18,10 @@ public class MinimapController : MonoBehaviour
     // Hidden until visited, same rule and reason as secretRoomGridPositions above - the Souls-like
     // staircase down always has to be found, whatever lock (if any) also sits on top of it.
     public List<Vector2Int> stairsRoomGridPositions = new List<Vector2Int>();
+    // Monster rooms restored already-cleared from a save (see DungeonGenerator.SetupMonsterRoom's
+    // startCleared) - colored Cleared from the first frame instead of reading as undiscovered,
+    // since RoomController.OnRoomCleared never fires for one of these (see RoomController.Start()).
+    public List<Vector2Int> preClearedRoomGridPositions = new List<Vector2Int>();
     public Sprite bossIconSprite;
     public Sprite shopIconSprite;
     public Sprite eventIconSprite;
@@ -62,6 +66,10 @@ public class MinimapController : MonoBehaviour
     {
         BuildFrame();
         BuildIcons();
+        foreach (Vector2Int cell in preClearedRoomGridPositions)
+        {
+            if (icons.ContainsKey(cell)) states[cell] = RoomState.Cleared;
+        }
         if (roomCamera != null) roomCamera.OnRoomEntered += HandleRoomEntered;
         foreach (RoomController room in monsterRooms)
         {
