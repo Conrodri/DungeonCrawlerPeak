@@ -130,7 +130,10 @@ public static class DungeonGenerator
 
         Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", biomeTheme.wallFaceColor, biomeTheme.wallTopColor, biomeTheme.wallEdgeColor);
-        Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
+        // "PlayerHero" is a real Kenney character tile (see KenneyCharacterSlicer.SlicePlayerSprite
+        // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
+        // was never run, so a missing/unbaked asset never means an invisible player.
+        Sprite playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateCircleSprite("Assets/Art/Enemies/Larve.png", new Color(0.8f, 0.85f, 0.5f));
@@ -1096,7 +1099,10 @@ public static class DungeonGenerator
         Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
         Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
 
-        Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
+        // "PlayerHero" is a real Kenney character tile (see KenneyCharacterSlicer.SlicePlayerSprite
+        // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
+        // was never run, so a missing/unbaked asset never means an invisible player.
+        Sprite playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));

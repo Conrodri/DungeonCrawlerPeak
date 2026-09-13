@@ -65,3 +65,13 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Kenney Game Assets: a 300MB+/40k-file bundle dropped in as a resource pool, most of it unused -
+# ignored wholesale so it doesn't bloat the repo. Files actually wired into the game are
+# individually un-ignored below as they're picked (see DungeonGenerator/KenneyCharacterSlicer).
+/Assets/Kenney Game Assets/**
+!/Assets/Kenney Game Assets/2D assets/
+!/Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/
+!/Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/Spritesheet/
+!/Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/Spritesheet/roguelikeChar_transparent.png
+!/Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/Spritesheet/roguelikeChar_transparent.png.meta

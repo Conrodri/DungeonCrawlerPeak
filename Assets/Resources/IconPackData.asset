@@ -13,12 +13,22 @@ MonoBehaviour:
   m_Name: IconPackData
   m_EditorClassIdentifier: Assembly-CSharp::IconPackData
   entries:
+  - name: ThunderStrike_Bright
+    sprite: {fileID: 798309987, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Heart02_Bright
     sprite: {fileID: 623849741, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Heart01_Bright
-    sprite: {fileID: 381300419, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Quest01_Bright
+    sprite: {fileID: 1314314700, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Shield_Bright
+    sprite: {fileID: -2081245629, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Exit_Bright
+    sprite: {fileID: -607346249, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Coin_Bright
     sprite: {fileID: 298784443, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Padlock01_Bright
+    sprite: {fileID: 1822879496, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Heart01_Bright
+    sprite: {fileID: 381300419, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Sword_Bright
     sprite: {fileID: 1744151977, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Bow_Bright
@@ -29,14 +39,12 @@ MonoBehaviour:
     sprite: {fileID: -1756047590, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Star01_Bright
     sprite: {fileID: -1107025847, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: Watch_Bright
+    sprite: {fileID: -1552747657, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Pause_Bright
     sprite: {fileID: -2145061827, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Camera02_Bright
     sprite: {fileID: -2126376948, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Shield_Bright
-    sprite: {fileID: -2081245629, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Watch_Bright
-    sprite: {fileID: -1552747657, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Down02_Bright
     sprite: {fileID: -1544809838, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Camera01_Bright
@@ -59,8 +67,6 @@ MonoBehaviour:
     sprite: {fileID: -640786540, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: MusicNote_Bright
     sprite: {fileID: -639886857, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Exit_Bright
-    sprite: {fileID: -607346249, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Network_Bright
     sprite: {fileID: -248196999, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Cross_Bright
@@ -93,16 +99,12 @@ MonoBehaviour:
     sprite: {fileID: 690456700, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Up_Bright
     sprite: {fileID: 699413217, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: ThunderStrike_Bright
-    sprite: {fileID: 798309987, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Gear02_Bright
     sprite: {fileID: 808527345, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Potion01_Bright
     sprite: {fileID: 994223573, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Padlock02_Bright
     sprite: {fileID: 1087086722, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Quest01_Bright
-    sprite: {fileID: 1314314700, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Skip_Bright
     sprite: {fileID: 1386808307, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Key_Bright
@@ -113,7 +115,7 @@ MonoBehaviour:
     sprite: {fileID: 1510120445, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Shop_Bright
     sprite: {fileID: 1790055172, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
-  - name: Padlock01_Bright
-    sprite: {fileID: 1822879496, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: Up02_Bright
     sprite: {fileID: 1870898176, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
+  - name: PlayerHero
+    sprite: {fileID: 397579493016949401, guid: 7c774061b3cf959488f7c00c965926af, type: 3}

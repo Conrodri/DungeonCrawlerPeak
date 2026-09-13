@@ -9,6 +9,10 @@ using UnityEngine.SceneManagement;
 public static class DungeonBootstrap
 {
     const string IconPackAtlasPath = "Assets/Modern GDR - Free icons pack/00_Atlas/BrightIcons.png";
+    // Sliced by KenneyCharacterSlicer.SlicePlayerSprite (Multiple sprite mode, named sub-rects) -
+    // baked into the same IconPackData/lookup as the icon atlas so DungeonGenerator.LoadIconPackSprite
+    // works for both without a second runtime code path.
+    const string CharacterAtlasPath = "Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/Spritesheet/roguelikeChar_transparent.png";
 
     [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
@@ -43,6 +47,10 @@ public static class DungeonBootstrap
     {
         var data = ScriptableObject.CreateInstance<IconPackData>();
         foreach (Object obj in AssetDatabase.LoadAllAssetsAtPath(IconPackAtlasPath))
+        {
+            if (obj is Sprite sprite) data.entries.Add(new IconPackData.Entry { name = sprite.name, sprite = sprite });
+        }
+        foreach (Object obj in AssetDatabase.LoadAllAssetsAtPath(CharacterAtlasPath))
         {
             if (obj is Sprite sprite) data.entries.Add(new IconPackData.Entry { name = sprite.name, sprite = sprite });
         }
