@@ -1520,6 +1520,19 @@ public static class DungeonGenerator
         Vector2Int secretCell = FindFarthestRoom(rooms, bossCell, normalTypes);
         rooms[secretCell] = RoomType.Secret;
 
+        // Stairs goes FIRST and is the only one of these with a hard fallback: PlaceSpecialRoom's
+        // three distance thresholds all draw from the same shrinking pool of "dead end" cells, and
+        // previously Stairs was placed LAST - after Treasure/Shop/Event/Gamble/Safe had already
+        // picked over every candidate, it could come up with nothing at all and the floor would
+        // generate with no way down. With the floor timer, that isn't a missed convenience like a
+        // absent Shop/Safe - it's an unwinnable floor that can only end in a forced death. Going
+        // first gives it the best odds of the three PlaceSpecialRoom thresholds succeeding on their
+        // own; ForcePlaceStairs is the guarantee if even that fails.
+        if (!PlaceSpecialRoom(rooms, RoomType.Stairs, secretCell, start, bossDistance))
+        {
+            ForcePlaceStairs(rooms, secretCell);
+        }
+
         // Never anchored on the Secret room (so its one connection - the only one its bombable wall
         // assumes - is never touched again), and never allowed to reach as far from Start as the
         // Boss room (so it stays unambiguously the single farthest room on the floor).
@@ -1529,8 +1542,6 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
         // Guaranteed, like Treasure/Shop - a save point must always be reachable.
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
-        // Guaranteed too - there is always exactly one way down, somewhere on the floor.
-        PlaceSpecialRoom(rooms, RoomType.Stairs, secretCell, start, bossDistance);
 
         // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
         // other room type is already placed) may absorb some cells' free neighbors into a bigger
@@ -1751,13 +1762,35 @@ public static class DungeonGenerator
     // outright: first allow tying Boss's distance (still never exceeding it - the one outcome this
     // whole scheme exists to prevent), and only as a last resort (a genuinely tiny dungeon) place it
     // anywhere valid at all, since the room existing beats it not existing.
-    static void PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart)
+    // Returns whether a spot was actually found - callers for whom the room is truly mandatory
+    // (currently only Stairs) need to know so they can fall back to ForcePlaceStairs instead of
+    // silently generating a floor without one.
+    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart)
     {
         Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
         Vector2Int? chosen = FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart)
             ?? FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart + 1)
             ?? FindPlacementCandidate(rooms, protectedAnchor, dist, int.MaxValue);
-        if (chosen.HasValue) rooms[chosen.Value] = type;
+        if (!chosen.HasValue) return false;
+        rooms[chosen.Value] = type;
+        return true;
+    }
+
+    // Last-resort guarantee when even PlaceSpecialRoom's most permissive threshold found no free
+    // "dead end" cell to attach a new branch to (an extremely cramped/degenerate layout) - converts
+    // an existing Monster or Empty room into Stairs outright instead of leaving the floor with no
+    // way down. At this point in GenerateLayout only Start/Boss/Secret exist besides Monster/Empty
+    // cells, and the BFS growth loop guarantees at least a few of those, so this always finds one.
+    static void ForcePlaceStairs(Dictionary<Vector2Int, RoomType> rooms, Vector2Int? protectedAnchor)
+    {
+        var candidates = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms)
+        {
+            if (kv.Key == protectedAnchor) continue;
+            if (kv.Value == RoomType.Monster || kv.Value == RoomType.Empty) candidates.Add(kv.Key);
+        }
+        if (candidates.Count == 0) return; // structurally shouldn't happen - see comment above
+        rooms[candidates[Random.Range(0, candidates.Count)]] = RoomType.Stairs;
     }
 
     static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart)
