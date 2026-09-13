@@ -112,6 +112,23 @@ public static class DungeonGenerator
         "     XX   ",
     };
 
+    // A locked staircase's blocker - vertical bars with a top/bottom frame, transparent gaps in
+    // between, so the Exit_Bright icon underneath (see SetupStaircase, sortingOrder 0 vs. the
+    // blocker's 1) stays visible through the cage instead of being fully hidden by a solid square.
+    static readonly string[] CageMask =
+    {
+        "XXXXXXXXXX",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "X..X..X..X",
+        "XXXXXXXXXX",
+    };
+
     // The seed the currently-loaded floor was built with - a Safe room's "rest" option saves this
     // alongside player state, so DungeonGenerator.Build(CurrentSeed) recreates the exact same floor.
     public static int CurrentSeed { get; private set; }
@@ -194,6 +211,7 @@ public static class DungeonGenerator
         Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
         Sprite safeMarker = LoadIconPackSprite("Shield_Bright");
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
+        Sprite stairsCageSprite = CreateMaskedSprite("Assets/Art/Fx/StairsCage.png", CageMask, new Color(0.16f, 0.15f, 0.18f));
         Sprite leverSprite = CreateSolidSprite("Assets/Art/Decor/Lever.png", new Color(0.4f, 0.35f, 0.3f));
         Sprite craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
 
@@ -781,7 +799,7 @@ public static class DungeonGenerator
         // the staircase can wire whichever lock it rolled.
         if (hasStairs)
         {
-            SetupStaircase(stairsCenter, stairsGridPos, layout, stairsMarker, doorBarrierSprite, leverSprite,
+            SetupStaircase(stairsCenter, stairsGridPos, layout, stairsMarker, stairsCageSprite, leverSprite,
                 floorTimer, bossRoomControllers, root.transform);
         }
 
@@ -1371,7 +1389,7 @@ public static class DungeonGenerator
     // BossKill/Lever/Timed each gate the same blocker; Open has none (still has to be found, since
     // Stairs is hidden on the minimap until visited just like Secret - see MinimapController).
     static void SetupStaircase(Vector2 center, Vector2Int gridPos, Dictionary<Vector2Int, RoomType> layout,
-        Sprite stairsSprite, Sprite blockerSprite, Sprite leverSprite, FloorTimer floorTimer,
+        Sprite stairsSprite, Sprite cageSprite, Sprite leverSprite, FloorTimer floorTimer,
         List<BossRoomController> bossRoomControllers, Transform parent)
     {
         GameObject go = new GameObject("Staircase", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Staircase));
@@ -1387,11 +1405,14 @@ public static class DungeonGenerator
         trigger.radius = 0.8f;
 
         // Deliberately NOT a DoorBlocker (see ExplosionUtility) - a bomb must never be able to pop
-        // a locked staircase open early, unlike an ordinary locked room door.
+        // a locked staircase open early, unlike an ordinary locked room door. Uses CageMask (see
+        // its declaration) instead of the plain solid doorBarrierSprite reused everywhere else -
+        // its transparent gaps let the staircase icon underneath stay visible while locked, instead
+        // of fully hiding it behind a plain colored square.
         GameObject blocker = new GameObject("StaircaseBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D));
         blocker.transform.SetParent(go.transform, false);
         SpriteRenderer blockerRenderer = blocker.GetComponent<SpriteRenderer>();
-        blockerRenderer.sprite = blockerSprite;
+        blockerRenderer.sprite = cageSprite;
         blockerRenderer.sortingOrder = 1;
         blocker.GetComponent<BoxCollider2D>().size = Vector2.one * 1.4f;
 
