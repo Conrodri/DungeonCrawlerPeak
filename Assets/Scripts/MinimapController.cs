@@ -267,13 +267,23 @@ public class MinimapController : MonoBehaviour
         int gridSpanY = maxY - minY + 1;
 
         float step = cellSize + spacing;
-        float width = Mathf.Min(maxPanelSize, gridSpanX * step + framePadding * 2f + spacing);
-        float height = Mathf.Min(maxPanelSize, gridSpanY * step + framePadding * 2f + spacing);
-        GetComponent<RectTransform>().sizeDelta = new Vector2(width, height);
+        float rawWidth = gridSpanX * step + framePadding * 2f + spacing;
+        float rawHeight = gridSpanY * step + framePadding * 2f + spacing;
+        // Previously just clamped width/height to maxPanelSize while still spacing icons at the
+        // full `step` - on a wide/tall layout the frame and background stopped growing at the cap,
+        // but far rooms kept getting positioned at their true (unscaled) offset from center, well
+        // outside that capped frame. Nothing in this component ever masks/clips its children, so
+        // those icons didn't disappear - they just rendered detached from the visible map, reading
+        // as "adjacent rooms missing from the map". Scaling everything down together (icons and
+        // spacing alike) once the true footprint would exceed the cap keeps the whole discovered
+        // layout inside the panel instead - the map now shrinks to fit rather than overflowing it.
+        float scale = Mathf.Min(1f, maxPanelSize / rawWidth, maxPanelSize / rawHeight);
+        GetComponent<RectTransform>().sizeDelta = new Vector2(rawWidth * scale, rawHeight * scale);
 
         foreach (KeyValuePair<Vector2Int, Image> kv in icons)
         {
-            kv.Value.rectTransform.anchoredPosition = new Vector2((kv.Key.x - centerX) * step, (kv.Key.y - centerY) * step);
+            kv.Value.rectTransform.anchoredPosition = new Vector2((kv.Key.x - centerX) * step * scale, (kv.Key.y - centerY) * step * scale);
+            kv.Value.rectTransform.localScale = Vector3.one * scale;
         }
     }
 }
