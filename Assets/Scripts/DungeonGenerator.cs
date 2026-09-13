@@ -24,7 +24,13 @@ public static class DungeonGenerator
     const int DoorMargin = 2; // keep doors at least this far from a room's corners
     const int StepX = RoomWidth + Gap;
     const int StepY = RoomHeight + Gap;
-    const int TargetNormalRooms = 8; // includes the Start room
+    // Was 8 - doubled per explicit request ("etages 2 fois plus grands"). Every special room type
+    // (Boss/Secret/Stairs/Treasure/Shop/Event/Gamble/Safe x2 - see the second PlaceSpecialRoom
+    // call below) RECLASSIFIES an existing tree cell rather than adding a new one, so 8 was already
+    // tight - up to 9 conversions could eat most of a floor's actual Monster rooms. 16 leaves
+    // plenty of room for real combat content alongside every special room, including the extra
+    // Safe room.
+    const int TargetNormalRooms = 16; // includes the Start room
     const float EliteChance = 0.05f;
 
     const int TilePixelSize = 16;
@@ -1813,7 +1819,10 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Shop, secretCell, start, bossDistance);
         if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
-        // Guaranteed, like Treasure/Shop - a save point must always be reachable.
+        // Guaranteed, like Treasure/Shop - a save point must always be reachable. Placed twice
+        // (explicit request for an extra Safe room per floor) - the second call naturally lands on
+        // a different cell since the first already reclassified its own candidate out of the pool.
+        PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
 
         // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
