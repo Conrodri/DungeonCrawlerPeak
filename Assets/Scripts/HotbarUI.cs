@@ -52,7 +52,7 @@ public class HotbarUI : MonoBehaviour
 
             InventorySlotUI slotUI = slotGO.AddComponent<InventorySlotUI>();
             slotUI.inventory = inventory;
-            slotUI.isHotbarSlot = true;
+            slotUI.kind = InventorySlotKind.Hotbar;
             slotUI.index = i;
 
             GameObject textGO = new GameObject("Count", typeof(Text));

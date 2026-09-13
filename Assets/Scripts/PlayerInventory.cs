@@ -11,6 +11,11 @@ public class PlayerInventory : MonoBehaviour
     string cursedItemId;
 
     public event Action OnInventoryChanged;
+    // Fired only with the amount actually added (never the requested amount if the inventory was
+    // too full to take it all) - drives a transient pickup toast (see DungeonGenerator.Build) so a
+    // freshly picked-up item is announced on screen instead of only changing silently somewhere in
+    // a 20-slot grid the player has to go open and hunt through to notice.
+    public event Action<string, int> OnItemPickedUp;
 
     public int SlotCount => slots.Count;
     public string CursedItemId => cursedItemId;
@@ -27,6 +32,7 @@ public class PlayerInventory : MonoBehaviour
     public void Add(string itemId, int amount)
     {
         int maxStack = MaxStackFor(itemId);
+        int requested = amount;
 
         foreach (InventorySlot slot in slots)
         {
@@ -48,6 +54,8 @@ public class PlayerInventory : MonoBehaviour
         }
 
         Debug.Log("Picked up " + itemId + (amount > 0 ? " - inventory full, lost " + amount : ""));
+        int actuallyAdded = requested - amount;
+        if (actuallyAdded > 0) OnItemPickedUp?.Invoke(itemId, actuallyAdded);
         OnInventoryChanged?.Invoke();
     }
 
@@ -125,6 +133,42 @@ public class PlayerInventory : MonoBehaviour
         }
         OnInventoryChanged?.Invoke();
         return true;
+    }
+
+    // Removes exactly 1 item from a SPECIFIC slot (returns the itemId removed, or null if empty) -
+    // used when equipping gear, where the exact origin slot matters, unlike TryConsume (consumes
+    // the first matching stack anywhere it finds one).
+    public string RemoveOneFromSlot(int index)
+    {
+        InventorySlot slot = slots[index];
+        if (slot.IsEmpty) return null;
+        string itemId = slot.itemId;
+        slot.count--;
+        if (slot.count <= 0) slot.itemId = null;
+        OnInventoryChanged?.Invoke();
+        return itemId;
+    }
+
+    // Puts an unequipped item back into a specific slot when possible (empty, or already stacking
+    // the same item there) so it returns near where it came from, falling back to Add()'s normal
+    // distribution otherwise (e.g. a hotbar-driven equip with no single "origin" inventory slot).
+    public void ReturnToSlotOrAdd(int index, string itemId)
+    {
+        InventorySlot slot = slots[index];
+        if (slot.IsEmpty)
+        {
+            slot.itemId = itemId;
+            slot.count = 1;
+            OnInventoryChanged?.Invoke();
+            return;
+        }
+        if (slot.itemId == itemId && slot.count < MaxStackFor(itemId))
+        {
+            slot.count++;
+            OnInventoryChanged?.Invoke();
+            return;
+        }
+        Add(itemId, 1);
     }
 
     public InventorySlot[] GetAllSlots() => slots.ToArray();

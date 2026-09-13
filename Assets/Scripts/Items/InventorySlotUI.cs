@@ -2,18 +2,35 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-// Shared drag & drop behaviour for both the InventoryUI grid slots and the HotbarUI slots, so an
-// item can be reordered within the inventory or dragged onto a hotbar slot to equip it.
-public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, IPointerEnterHandler, IPointerExitHandler
+public enum InventorySlotKind { Inventory, Hotbar, Equipment }
+
+// Shared drag & drop behaviour for the InventoryUI grid slots, HotbarUI slots, and the equipment
+// panel's slots (see InventoryUI.BuildEquipmentPanel) - one item can move between any of the
+// three: reordered within the inventory, dragged onto a hotbar slot to make it usable with 1-5,
+// or dragged onto a matching equipment slot to wear it.
+public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
     public PlayerInventory inventory;
-    public bool isHotbarSlot;
+    public PlayerEquipment equipment;
+    // Lets a plain click on an Inventory-kind slot use/throw the item directly, without needing to
+    // drag it onto the hotbar first - see OnPointerClick.
+    public PlayerController player;
+    public InventorySlotKind kind = InventorySlotKind.Inventory;
+    // Inventory/Hotbar slot index. Unused for Equipment (see equipmentSlotType/ringIndex instead).
     public int index;
+    public EquipmentSlotType equipmentSlotType;
+    // Which of the 5 slots for a RingLeft/RingRight equipmentSlotType; unused for every other type.
+    public int ringIndex;
 
     static InventorySlotUI draggedFrom;
     static GameObject dragIcon;
 
-    string ItemId => inventory == null ? null : isHotbarSlot ? inventory.hotbarSlots[index] : inventory.GetSlot(index).itemId;
+    string ItemId => kind switch
+    {
+        InventorySlotKind.Hotbar => inventory != null ? inventory.hotbarSlots[index] : null,
+        InventorySlotKind.Equipment => equipment != null ? equipment.Get(equipmentSlotType, ringIndex) : null,
+        _ => inventory != null ? inventory.GetSlot(index).itemId : null,
+    };
 
     public void OnBeginDrag(PointerEventData eventData)
     {
@@ -52,22 +69,75 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
     {
         if (draggedFrom == null || draggedFrom == this || inventory == null) return;
 
-        if (!draggedFrom.isHotbarSlot && !isHotbarSlot)
+        if (draggedFrom.kind == InventorySlotKind.Inventory && kind == InventorySlotKind.Inventory)
         {
             inventory.SwapSlots(draggedFrom.index, index);
         }
-        else if (!draggedFrom.isHotbarSlot && isHotbarSlot)
+        else if (draggedFrom.kind == InventorySlotKind.Inventory && kind == InventorySlotKind.Hotbar)
         {
             inventory.AssignHotbar(index, draggedFrom.ItemId);
         }
-        else if (draggedFrom.isHotbarSlot && isHotbarSlot)
+        else if (draggedFrom.kind == InventorySlotKind.Hotbar && kind == InventorySlotKind.Hotbar)
         {
             string sourceId = inventory.hotbarSlots[draggedFrom.index];
             string targetId = inventory.hotbarSlots[index];
             inventory.AssignHotbar(draggedFrom.index, targetId);
             inventory.AssignHotbar(index, sourceId);
         }
-        // Hotbar -> inventory: no-op, a hotbar slot is only a reference to an inventory item.
+        else if (draggedFrom.kind == InventorySlotKind.Inventory && kind == InventorySlotKind.Equipment)
+        {
+            EquipFromInventory(draggedFrom.index);
+        }
+        else if (draggedFrom.kind == InventorySlotKind.Equipment && kind == InventorySlotKind.Inventory)
+        {
+            string itemId = draggedFrom.ItemId;
+            if (string.IsNullOrEmpty(itemId)) return;
+            draggedFrom.equipment.Set(draggedFrom.equipmentSlotType, draggedFrom.ringIndex, null);
+            inventory.ReturnToSlotOrAdd(index, itemId);
+        }
+        else if (draggedFrom.kind == InventorySlotKind.Equipment && kind == InventorySlotKind.Equipment)
+        {
+            if (equipment == null || !PlayerEquipment.IsCompatible(draggedFrom.equipmentSlotType, equipmentSlotType)) return;
+            string a = draggedFrom.equipment.Get(draggedFrom.equipmentSlotType, draggedFrom.ringIndex);
+            string b = equipment.Get(equipmentSlotType, ringIndex);
+            equipment.Set(equipmentSlotType, ringIndex, a);
+            draggedFrom.equipment.Set(draggedFrom.equipmentSlotType, draggedFrom.ringIndex, b);
+        }
+        // Hotbar <-> Equipment: not meaningful (a hotbar slot only references a consumable) - no-op.
+        // Hotbar -> Inventory: no-op, a hotbar slot is only a reference to an inventory item.
+    }
+
+    // Validates the item at `fromIndex` can go into THIS equipment slot (right category, right
+    // slot type - rings accept either hand, see PlayerEquipment.IsCompatible) before touching
+    // anything; a previously equipped item there is swapped back into that same inventory slot.
+    void EquipFromInventory(int fromIndex)
+    {
+        if (equipment == null) return;
+        string itemId = inventory.GetSlot(fromIndex).itemId;
+        ItemDefinition definition = !string.IsNullOrEmpty(itemId) ? ItemDatabase.Get(itemId) : null;
+        if (definition == null || !definition.IsEquipment || !PlayerEquipment.IsCompatible(definition.EquipmentSlot, equipmentSlotType)) return;
+
+        string previouslyEquipped = equipment.Get(equipmentSlotType, ringIndex);
+        string removed = inventory.RemoveOneFromSlot(fromIndex);
+        if (removed == null) return;
+        equipment.Set(equipmentSlotType, ringIndex, removed);
+        if (!string.IsNullOrEmpty(previouslyEquipped)) inventory.ReturnToSlotOrAdd(fromIndex, previouslyEquipped);
+    }
+
+    // A plain click (not a drag) on an inventory-grid item uses/throws it immediately in whatever
+    // direction the player was last aiming - lets a throwable/potion be used straight from the
+    // grid instead of requiring it to be dragged onto the hotbar first.
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (kind != InventorySlotKind.Inventory || player == null) return;
+        string itemId = ItemId;
+        if (string.IsNullOrEmpty(itemId)) return;
+
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition == null || (definition.Category != ItemCategory.Throwable && definition.HealAmount <= 0)) return;
+
+        player.UseItem(itemId);
+        InventoryUI.CloseIfOpen();
     }
 
     public void OnPointerEnter(PointerEventData eventData)

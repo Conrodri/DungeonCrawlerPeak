@@ -22,6 +22,8 @@ public class ItemCatalog : MonoBehaviour
         public PlayerController.WeaponType cursedWeaponType;
         public bool isTrap;
         public int healAmount;
+        public bool isEquipment;
+        public EquipmentSlotType equipmentSlot;
     }
 
     public List<Entry> entries = new List<Entry>();
@@ -44,7 +46,9 @@ public class ItemCatalog : MonoBehaviour
                 HasCursedWeapon = entry.hasCursedWeapon,
                 CursedWeaponType = entry.cursedWeaponType,
                 IsTrap = entry.isTrap,
-                HealAmount = entry.healAmount
+                HealAmount = entry.healAmount,
+                IsEquipment = entry.isEquipment,
+                EquipmentSlot = entry.equipmentSlot
             });
         }
     }

@@ -13,4 +13,15 @@ public static class ItemIds
     public const string Wood = "wood";
     public const string Metal = "metal";
     public const string Stone = "stone";
+
+    // Equipment (see EquipmentSlotType) - one plain placeholder per slot for now, no stat bonuses
+    // yet, just enough to actually fill and test the new equipment panel. Sold at the Shop.
+    public const string IronHelmet = "iron_helmet";
+    public const string LeatherPauldrons = "leather_pauldrons";
+    public const string CombatGloves = "combat_gloves";
+    public const string WalkingBoots = "walking_boots";
+    public const string SimpleNecklace = "simple_necklace";
+    public const string LeatherBelt = "leather_belt";
+    public const string LeatherKneepads = "leather_kneepads";
+    public const string SimpleRing = "simple_ring";
 }

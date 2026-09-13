@@ -1,1 +1,1 @@
-public enum ItemCategory { Currency, Throwable, Weapon, Misc }
+public enum ItemCategory { Currency, Throwable, Weapon, Misc, Equipment }

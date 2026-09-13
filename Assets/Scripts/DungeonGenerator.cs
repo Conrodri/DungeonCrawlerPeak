@@ -289,6 +289,34 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.");
 
+        // Equipment - one plain placeholder per slot (see EquipmentSlotType/PlayerEquipment), just
+        // enough to fill and test the new equipment panel. No stat bonuses yet (none requested) -
+        // sold at the Shop so they're actually reachable in a real run.
+        Sprite ironHelmetSprite = CreateSolidSprite("Assets/Art/Items/IronHelmet.png", new Color(0.55f, 0.56f, 0.6f));
+        Sprite leatherPauldronsSprite = CreateSolidSprite("Assets/Art/Items/LeatherPauldrons.png", new Color(0.45f, 0.32f, 0.18f));
+        Sprite combatGlovesSprite = CreateSolidSprite("Assets/Art/Items/CombatGloves.png", new Color(0.35f, 0.25f, 0.15f));
+        Sprite walkingBootsSprite = CreateSolidSprite("Assets/Art/Items/WalkingBoots.png", new Color(0.3f, 0.2f, 0.12f));
+        Sprite simpleNecklaceSprite = CreateCircleSprite("Assets/Art/Items/SimpleNecklace.png", new Color(0.8f, 0.75f, 0.3f));
+        Sprite leatherBeltSprite = CreateSolidSprite("Assets/Art/Items/LeatherBelt.png", new Color(0.4f, 0.28f, 0.16f));
+        Sprite leatherKneepadsSprite = CreateSolidSprite("Assets/Art/Items/LeatherKneepads.png", new Color(0.42f, 0.3f, 0.17f));
+        Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
+        RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
+            "Protege la tete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head);
+        RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
+            "Protege les epaules.", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders);
+        RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
+            "Protege les mains.", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves);
+        RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
+            "Protege les pieds.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots);
+        RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
+            "Se porte autour du cou.", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck);
+        RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
+            "Se porte a la taille.", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt);
+        RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
+            "Protege les genoux.", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees);
+        RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
+            "Se porte a n'importe quel doigt.", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft);
+
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         // Same face color as the wall itself, so a secret room's bombable wall blends in - no
         // visual hint, on purpose (detection items are a separate future feature).
@@ -456,7 +484,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -477,6 +505,7 @@ public static class DungeonGenerator
         playerController.explosionSprite = explosionSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
+        PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
         // Starting hotbar loadout - the player can rearrange these later via drag & drop.
         playerInventory.hotbarSlots[0] = ItemIds.Shuriken;
         playerInventory.hotbarSlots[1] = ItemIds.Caillou;
@@ -867,6 +896,8 @@ public static class DungeonGenerator
 
         InventoryUI inventoryUI = inventoryGO.GetComponent<InventoryUI>();
         inventoryUI.inventory = playerInventory;
+        inventoryUI.equipment = playerEquipment;
+        inventoryUI.player = playerController;
         inventoryUI.slotSize = 72f;
         inventoryUI.spacing = 84f;
         inventoryUI.fontSize = 32;
@@ -1169,6 +1200,40 @@ public static class DungeonGenerator
         roomAnnouncement.root = announceGO;
         roomAnnouncement.label = announceText;
 
+        // --- Pickup toast (bottom, above the hotbar, hidden by default) - reuses RoomAnnouncementUI
+        // (a generic auto-hide text banner) rather than a near-duplicate component, just parked at
+        // a different screen position so the two never overlap. Announces exactly what/how much
+        // was picked up (see PlayerInventory.OnItemPickedUp) - a freshly grabbed item otherwise
+        // changes silently somewhere inside a 20-slot grid the player has to open and hunt through.
+        GameObject pickupToastGO = new GameObject("PickupToast", typeof(RectTransform), typeof(RoomAnnouncementUI));
+        pickupToastGO.transform.SetParent(canvasGO.transform, false);
+
+        GameObject pickupToastTextGO = new GameObject("Text", typeof(Text));
+        pickupToastTextGO.transform.SetParent(pickupToastGO.transform, false);
+        Text pickupToastText = pickupToastTextGO.GetComponent<Text>();
+        pickupToastText.font = uiFont;
+        pickupToastText.fontSize = 26;
+        pickupToastText.fontStyle = FontStyle.Bold;
+        pickupToastText.alignment = TextAnchor.MiddleCenter;
+        pickupToastText.color = new Color(0.9f, 0.9f, 0.6f);
+        RectTransform pickupToastTextRect = pickupToastText.rectTransform;
+        pickupToastTextRect.anchorMin = new Vector2(0.5f, 0f);
+        pickupToastTextRect.anchorMax = new Vector2(0.5f, 0f);
+        pickupToastTextRect.pivot = new Vector2(0.5f, 0f);
+        pickupToastTextRect.anchoredPosition = new Vector2(0f, 110f);
+        pickupToastTextRect.sizeDelta = new Vector2(700f, 50f);
+        pickupToastGO.SetActive(false);
+
+        RoomAnnouncementUI pickupToast = pickupToastGO.GetComponent<RoomAnnouncementUI>();
+        pickupToast.root = pickupToastGO;
+        pickupToast.label = pickupToastText;
+        pickupToast.displayDuration = 1.8f;
+        playerInventory.OnItemPickedUp += (pickedItemId, pickedAmount) =>
+        {
+            ItemDefinition pickedDefinition = ItemDatabase.Get(pickedItemId);
+            if (pickedDefinition != null) pickupToast.Show("+" + pickedAmount + " " + pickedDefinition.DisplayName);
+        };
+
         if (roomCam != null)
         {
             RoomType? lastAnnouncedType = null;
@@ -1238,7 +1303,16 @@ public static class DungeonGenerator
         playerHealth.OnDeath += deathScreen.Show;
 
         // --- Pause menu (Echap, hidden by default) - Reprendre/Parametres/Quitter au menu ---
-        GameObject pauseGO = new GameObject("PauseMenu", typeof(RectTransform), typeof(Image), typeof(PauseMenuUI));
+        // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it
+        // toggles: a MonoBehaviour's Update() never runs while its own GameObject is inactive, so
+        // putting the Escape-listening component directly on the panel it hides by default meant
+        // Escape could never be detected in the first place - the pause menu was unreachable no
+        // matter what.
+        GameObject pauseControllerGO = new GameObject("PauseMenuController", typeof(PauseMenuUI));
+        pauseControllerGO.transform.SetParent(canvasGO.transform, false);
+        PauseMenuUI pauseMenu = pauseControllerGO.GetComponent<PauseMenuUI>();
+
+        GameObject pauseGO = new GameObject("PauseMenu", typeof(RectTransform), typeof(Image));
         pauseGO.transform.SetParent(canvasGO.transform, false);
         Image pauseBg = pauseGO.GetComponent<Image>();
         pauseBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
@@ -1262,10 +1336,6 @@ public static class DungeonGenerator
         pauseTitleRect.pivot = new Vector2(0.5f, 1f);
         pauseTitleRect.anchoredPosition = new Vector2(0f, -100f);
         pauseTitleRect.sizeDelta = new Vector2(800f, 100f);
-
-        // Fetched before the buttons below so their onClick can reference it directly, instead of
-        // wiring listeners in a separate pass after the fact.
-        PauseMenuUI pauseMenu = pauseGO.GetComponent<PauseMenuUI>();
 
         MainMenuController.CreateButton(pauseGO.transform, "Reprendre", uiFont, -260f, pauseMenu.Resume);
         MainMenuController.CreateButton(pauseGO.transform, "Parametres", uiFont, -340f, pauseMenu.ToggleSettings);
@@ -2267,19 +2337,22 @@ public static class DungeonGenerator
 
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
-        PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0)
+        PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0,
+        bool isEquipment = false, EquipmentSlotType equipmentSlot = default)
     {
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
-            CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount
+            CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount,
+            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot
         });
         entries.Add(new ItemCatalog.Entry
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
-            cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount
+            cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount,
+            isEquipment = isEquipment, equipmentSlot = equipmentSlot
         });
     }
 
@@ -2553,6 +2626,14 @@ public static class DungeonGenerator
             BuyOption("Acheter un Baton (4 or)", ItemIds.Baton, 4),
             BuyOption("Acheter une Bombe (8 or)", ItemIds.Bomb, 8),
             BuyOption("Acheter une Potion de Soin (" + HealthPotionPrice + " or)", ItemIds.HealthPotion, HealthPotionPrice),
+            BuyOption("Acheter un Casque de Fer (12 or)", ItemIds.IronHelmet, 12),
+            BuyOption("Acheter des Epaulieres de Cuir (10 or)", ItemIds.LeatherPauldrons, 10),
+            BuyOption("Acheter des Gants de Combat (8 or)", ItemIds.CombatGloves, 8),
+            BuyOption("Acheter des Bottes de Marche (8 or)", ItemIds.WalkingBoots, 8),
+            BuyOption("Acheter un Collier Simple (10 or)", ItemIds.SimpleNecklace, 10),
+            BuyOption("Acheter une Ceinture de Cuir (6 or)", ItemIds.LeatherBelt, 6),
+            BuyOption("Acheter des Genouilleres de Cuir (6 or)", ItemIds.LeatherKneepads, 6),
+            BuyOption("Acheter un Anneau Simple (15 or)", ItemIds.SimpleRing, 15),
         };
     }
 

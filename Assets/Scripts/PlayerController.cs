@@ -172,6 +172,11 @@ public class PlayerController : MonoBehaviour
         if (kb.digit2Key.wasPressedThisFrame) UseHotbarSlot(1);
         if (kb.digit3Key.wasPressedThisFrame) UseHotbarSlot(2);
         if (kb.digit4Key.wasPressedThisFrame) UseHotbarSlot(3);
+        // HotbarUI actually builds 5 slots (HotbarUI.SlotCount) but this key was never added for
+        // the 5th - a bomb/throwable dragged there was reachable on the bar but had no way to
+        // fire, silently "unusable" (see also UseItem, now reachable directly from the inventory
+        // grid without needing the hotbar at all).
+        if (kb.digit5Key.wasPressedThisFrame) UseHotbarSlot(4);
     }
 
     void FixedUpdate()
@@ -279,6 +284,15 @@ public class PlayerController : MonoBehaviour
     void UseHotbarSlot(int index)
     {
         string itemId = inventory.hotbarSlots[index];
+        if (string.IsNullOrEmpty(itemId)) return;
+        UseItem(itemId);
+    }
+
+    // Shared by the hotbar (1-5, see UseHotbarSlot) and a direct click on an inventory-grid slot
+    // (see InventorySlotUI.OnPointerClick) - a throwable/bomb/potion no longer has to be dragged
+    // onto the hotbar first just to be usable at all.
+    public void UseItem(string itemId)
+    {
         if (string.IsNullOrEmpty(itemId)) return;
 
         if (itemId == ItemIds.Bomb)
