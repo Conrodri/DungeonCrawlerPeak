@@ -14,6 +14,10 @@ public class PlayerStats : MonoBehaviour
     public int experienceToNextLevel = ExperienceBase;
     const int ExperienceBase = 10;
     const int ExperiencePerLevel = 5;
+    // Granted per level-up (see AddExperience), spent one at a time on any stat in a Safe room -
+    // see AttributeAllocationUI, opened from the Tavernier NPC.
+    public int unspentAttributePoints;
+    const int AttributePointsPerLevel = 2;
 
     public event Action<int, int, int> OnExperienceChanged; // (experience, experienceToNextLevel, level)
 
@@ -152,6 +156,7 @@ public class PlayerStats : MonoBehaviour
             experience -= experienceToNextLevel;
             level++;
             experienceToNextLevel = ExperienceBase + (level - 1) * ExperiencePerLevel;
+            unspentAttributePoints += AttributePointsPerLevel;
         }
         OnExperienceChanged?.Invoke(experience, experienceToNextLevel, level);
     }

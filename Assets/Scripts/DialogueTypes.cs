@@ -17,6 +17,11 @@ public class DialogueOutcome
     public bool npcDisappearsForever; // destroys the NPC - it never comes back in this floor
     public bool removesCursedItem; // lifts PlayerInventory's cursed-item lock and any forced weapon
     public bool savesGame; // writes a save file (see SaveManager) - only meaningful on a Safe-room NPC
+    // Opens AttributeAllocationUI - only meaningful on a Safe-room NPC (see DungeonGenerator.
+    // SpawnTavernNpc). A dedicated panel rather than one DialogueOption per stat, since the
+    // available-points count and each stat's live value need to update as points are spent, which
+    // a static option list (built once at floor generation) can't reflect.
+    public bool opensAttributeAllocation;
 }
 
 [Serializable]

@@ -41,8 +41,10 @@ public class BossRoomController : MonoBehaviour
     // this floor's boss dies, without the staircase needing to poll anything itself.
     public event Action OnBossDefeated;
 
-    // A boss is worth far more than a regular kill - big enough to reliably push a level on its own.
-    const int BossXpReward = 20;
+    // A boss is worth far more than a regular kill - big enough to reliably push a level on its
+    // own. Was 20 - cut alongside every other XP source (see DungeonGenerator's enemyPresets) per
+    // explicit request to slow leveling down now that a level-up also grants attribute points.
+    const int BossXpReward = 10;
 
     bool defeated;
     bool healthBarBound;

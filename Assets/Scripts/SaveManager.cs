@@ -17,7 +17,7 @@ public static class SaveManager
     // Shared field-mapping between a to-disk Save and an in-memory carry-over across floors
     // (DungeonGenerator.Descend) - avoids duplicating this list twice.
     public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
     {
         return new SaveData
         {
@@ -31,6 +31,7 @@ public static class SaveManager
             level = stats.level,
             experience = stats.experience,
             experienceToNextLevel = stats.experienceToNextLevel,
+            unspentAttributePoints = stats.unspentAttributePoints,
             force = stats.force,
             dexterite = stats.dexterite,
             intelligence = stats.intelligence,
@@ -45,13 +46,22 @@ public static class SaveManager
             currentStamina = stamina.currentStamina,
             currentWeapon = controller.currentWeapon,
             weaponLocked = controller.WeaponLocked,
+            equippedHead = equipment != null ? equipment.head : null,
+            equippedShoulders = equipment != null ? equipment.shoulders : null,
+            equippedGloves = equipment != null ? equipment.gloves : null,
+            equippedBoots = equipment != null ? equipment.boots : null,
+            equippedNeck = equipment != null ? equipment.neck : null,
+            equippedBelt = equipment != null ? equipment.belt : null,
+            equippedKnees = equipment != null ? equipment.knees : null,
+            equippedRingsLeft = equipment != null ? (string[])equipment.ringsLeft.Clone() : null,
+            equippedRingsRight = equipment != null ? (string[])equipment.ringsRight.Clone() : null,
         };
     }
 
     public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
     {
-        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, clearedRooms, bossDefeated);
+        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, equipment, clearedRooms, bossDefeated);
         File.WriteAllText(SavePath, JsonUtility.ToJson(data));
         Debug.Log("SaveManager: game saved to " + SavePath);
     }
@@ -67,13 +77,14 @@ public static class SaveManager
         if (File.Exists(SavePath)) File.Delete(SavePath);
     }
 
-    public static void Apply(SaveData data, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller)
+    public static void Apply(SaveData data, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller, PlayerEquipment equipment)
     {
         inventory.LoadState(data.slots, data.hotbarSlots, data.cursedItemId);
 
         stats.level = data.level;
         stats.experience = data.experience;
         stats.experienceToNextLevel = data.experienceToNextLevel > 0 ? data.experienceToNextLevel : stats.experienceToNextLevel;
+        stats.unspentAttributePoints = data.unspentAttributePoints;
         stats.force = data.force;
         stats.dexterite = data.dexterite;
         stats.intelligence = data.intelligence;
@@ -90,5 +101,26 @@ public static class SaveManager
 
         if (data.weaponLocked) controller.ForceEquipWeapon(data.currentWeapon);
         else controller.EquipWeapon(data.currentWeapon);
+
+        // Plain field restore, NOT PlayerEquipment.Set() - the saved stat values above (data.force
+        // etc.) already include any equipped ring's bonus at the time it was captured (PlayerStats
+        // has no separate "base" vs "bonus" - ApplyBonus mutates the stat directly), so replaying
+        // Set()'s ApplyItemEffects here would add that bonus a SECOND time on every single
+        // save/continue cycle while a stat ring stays equipped. Restoring is just "here's what was
+        // worn", not "these were just put on".
+        if (equipment != null)
+        {
+            equipment.head = data.equippedHead;
+            equipment.shoulders = data.equippedShoulders;
+            equipment.gloves = data.equippedGloves;
+            equipment.boots = data.equippedBoots;
+            equipment.neck = data.equippedNeck;
+            equipment.belt = data.equippedBelt;
+            equipment.knees = data.equippedKnees;
+            equipment.ringsLeft = data.equippedRingsLeft != null
+                ? (string[])data.equippedRingsLeft.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
+            equipment.ringsRight = data.equippedRingsRight != null
+                ? (string[])data.equippedRingsRight.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
+        }
     }
 }

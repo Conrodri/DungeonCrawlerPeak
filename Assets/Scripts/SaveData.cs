@@ -25,6 +25,7 @@ public class SaveData
     public int level;
     public int experience;
     public int experienceToNextLevel;
+    public int unspentAttributePoints;
     public int force;
     public int dexterite;
     public int intelligence;
@@ -33,6 +34,18 @@ public class SaveData
     public int portee;
     public int charisme;
     public int endurance;
+
+    // Equipped item ids (see PlayerEquipment/EquipmentSlotType) - without these, "Continuer" would
+    // rebuild a fresh, empty PlayerEquipment and silently strip everything the player had worn.
+    public string equippedHead;
+    public string equippedShoulders;
+    public string equippedGloves;
+    public string equippedBoots;
+    public string equippedNeck;
+    public string equippedBelt;
+    public string equippedKnees;
+    public string[] equippedRingsLeft;
+    public string[] equippedRingsRight;
 
     public int maxHealth;
     public int currentHealth;

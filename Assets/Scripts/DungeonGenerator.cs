@@ -215,10 +215,13 @@ public static class DungeonGenerator
         Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
         Sprite hpUpBadge = LoadIconPackSprite("Heart02_Bright");
 
+        // XP rewards halved-ish across the board (was 3/2/1, boss was 20) - explicit request to
+        // slow down leveling now that level-ups also grant attribute points to allocate (see
+        // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
         RoomController.EnemyPresetEntry[] enemyPresets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 3 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 1 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, moveSpeed = 1.6f, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
         };
 
@@ -1114,6 +1117,7 @@ public static class DungeonGenerator
         DialogueManager dialogueManager = dialogueGO.GetComponent<DialogueManager>();
         dialogueManager.playerStats = playerStats;
         dialogueManager.playerInventory = playerInventory;
+        dialogueManager.playerEquipment = playerEquipment;
         dialogueManager.playerController = playerController;
         dialogueManager.playerHealth = playerHealth;
         dialogueManager.playerStamina = playerStamina;
@@ -1396,6 +1400,106 @@ public static class DungeonGenerator
         pauseMenu.settingsPanel = pauseSettingsPanel;
         pauseMenu.mainMenu = deathScreen.mainMenu;
 
+        // --- Attribute allocation panel (opened from the Tavernier - see AttributeAllocationUI) ---
+        GameObject attrGO = new GameObject("AttributeAllocation", typeof(RectTransform), typeof(Image), typeof(AttributeAllocationUI));
+        attrGO.transform.SetParent(canvasGO.transform, false);
+        Image attrBg = attrGO.GetComponent<Image>();
+        attrBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        RectTransform attrRect = attrBg.rectTransform;
+        attrRect.anchorMin = Vector2.zero;
+        attrRect.anchorMax = Vector2.one;
+        attrRect.offsetMin = Vector2.zero;
+        attrRect.offsetMax = Vector2.zero;
+
+        GameObject attrTitleGO = new GameObject("Title", typeof(Text));
+        attrTitleGO.transform.SetParent(attrGO.transform, false);
+        Text attrTitle = attrTitleGO.GetComponent<Text>();
+        attrTitle.text = "Points d'attribut";
+        attrTitle.font = uiFont;
+        attrTitle.fontSize = 44;
+        attrTitle.fontStyle = FontStyle.Bold;
+        attrTitle.alignment = TextAnchor.MiddleCenter;
+        attrTitle.color = Color.white;
+        RectTransform attrTitleRect = attrTitle.rectTransform;
+        attrTitleRect.anchorMin = attrTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        attrTitleRect.pivot = new Vector2(0.5f, 1f);
+        attrTitleRect.anchoredPosition = new Vector2(0f, -80f);
+        attrTitleRect.sizeDelta = new Vector2(800f, 80f);
+
+        GameObject pointsLabelGO = new GameObject("PointsLabel", typeof(Text));
+        pointsLabelGO.transform.SetParent(attrGO.transform, false);
+        Text pointsLabel = pointsLabelGO.GetComponent<Text>();
+        pointsLabel.font = uiFont;
+        pointsLabel.fontSize = 28;
+        pointsLabel.alignment = TextAnchor.MiddleCenter;
+        pointsLabel.color = new Color(0.9f, 0.85f, 0.3f);
+        RectTransform pointsLabelRect = pointsLabel.rectTransform;
+        pointsLabelRect.anchorMin = pointsLabelRect.anchorMax = new Vector2(0.5f, 1f);
+        pointsLabelRect.pivot = new Vector2(0.5f, 1f);
+        pointsLabelRect.anchoredPosition = new Vector2(0f, -150f);
+        pointsLabelRect.sizeDelta = new Vector2(500f, 50f);
+
+        (StatType type, string label)[] statRows =
+        {
+            (StatType.Force, "Force"), (StatType.Dexterite, "Dexterite"), (StatType.Intelligence, "Intelligence"),
+            (StatType.Vitesse, "Vitesse"), (StatType.Constitution, "Constitution"), (StatType.Portee, "Portee"),
+            (StatType.Charisme, "Charisme"), (StatType.Endurance, "Endurance"),
+        };
+
+        AttributeAllocationUI attributeAllocation = attrGO.GetComponent<AttributeAllocationUI>();
+        attributeAllocation.stats = playerStats;
+        attributeAllocation.pointsLabel = pointsLabel;
+        attributeAllocation.statTypes = new StatType[statRows.Length];
+        attributeAllocation.valueLabels = new Text[statRows.Length];
+
+        float rowY = -210f;
+        for (int i = 0; i < statRows.Length; i++)
+        {
+            StatType statType = statRows[i].type; // captured per-iteration for the button lambda below
+            attributeAllocation.statTypes[i] = statType;
+
+            GameObject rowLabelGO = new GameObject(statRows[i].label + "Label", typeof(Text));
+            rowLabelGO.transform.SetParent(attrGO.transform, false);
+            Text rowLabel = rowLabelGO.GetComponent<Text>();
+            rowLabel.text = statRows[i].label;
+            rowLabel.font = uiFont;
+            rowLabel.fontSize = 24;
+            rowLabel.alignment = TextAnchor.MiddleRight;
+            rowLabel.color = Color.white;
+            RectTransform rowLabelRect = rowLabel.rectTransform;
+            rowLabelRect.anchorMin = rowLabelRect.anchorMax = new Vector2(0.5f, 1f);
+            rowLabelRect.pivot = new Vector2(1f, 0.5f);
+            rowLabelRect.anchoredPosition = new Vector2(-40f, rowY);
+            rowLabelRect.sizeDelta = new Vector2(220f, 44f);
+
+            GameObject valueGO = new GameObject(statRows[i].label + "Value", typeof(Text));
+            valueGO.transform.SetParent(attrGO.transform, false);
+            Text valueText = valueGO.GetComponent<Text>();
+            valueText.font = uiFont;
+            valueText.fontSize = 24;
+            valueText.alignment = TextAnchor.MiddleCenter;
+            valueText.color = Color.white;
+            RectTransform valueRect = valueText.rectTransform;
+            valueRect.anchorMin = valueRect.anchorMax = new Vector2(0.5f, 1f);
+            valueRect.pivot = new Vector2(0.5f, 0.5f);
+            valueRect.anchoredPosition = new Vector2(20f, rowY);
+            valueRect.sizeDelta = new Vector2(60f, 44f);
+            attributeAllocation.valueLabels[i] = valueText;
+
+            RectTransform allocateButtonRect = MainMenuController.CreateButton(attrGO.transform, "+1", uiFont, 0f, () => attributeAllocation.Allocate(statType))
+                .GetComponent<RectTransform>();
+            allocateButtonRect.anchoredPosition = new Vector2(140f, rowY);
+            allocateButtonRect.sizeDelta = new Vector2(60f, 44f);
+
+            rowY -= 60f;
+        }
+
+        MainMenuController.CreateButton(attrGO.transform, "Fermer", uiFont, rowY - 20f, attributeAllocation.Hide);
+
+        attrGO.SetActive(false);
+
+        attributeAllocation.root = attrGO;
+
         // --- Boss health bar (top-center, hidden until a boss binds to it) ---
         GameObject bossBarGO = new GameObject("BossHealthBar", typeof(RectTransform), typeof(Image), typeof(BossHealthBarUI));
         bossBarGO.transform.SetParent(canvasGO.transform, false);
@@ -1454,7 +1558,8 @@ public static class DungeonGenerator
 
         SaveData carry = SaveManager.Capture(CurrentSeed, CurrentFloor + 1,
             player.GetComponent<PlayerInventory>(), player.GetComponent<PlayerStats>(),
-            player.GetComponent<Health>(), player.GetComponent<Stamina>(), player.GetComponent<PlayerController>());
+            player.GetComponent<Health>(), player.GetComponent<Stamina>(), player.GetComponent<PlayerController>(),
+            player.GetComponent<PlayerEquipment>());
 
         Build(Random.Range(int.MinValue, int.MaxValue), CurrentFloor + 1);
 
@@ -1462,7 +1567,8 @@ public static class DungeonGenerator
         if (newPlayer == null) return;
         SaveManager.Apply(carry,
             newPlayer.GetComponent<PlayerInventory>(), newPlayer.GetComponent<PlayerStats>(),
-            newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>());
+            newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>(),
+            newPlayer.GetComponent<PlayerEquipment>());
     }
 
     const int TutorialRoomWidth = RoomWidth;
@@ -1595,7 +1701,7 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] presets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 3 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
         };
         RoomController.EnemySpawn[] recipe =
         {
@@ -2584,6 +2690,16 @@ public static class DungeonGenerator
                 purchaseItemId = ItemIds.HealthPotion,
                 costItemId = ItemIds.Gold,
                 costAmount = HealthPotionPrice,
+            },
+            new DialogueOption
+            {
+                text = "Allouer mes points d'attribut",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Vous prenez un moment pour repartir vos progres.",
+                    opensAttributeAllocation = true,
+                },
             },
             new DialogueOption
             {

@@ -13,6 +13,7 @@ public class DialogueManager : MonoBehaviour
 
     public PlayerStats playerStats;
     public PlayerInventory playerInventory;
+    public PlayerEquipment playerEquipment;
     public PlayerController playerController;
     public Health playerHealth;
     public Stamina playerStamina;
@@ -297,7 +298,15 @@ public class DialogueManager : MonoBehaviour
         {
             if (playerHealth != null) playerHealth.Heal(playerHealth.maxHealth);
             SaveManager.Save(DungeonGenerator.CurrentSeed, DungeonGenerator.CurrentFloor, playerInventory, playerStats, playerHealth, playerStamina, playerController,
-                DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor);
+                playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor);
+        }
+
+        // Not closed here directly - Resolve()/ResolveKeepOpen() already schedule the dialogue
+        // panel's own close shortly after any outcome (see CloseAfterDelay), so it clears itself
+        // out of the way on its own without fighting that existing timing.
+        if (outcome.opensAttributeAllocation && AttributeAllocationUI.Instance != null)
+        {
+            AttributeAllocationUI.Instance.Show();
         }
 
         // Destroying it fires NpcInteractable.OnDestroy -> NotifyNpcRemoved, which only clears the
