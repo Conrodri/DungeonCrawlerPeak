@@ -24,7 +24,7 @@ public class EnemyController : MonoBehaviour
     // room entry rather than on spawn: every enemy on the floor is created at floor-generation
     // time, long before the player ever reaches most rooms, so a spawn-time delay had already
     // elapsed by the time it mattered.
-    const float ActivationDelay = 1f;
+    const float ActivationDelay = 0.5f;
 
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).

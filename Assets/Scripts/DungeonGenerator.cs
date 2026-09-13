@@ -37,7 +37,8 @@ public static class DungeonGenerator
     // through (combined with no activation delay, since fixed separately - see
     // EnemyController.ActivationDelay) felt like an ambush rather than a room to size up.
     const float EnemySpawnMinDoorDistance = 5f;
-    const float EnemySpawnMinSpacing = 3f;
+    // Bumped from 3 - per feedback, scattered spawns still read as "all in one pack".
+    const float EnemySpawnMinSpacing = 4.5f;
     const int EnemySpawnMaxAttempts = 30;
 
     // Stone block tuning: tougher than a fresh player's Force (1) so bombs matter, but breakable
@@ -2358,18 +2359,47 @@ public static class DungeonGenerator
         return accepted;
     }
 
-    // A "collés" formation: one anchor placed with the same wall/door rejection sampling as
-    // GenerateEnemySpawnPositions, then the rest of the group scattered tightly around it.
-    static List<Vector2> GenerateClusteredPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors)
+    // The room's 4 interior corners (inset by the same wall margin as a scattered spawn), shuffled
+    // so which enemy gets which corner varies. Cycles back through the list (with a small jitter
+    // so repeats don't stack exactly) if count > 4, though no current composition needs that.
+    static List<Vector2> GenerateCornerPositions(int count, Vector2 roomOrigin, Vector2 roomSize)
     {
-        const float ClusterRadius = 1.2f;
-        Vector2 center = GenerateEnemySpawnPositions(1, roomOrigin, roomSize, doors)[0];
-
-        List<Vector2> positions = new List<Vector2> { center };
-        for (int i = 1; i < count; i++)
+        float mx = EnemySpawnWallMargin;
+        List<Vector2> corners = new List<Vector2>
         {
-            positions.Add(center + Random.insideUnitCircle * ClusterRadius);
+            roomOrigin + new Vector2(mx, mx),
+            roomOrigin + new Vector2(roomSize.x - mx, mx),
+            roomOrigin + new Vector2(mx, roomSize.y - mx),
+            roomOrigin + new Vector2(roomSize.x - mx, roomSize.y - mx),
+        };
+        Shuffle(corners);
+
+        List<Vector2> positions = new List<Vector2>();
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 jitter = i >= corners.Count ? Random.insideUnitCircle * 1.5f : Vector2.zero;
+            positions.Add(corners[i % corners.Count] + jitter);
         }
+        return positions;
+    }
+
+    // 4 positions forming a small square around the room's center, with any enemy beyond the 4th
+    // (the 5-Larve pack) landing dead center, inside the square - the "4 in a square + 1 in the
+    // middle" formation requested over the previous tight single-point cluster.
+    static List<Vector2> GenerateCenterSquarePositions(int count, Vector2 roomOrigin, Vector2 roomSize)
+    {
+        const float Radius = 2f;
+        Vector2 center = roomOrigin + roomSize / 2f;
+        Vector2[] square =
+        {
+            center + new Vector2(-Radius, -Radius),
+            center + new Vector2(Radius, -Radius),
+            center + new Vector2(-Radius, Radius),
+            center + new Vector2(Radius, Radius),
+        };
+
+        List<Vector2> positions = new List<Vector2>();
+        for (int i = 0; i < count; i++) positions.Add(i < square.Length ? square[i] : center);
         return positions;
     }
 
@@ -2595,8 +2625,12 @@ public static class DungeonGenerator
         go.GetComponent<CircleCollider2D>().isTrigger = true;
     }
 
+    // How a composition's positions are laid out - replaces a plain "clustered" flag, since a
+    // single tight cluster (1.2-unit radius) read as "all mobs in one pile" per feedback.
+    enum SpawnFormation { Scattered, Corners, CenterSquare }
+
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
-    // paired 1:1 with EncounterPatternClustered.
+    // paired 1:1 with EncounterPatternFormation.
     static readonly EnemyType[][] EncounterPatterns =
     {
         new[] { EnemyType.Zombie, EnemyType.Zombie, EnemyType.Zombie },
@@ -2604,7 +2638,10 @@ public static class DungeonGenerator
         new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.Zombie },
         new[] { EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve },
     };
-    static readonly bool[] EncounterPatternClustered = { true, false, false, true };
+    static readonly SpawnFormation[] EncounterPatternFormation =
+    {
+        SpawnFormation.Corners, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.CenterSquare,
+    };
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
@@ -2618,22 +2655,22 @@ public static class DungeonGenerator
         int scaleFactor = Mathf.Max(1, cellCount / 2);
 
         EnemyType[] baseComposition;
-        bool clustered;
+        SpawnFormation formation;
         if (floorTheme.HasValue)
         {
             baseComposition = new EnemyType[Random.Range(2, 4)];
             for (int i = 0; i < baseComposition.Length; i++) baseComposition[i] = floorTheme.Value;
-            clustered = false;
+            formation = SpawnFormation.Scattered;
         }
         else
         {
             int patternIndex = Random.Range(0, EncounterPatterns.Length);
             baseComposition = EncounterPatterns[patternIndex];
-            clustered = EncounterPatternClustered[patternIndex];
+            formation = EncounterPatternFormation[patternIndex];
         }
-        // A tight cluster only makes sense at the original single-cell scale - a merged room's
-        // whole point is using the extra space, so it always spreads out instead.
-        if (cellCount > 1) clustered = false;
+        // A fixed 4-corner/center-square shape only reads right at the original single-cell scale
+        // - a merged room's whole point is using the extra space, so it always spreads out instead.
+        if (cellCount > 1) formation = SpawnFormation.Scattered;
 
         EnemyType[] composition = new EnemyType[baseComposition.Length * scaleFactor];
         for (int i = 0; i < composition.Length; i++) composition[i] = baseComposition[i % baseComposition.Length];
@@ -2644,9 +2681,12 @@ public static class DungeonGenerator
         EliteModifier eliteModifier = hasElite ? (Random.value < 0.5f ? EliteModifier.SpeedUp : EliteModifier.HpUp) : EliteModifier.None;
 
         Vector2 roomOrigin = new Vector2(originX, originY);
-        List<Vector2> positions = clustered
-            ? GenerateClusteredPositions(count, roomOrigin, roomSize, doors)
-            : GenerateEnemySpawnPositions(count, roomOrigin, roomSize, doors);
+        List<Vector2> positions = formation switch
+        {
+            SpawnFormation.Corners => GenerateCornerPositions(count, roomOrigin, roomSize),
+            SpawnFormation.CenterSquare => GenerateCenterSquarePositions(count, roomOrigin, roomSize),
+            _ => GenerateEnemySpawnPositions(count, roomOrigin, roomSize, doors),
+        };
 
         RoomController.EnemySpawn[] recipe = new RoomController.EnemySpawn[count];
         for (int i = 0; i < count; i++)

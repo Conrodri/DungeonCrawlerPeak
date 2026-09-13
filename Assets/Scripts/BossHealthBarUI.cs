@@ -3,6 +3,11 @@ using UnityEngine.UI;
 
 // Bound at runtime by BossRoomController.Start() - never subscribe to Health's events from
 // DungeonBootstrap (Editor-time), that subscription would be lost on the Play Mode scene reload.
+//
+// The fill itself now polls every frame instead of relying on Health.OnHealthChanged, same
+// reasoning as StaminaBarUI: a Play Mode domain reload silently drops C# event subscriptions
+// without Start() ever re-running to resubscribe, which left this bar frozen mid-fight. OnDeath
+// stays event-based since it's a one-shot terminal state raised at most once per boss.
 public class BossHealthBarUI : MonoBehaviour
 {
     public GameObject root;
@@ -15,15 +20,14 @@ public class BossHealthBarUI : MonoBehaviour
         target = health;
         if (target == null) return;
 
-        target.OnHealthChanged += Refresh;
         target.OnDeath += HandleDeath;
         if (root != null) root.SetActive(true);
-        Refresh(target.currentHealth, target.maxHealth);
     }
 
-    void Refresh(int current, int max)
+    void Update()
     {
-        if (fill != null) fill.fillAmount = max > 0 ? (float)current / max : 0f;
+        if (target == null || fill == null) return;
+        fill.fillAmount = target.maxHealth > 0 ? (float)target.currentHealth / target.maxHealth : 0f;
     }
 
     void HandleDeath()

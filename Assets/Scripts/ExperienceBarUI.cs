@@ -1,32 +1,19 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Small bar + "Niveau X" label, same bound-event pattern as StaminaBarUI/HeartHUD. There was no
-// XP/level visual at all before this - PlayerStats.level only fed dialogue proficiency checks
-// silently.
+// Small bar + "Niveau X" label. Polls every frame instead of subscribing to PlayerStats.
+// OnExperienceChanged - see StaminaBarUI for why (a Play Mode domain reload silently drops event
+// subscriptions without ever re-running Start()).
 public class ExperienceBarUI : MonoBehaviour
 {
     public PlayerStats target;
     public Image fill;
     public Text label;
 
-    void Start()
+    void Update()
     {
-        if (target != null)
-        {
-            target.OnExperienceChanged += Refresh;
-            Refresh(target.experience, target.experienceToNextLevel, target.level);
-        }
-    }
-
-    void OnDestroy()
-    {
-        if (target != null) target.OnExperienceChanged -= Refresh;
-    }
-
-    void Refresh(int current, int max, int level)
-    {
-        if (fill != null) fill.fillAmount = max > 0 ? (float)current / max : 0f;
-        if (label != null) label.text = "Niveau " + level;
+        if (target == null) return;
+        if (fill != null) fill.fillAmount = target.experienceToNextLevel > 0 ? (float)target.experience / target.experienceToNextLevel : 0f;
+        if (label != null) label.text = "Niveau " + target.level;
     }
 }
