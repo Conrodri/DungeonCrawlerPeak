@@ -16,8 +16,12 @@ public class MainMenuController : MonoBehaviour
     {
         // A leftover DungeonRoot only exists here because Dungeon/Generate Floor (an Editor-only
         // preview shortcut) baked one into the scene - a real launch always starts at the menu.
+        // DestroyImmediate, not Destroy: Destroy is deferred to end of frame, so BuildUI()'s
+        // GameObject.Find("EventSystem") check right below would still find the old root's
+        // EventSystem (about to be destroyed along with it), skip creating a new one, and leave
+        // the scene with none at all once the deferred destroy actually runs - nothing clickable.
         GameObject existingRoot = GameObject.Find("DungeonRoot");
-        if (existingRoot != null) Destroy(existingRoot);
+        if (existingRoot != null) DestroyImmediate(existingRoot);
 
         BuildUI();
     }
