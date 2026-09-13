@@ -1059,6 +1059,199 @@ public static class DungeonGenerator
             newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>());
     }
 
+    const int TutorialRoomWidth = RoomWidth;
+    const int TutorialRoomHeight = RoomHeight;
+
+    // A single hand-built room, not the procedural generator - kill the one Zombie, the Guide
+    // appears and the portal (a Staircase, reused as-is) unblocks, and walking onto it Descend()s
+    // straight into floor 1 with CurrentFloor starting at 0 here. Deliberately skips everything a
+    // real floor has that isn't needed yet: no items exist, so no inventory/hotbar/minimap/gold UI;
+    // no floor timer/stairs lock either, since this room isn't a real floor.
+    public static void BuildTutorial(int seed)
+    {
+        Random.InitState(seed);
+        CurrentSeed = seed;
+        CurrentFloor = 0;
+
+        Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
+        Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
+        Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
+        Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
+
+        Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
+        Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
+        Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
+        Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
+        Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
+        Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+        Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
+        Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
+        Sprite fullHeart = LoadIconPackSprite("Heart02_Bright");
+        Sprite halfHeart = LoadIconPackSprite("Heart01_Bright");
+        Sprite emptyHeart = LoadIconPackSprite("Heart01_Bright");
+
+        GameObject existingRoot = GameObject.Find("DungeonRoot");
+        if (existingRoot != null) Object.DestroyImmediate(existingRoot);
+        GameObject root = new GameObject("DungeonRoot");
+
+        GameObject gridGO = new GameObject("Grid", typeof(Grid));
+        gridGO.transform.SetParent(root.transform);
+
+        GameObject floorGO = new GameObject("Floor", typeof(Tilemap), typeof(TilemapRenderer));
+        floorGO.transform.SetParent(gridGO.transform);
+        floorGO.GetComponent<TilemapRenderer>().sortingOrder = -1;
+
+        GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D));
+        wallsGO.transform.SetParent(gridGO.transform);
+        wallsGO.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Individual;
+        wallsGO.GetComponent<TilemapRenderer>().sortingOrder = 0;
+        wallsGO.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+
+        Tilemap floorMap = floorGO.GetComponent<Tilemap>();
+        Tilemap wallsMap = wallsGO.GetComponent<Tilemap>();
+        wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
+
+        BuildRoomGeometry(0, 0, floorMap, wallsMap, floorTile, wallTile);
+
+        Vector2 roomOrigin = Vector2.zero;
+        Vector2 roomCenter = new Vector2(TutorialRoomWidth / 2f, TutorialRoomHeight / 2f);
+        Vector2 startWorld = roomOrigin + new Vector2(3f, TutorialRoomHeight / 2f);
+
+        // --- Player ---
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(StatusIconDisplay), typeof(PlayerController));
+        player.transform.SetParent(root.transform);
+        player.transform.position = startWorld;
+        player.tag = "Player";
+
+        player.GetComponent<SpriteRenderer>().sprite = playerSprite;
+        Rigidbody2D playerBody = player.GetComponent<Rigidbody2D>();
+        playerBody.gravityScale = 0f;
+        playerBody.constraints = RigidbodyConstraints2D.FreezeRotation;
+        player.GetComponent<CircleCollider2D>().radius = 0.4f;
+
+        PlayerController playerController = player.GetComponent<PlayerController>();
+        playerController.projectileSprite = projectileSprite;
+        playerController.fistVisualSprite = fistVisualSprite;
+        playerController.swordVisualSprite = swordVisualSprite;
+        playerController.explosionSprite = explosionSprite;
+
+        Health playerHealth = player.GetComponent<Health>();
+        playerHealth.maxHealth = 6;
+        playerHealth.currentHealth = playerHealth.maxHealth;
+
+        // --- Camera: fixed on the one room, no per-room scrolling needed ---
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            cam.orthographic = true;
+            cam.orthographicSize = TutorialRoomHeight / 2f;
+            cam.transform.position = new Vector3(roomCenter.x, roomCenter.y, cam.transform.position.z);
+            cam.transparencySortMode = TransparencySortMode.CustomAxis;
+            cam.transparencySortAxis = new Vector3(0f, 1f, 0f);
+        }
+
+        // --- UI: Canvas + EventSystem + the one HUD piece that matters here (hearts) ---
+        GameObject canvasGO = new GameObject("Canvas", typeof(Canvas), typeof(GraphicRaycaster));
+        canvasGO.transform.SetParent(root.transform);
+        canvasGO.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+
+        GameObject eventSystemGO = GameObject.Find("EventSystem");
+        if (eventSystemGO == null) eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        eventSystemGO.transform.SetParent(root.transform);
+
+        GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
+        hudGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform hudRect = hudGO.GetComponent<RectTransform>();
+        hudRect.anchorMin = Vector2.zero;
+        hudRect.anchorMax = Vector2.one;
+        hudRect.offsetMin = Vector2.zero;
+        hudRect.offsetMax = Vector2.zero;
+
+        HeartHUD hud = hudGO.GetComponent<HeartHUD>();
+        hud.target = playerHealth;
+        hud.fullHeart = fullHeart;
+        hud.halfHeart = halfHeart;
+        hud.emptyHeart = emptyHeart;
+        hud.fullColor = new Color(0.85f, 0.15f, 0.2f);
+        hud.halfColor = new Color(0.85f, 0.15f, 0.2f);
+        hud.emptyColor = new Color(0.4f, 0.38f, 0.4f);
+        hud.maxHeartSlots = playerHealth.maxHealth / 2;
+
+        // --- The one Zombie standing between the player and the portal ---
+        GameObject roomGO = new GameObject("TutorialRoom", typeof(RoomController));
+        roomGO.transform.SetParent(root.transform);
+
+        RoomController.EnemyPresetEntry[] presets =
+        {
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false },
+        };
+        RoomController.EnemySpawn[] recipe =
+        {
+            new RoomController.EnemySpawn { localOffset = new Vector2(TutorialRoomWidth - 7f, TutorialRoomHeight / 2f), type = EnemyType.Zombie, modifier = EliteModifier.None },
+        };
+
+        RoomController controller = roomGO.GetComponent<RoomController>();
+        controller.gridPos = Vector2Int.zero;
+        controller.memberCells = new[] { Vector2Int.zero };
+        controller.roomOrigin = roomOrigin;
+        controller.roomSize = new Vector2(TutorialRoomWidth, TutorialRoomHeight);
+        controller.player = player.transform;
+        controller.presets = presets;
+        controller.recipe = recipe;
+
+        // --- The portal: physically blocked (plain solid barrier, not a DoorBlocker - a bomb
+        // shouldn't let anyone skip the one tutorial fight) until the Zombie dies ---
+        Vector2 portalPos = roomOrigin + new Vector2(TutorialRoomWidth - 3f, TutorialRoomHeight / 2f);
+
+        GameObject blocker = new GameObject("TutorialPortalBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D));
+        blocker.transform.SetParent(roomGO.transform);
+        blocker.transform.position = portalPos;
+        SpriteRenderer blockerRenderer = blocker.GetComponent<SpriteRenderer>();
+        blockerRenderer.sprite = doorBarrierSprite;
+        blockerRenderer.sortingOrder = 1;
+        blocker.GetComponent<BoxCollider2D>().size = Vector2.one;
+        controller.doorBlockers.Add(blocker);
+
+        GameObject portalGO = new GameObject("TutorialPortal", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(Staircase));
+        portalGO.transform.SetParent(roomGO.transform);
+        portalGO.transform.position = portalPos;
+        SpriteRenderer portalRenderer = portalGO.GetComponent<SpriteRenderer>();
+        portalRenderer.sprite = stairsMarker;
+        portalRenderer.sortingOrder = 0;
+        CircleCollider2D portalTrigger = portalGO.GetComponent<CircleCollider2D>();
+        portalTrigger.isTrigger = true;
+        portalTrigger.radius = 0.8f;
+        portalGO.GetComponent<Staircase>().lockType = StairsLockType.Open;
+
+        // --- The Guide: appears only once the Zombie is dead ---
+        Vector2 npcPos = roomOrigin + new Vector2(TutorialRoomWidth - 7f, TutorialRoomHeight / 2f + 2.5f);
+        controller.OnRoomCleared += _ => SpawnTutorialNpc(npcPos, npcSprite, root.transform);
+    }
+
+    static void SpawnTutorialNpc(Vector2 position, Sprite sprite, Transform parent)
+    {
+        GameObject go = new GameObject("TutorialGuide", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(TutorialNpc));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.2f;
+
+        TutorialNpc npc = go.GetComponent<TutorialNpc>();
+        npc.npcName = "Le Guide";
+        npc.bodyText =
+            "Bienvenue dans la Fosse, crawler.\n\n" +
+            "Chaque etage est chronometre : 10 minutes pour trouver l'escalier et descendre, " +
+            "sans quoi le sol s'effondre et vous tue. Certains escaliers se trouvent juste en " +
+            "explorant, d'autres exigent de battre un boss, d'actionner un levier ou d'attendre.\n\n" +
+            "Combattez, pillez, equipez-vous, et descendez aussi loin que possible. " +
+            "Le portail derriere moi vous mene au premier etage.";
+    }
+
     // Rolls this floor's lock flavour and builds the physical staircase - the sole way down.
     // BossKill/Lever/Timed each gate the same blocker; Open has none (still has to be found, since
     // Stairs is hidden on the minimap until visited just like Secret - see MinimapController).

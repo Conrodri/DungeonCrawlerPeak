@@ -23,6 +23,19 @@ public static class DungeonBootstrap
         AssetDatabase.Refresh();
     }
 
+    [MenuItem("Dungeon/Generate Tutorial Room")]
+    public static void BuildTutorial()
+    {
+        Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity");
+
+        DungeonGenerator.BuildTutorial(Random.Range(int.MinValue, int.MaxValue));
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+    }
+
     // Only needs re-running if the icon pack atlas itself changes - the resulting asset is a
     // normal committed project asset, not regenerated on every floor.
     [MenuItem("Dungeon/Rebuild Icon Pack Data")]

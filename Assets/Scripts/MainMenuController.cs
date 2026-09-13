@@ -206,7 +206,9 @@ public class MainMenuController : MonoBehaviour
 
     void OnNewGame()
     {
-        DungeonGenerator.Build(Random.Range(int.MinValue, int.MaxValue));
+        // A brand new run always starts in the tutorial room, not straight into floor 1 - see
+        // DungeonGenerator.BuildTutorial. "Continuer" skips it (a resumed save is already past it).
+        DungeonGenerator.BuildTutorial(Random.Range(int.MinValue, int.MaxValue));
         Destroy(menuCanvas);
     }
 
