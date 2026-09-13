@@ -114,6 +114,9 @@ public static class DungeonGenerator
     // Which Souls-like floor this is (1 = the first). Persisted alongside the seed so "Continuer"
     // and the Tavernier's save resume on the right floor, not always floor 1.
     public static int CurrentFloor { get; private set; } = 1;
+    // Purely visual per-floor theme (see BiomeTheme) - rolled fresh every Build(), not persisted
+    // across a save/continue, since it's re-derived from the seed the same way the layout is.
+    public static Biome CurrentBiome { get; private set; }
 
     public static void Build(int seed, int floor = 1)
     {
@@ -121,8 +124,12 @@ public static class DungeonGenerator
         CurrentFloor = floor;
         Random.InitState(seed);
 
-        Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
-        Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
+        Biome biome = (Biome)Random.Range(0, 6);
+        CurrentBiome = biome;
+        BiomeTheme biomeTheme = BiomeTheme.Get(biome);
+
+        Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
+        Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", biomeTheme.wallFaceColor, biomeTheme.wallTopColor, biomeTheme.wallEdgeColor);
         Sprite playerSprite = CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
         Sprite zombieSprite = CreateCircleSprite("Assets/Art/Enemies/Zombie.png", new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateCircleSprite("Assets/Art/Enemies/ChauveSouris.png", new Color(0.3f, 0.15f, 0.35f));
@@ -658,6 +665,22 @@ public static class DungeonGenerator
         // A collapsing floor is an unavoidable death, unlike ordinary damage - bypasses dodge/i-frames.
         floorTimer.OnCollapse += () => { Debug.Log("Le sol s'effondre !"); playerHealth.Kill(); };
 
+        // Floor + biome identity, right above the countdown - a Souls-like floor should announce
+        // itself the way Dungeon Crawler Carl's do (named, themed), not just be a color swap.
+        GameObject floorInfoLabelGO = new GameObject("FloorInfoLabel", typeof(Text));
+        floorInfoLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text floorInfoLabel = floorInfoLabelGO.GetComponent<Text>();
+        floorInfoLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 22);
+        floorInfoLabel.fontSize = 22;
+        floorInfoLabel.alignment = TextAnchor.MiddleCenter;
+        floorInfoLabel.color = new Color(0.85f, 0.85f, 0.9f);
+        floorInfoLabel.text = "Etage " + floor + " - " + biomeTheme.displayName;
+        RectTransform floorInfoLabelRect = floorInfoLabel.rectTransform;
+        floorInfoLabelRect.anchorMin = floorInfoLabelRect.anchorMax = new Vector2(0.5f, 1f);
+        floorInfoLabelRect.pivot = new Vector2(0.5f, 1f);
+        floorInfoLabelRect.anchoredPosition = new Vector2(0f, -20f);
+        floorInfoLabelRect.sizeDelta = new Vector2(320f, 30f);
+
         GameObject floorTimerLabelGO = new GameObject("FloorTimerLabel", typeof(Text));
         floorTimerLabelGO.transform.SetParent(canvasGO.transform, false);
         Text floorTimerLabel = floorTimerLabelGO.GetComponent<Text>();
@@ -668,7 +691,7 @@ public static class DungeonGenerator
         RectTransform floorTimerLabelRect = floorTimerLabel.rectTransform;
         floorTimerLabelRect.anchorMin = floorTimerLabelRect.anchorMax = new Vector2(0.5f, 1f);
         floorTimerLabelRect.pivot = new Vector2(0.5f, 1f);
-        floorTimerLabelRect.anchoredPosition = new Vector2(0f, -20f);
+        floorTimerLabelRect.anchoredPosition = new Vector2(0f, -54f);
         floorTimerLabelRect.sizeDelta = new Vector2(160f, 44f);
 
         FloorTimerUI floorTimerUI = floorTimerLabelGO.AddComponent<FloorTimerUI>();
