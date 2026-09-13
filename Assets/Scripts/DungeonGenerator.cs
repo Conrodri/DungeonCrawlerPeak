@@ -276,8 +276,9 @@ public static class DungeonGenerator
             "Restaure un peu de vie.", healAmount: 3);
 
         Sprite cerberusCollarSprite = CreateSolidSprite("Assets/Art/Items/CerberusCollar.png", new Color(0.75f, 0.6f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Misc, 1, cerberusCollarSprite,
-            "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.");
+        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
+            "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
+            isEquipment: true, equipmentSlot: EquipmentSlotType.Neck);
 
         // Crafting materials - guaranteed drops from the matching decor material (see
         // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
@@ -901,6 +902,16 @@ public static class DungeonGenerator
         inventoryUI.slotSize = 72f;
         inventoryUI.spacing = 84f;
         inventoryUI.fontSize = 32;
+
+        // The inventory panel's full-screen dimming background sits above the hotbar in the
+        // canvas (built earlier, so an earlier/lower sibling) and defaults to blocking raycasts
+        // like any other Image - with the panel open, a drag released over the hotbar hit that
+        // background first and never reached HotbarUI's own slots underneath, so nothing could
+        // ever be dropped there. Bumping the hotbar to a later sibling than the inventory panel
+        // (but still before every full-screen overlay built after this point - pause/death/etc.,
+        // which should stay on top of everything including the hotbar) fixes the raycast order
+        // without touching the panel's own dimming.
+        hotbarGO.transform.SetAsLastSibling();
 
         // --- Minimap (top-right): adjacent rooms half-reveal, entered rooms fully reveal ---
         GameObject minimapGO = new GameObject("Minimap", typeof(RectTransform), typeof(MinimapController));
