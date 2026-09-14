@@ -524,6 +524,7 @@ public static class DungeonGenerator
         Sprite chauveSourisSprite = CreateMaskedSprite("Assets/Art/Enemies/ChauveSouris.png", ChauveSourisMask, new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateMaskedSprite("Assets/Art/Enemies/Larve.png", LarveMask, new Color(0.8f, 0.85f, 0.5f));
         Sprite bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
+        Sprite bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
         Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
         Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
@@ -1032,7 +1033,7 @@ public static class DungeonGenerator
                 BossTierStats tierStats = BossTierStatsFor(tier, CurrentFloor);
 
                 SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
-                    family, tier, tierStats, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
+                    family, tier, tierStats, bossProjectileSprite, bossSlobberPuddleSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
             }
             else
             {
@@ -3970,7 +3971,7 @@ public static class DungeonGenerator
     }
 
     static void SetupBossRoom(Vector2Int gridPos, List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
-        BossFamily family, BossTier tier, BossTierStats stats, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
+        BossFamily family, BossTier tier, BossTierStats stats, Sprite bossProjectileSprite, Sprite bossSlobberPuddleSprite, Sprite doorBarrierSprite,
         List<(Vector2 pos, bool onVerticalWall)> doors, List<BossRoomController> controllers, bool startDefeated)
     {
         Vector2 roomOrigin = new Vector2(originX, originY);
@@ -4018,6 +4019,14 @@ public static class DungeonGenerator
         boss.volleyDamage = stats.volleyDamage;
         boss.volleyProjectileCount = stats.volleyCount;
         boss.moveSpeed = stats.moveSpeed;
+
+        // Only the Cave family has a bespoke kit so far (see BossController.useCerbereAttacks) -
+        // every other family keeps the generic charge+volley pattern above.
+        if (CurrentBiome == Biome.Cave)
+        {
+            boss.useCerbereAttacks = true;
+            boss.slobberPuddleSprite = bossSlobberPuddleSprite;
+        }
 
         List<BossModifier> modifiers = RollBossModifiers(tier);
         string modifierTags = ApplyBossModifiers(boss, health, bossStatusIcons, modifiers);

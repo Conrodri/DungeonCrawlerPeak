@@ -30,6 +30,29 @@ public class BossController : MonoBehaviour
     public float rageSpeedMultiplier = 1.5f;
     public float rageCooldownMultiplier = 0.6f;
 
+    [Header("Cerbere Kit")]
+    // Set by DungeonGenerator.SetupBossRoom for the Cave family only - every other family keeps
+    // the generic charge+volley pattern above. An explicit switch rather than a subclass per
+    // family: the Cerbere spec is the only one detailed so far (see the 2026-09-14 request), and
+    // this keeps the door open for a future family's own kit without forcing one on families that
+    // don't have one yet.
+    public bool useCerbereAttacks;
+    // 3 short lunges in a row, each one a bite that advances the boss (reuses charging/
+    // chargeDirection/chargeEndTime below, just fired chainBiteCount times with a short gap
+    // between each instead of once) - "3 morsures en chaine qui le fait avancer".
+    public int chainBiteCount = 3;
+    public float chainBiteGap = 0.35f;
+    public float chainBiteCooldownMin = 3f;
+    public float chainBiteCooldownMax = 4f;
+    // Spits toward the player's current position, dropping a slowing puddle there instead of a
+    // damaging projectile - "un crachat de bave pour mettre une flaque au sol ralentissante".
+    public Sprite slobberPuddleSprite;
+    public float slobberCooldown = 5f;
+    public float slobberRange = 6f;
+    public float slobberSlowMultiplier = 0.5f;
+    public float slobberSlowDuration = 3f;
+    public float slobberPuddleLifetime = 5f;
+
     [Header("Modifiers")]
     // Vampirique (see BossModifier/DungeonGenerator.ApplyBossModifiers) - fraction of contact
     // damage healed back on every landed hit. 0 = no modifier. Volley hits don't trigger this -
@@ -52,6 +75,14 @@ public class BossController : MonoBehaviour
     float chargeEndTime;
     bool enraged;
 
+    // Cerbere-only state (see useCerbereAttacks) - chainBitesLeft counts the bites still due after
+    // the one currently charging/gapping; nextChainBiteCooldown is re-rolled each cycle (3-4s).
+    int chainBitesLeft;
+    float nextBiteTime;
+    float lastChainBiteTime = -999f;
+    float nextChainBiteCooldown;
+    float lastSlobberTime = -999f;
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -59,6 +90,7 @@ public class BossController : MonoBehaviour
         bodyCollider = GetComponent<CircleCollider2D>();
         health.OnDeath += HandleDeath;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        nextChainBiteCooldown = UnityEngine.Random.Range(chainBiteCooldownMin, chainBiteCooldownMax);
     }
 
     public void SetTarget(Transform t) => target = t;
@@ -74,12 +106,25 @@ public class BossController : MonoBehaviour
         if (charging)
         {
             rb.linearVelocity = chargeDirection * chargeSpeed;
-            if (Time.time >= chargeEndTime) charging = false;
+            if (Time.time >= chargeEndTime)
+            {
+                charging = false;
+                // Mid-chain (see useCerbereAttacks) - the gap below fires the next bite instead of
+                // falling through to a fresh charge/volley decision.
+                if (chainBitesLeft > 0) nextBiteTime = Time.time + chainBiteGap;
+            }
             return;
         }
 
         Vector2 toTarget = (Vector2)target.position - rb.position;
         Vector2 dir = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : Vector2.zero;
+
+        if (useCerbereAttacks)
+        {
+            CerbereFixedUpdate(dir, cooldownScale);
+            return;
+        }
+
         rb.linearVelocity = dir * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
 
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
@@ -92,6 +137,53 @@ public class BossController : MonoBehaviour
             lastVolleyTime = Time.time;
             FireVolley();
         }
+    }
+
+    // Chain bite reuses StartCharge/charging above (a bite IS a short lunge that also lands
+    // contact damage via TryContactDamage on collision) fired chainBiteCount times with a short
+    // gap between each, instead of once. Between chains and outside the spit's own cooldown, it
+    // just chases like the generic pattern does.
+    void CerbereFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        if (chainBitesLeft > 0)
+        {
+            if (Time.time < nextBiteTime)
+            {
+                rb.linearVelocity = Vector2.zero;
+                return;
+            }
+            chainBitesLeft--;
+            StartCharge(dirToTarget);
+            return;
+        }
+
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastChainBiteTime >= nextChainBiteCooldown * cooldownScale)
+        {
+            lastChainBiteTime = Time.time;
+            nextChainBiteCooldown = UnityEngine.Random.Range(chainBiteCooldownMin, chainBiteCooldownMax);
+            chainBitesLeft = chainBiteCount - 1;
+            StartCharge(dirToTarget);
+        }
+        else if (Time.time - lastSlobberTime >= slobberCooldown * cooldownScale)
+        {
+            lastSlobberTime = Time.time;
+            SpitSlobber();
+        }
+    }
+
+    void SpitSlobber()
+    {
+        if (target == null) return;
+        Vector2 toTarget = (Vector2)target.position - rb.position;
+        float dist = Mathf.Min(slobberRange, toTarget.magnitude);
+        Vector2 spawnPos = rb.position + (toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : Vector2.zero) * dist;
+
+        GameObject puddle = SlowPuddle.SpawnAt(spawnPos, slobberPuddleSprite, slobberSlowMultiplier, slobberSlowDuration, slobberPuddleLifetime);
+        // Same parent as the boss itself (DungeonRoot) - otherwise it leaks across floors like the
+        // corpse/pickup leaks fixed earlier (see Corpse.SpawnAt's callers).
+        puddle.transform.SetParent(transform.parent);
     }
 
     void LateUpdate()

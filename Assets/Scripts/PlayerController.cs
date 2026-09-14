@@ -88,6 +88,16 @@ public class PlayerController : MonoBehaviour
     Vector2 aimDirection = Vector2.down;
     float lastAttackTime = -999f;
     float lastThrowTime = -999f;
+    // Selected via the hotbar (see UseItem) but not yet thrown - the next direction key press is
+    // what actually launches it (see Update's aim-key handling / ThrowArmedItem), instead of the
+    // old "hotbar key = instant throw in whatever direction you already happened to be aiming".
+    string armedThrowItemId;
+    const string ArmedThrowIconKey = "ArmedThrow";
+    // See ApplySlow (e.g. BossController's Cerbere slobber puddle) - a temporary multiplier on top
+    // of the normal speed calc, same "take the strongest, extend the duration" pattern as
+    // ApplyMovementDebuff below.
+    float slowMultiplier = 1f;
+    float slowEndTime = -999f;
     bool isDead;
     bool isSprinting;
     bool isRolling;
@@ -187,10 +197,11 @@ public class PlayerController : MonoBehaviour
         // sprint stops), but attacking/hotbar are not - can't fight with your weapon out while
         // running, same as the roll's commitment above.
         Vector2 aim = Vector2.zero;
-        if (kb.upArrowKey.isPressed) aim = Vector2.up;
-        else if (kb.downArrowKey.isPressed) aim = Vector2.down;
-        else if (kb.leftArrowKey.isPressed) aim = Vector2.left;
-        else if (kb.rightArrowKey.isPressed) aim = Vector2.right;
+        bool directionPressedThisFrame = false;
+        if (kb.upArrowKey.isPressed) { aim = Vector2.up; directionPressedThisFrame = kb.upArrowKey.wasPressedThisFrame; }
+        else if (kb.downArrowKey.isPressed) { aim = Vector2.down; directionPressedThisFrame = kb.downArrowKey.wasPressedThisFrame; }
+        else if (kb.leftArrowKey.isPressed) { aim = Vector2.left; directionPressedThisFrame = kb.leftArrowKey.wasPressedThisFrame; }
+        else if (kb.rightArrowKey.isPressed) { aim = Vector2.right; directionPressedThisFrame = kb.rightArrowKey.wasPressedThisFrame; }
 
         if (aim != Vector2.zero) aimDirection = aim;
 
@@ -198,7 +209,16 @@ public class PlayerController : MonoBehaviour
         // still can't fight with their weapon out while running.
         if (isSprinting && (skills == null || !skills.CanAttackWhileSprinting)) return;
 
-        if (aim != Vector2.zero) TryAttack();
+        if (armedThrowItemId != null)
+        {
+            // The direction press itself is the throw, not a melee swing - TryAttack is skipped
+            // entirely while something is armed (see UseItem).
+            if (directionPressedThisFrame) ThrowArmedItem();
+        }
+        else if (aim != Vector2.zero)
+        {
+            TryAttack();
+        }
 
         // Hotbar: reads whatever the player actually assigned to each slot (drag & drop, feature
         // 2) instead of assuming the starting loadout.
@@ -231,6 +251,7 @@ public class PlayerController : MonoBehaviour
         // Applies whether sprinting or just walking - a broken leg slows you down outright, on top
         // of sprinting on it also costing health (see Update's sprint block).
         if (HasBrokenLeg) speedMultiplier *= 0.5f;
+        if (Time.time < slowEndTime) speedMultiplier *= slowMultiplier;
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
     }
 
@@ -259,6 +280,16 @@ public class PlayerController : MonoBehaviour
     {
         isRolling = false;
         health.SetInvulnerable(false);
+    }
+
+    // Called by a floor hazard (e.g. BossController's Cerbere slobber puddle, see SlowPuddle) while
+    // the player stands in it - takes the strongest active slow and the longer remaining duration,
+    // same reasoning as ApplyMovementDebuff below, so re-ticking every physics step while standing
+    // in the puddle doesn't let the effect flicker off between ticks.
+    public void ApplySlow(float multiplier, float duration)
+    {
+        if (Time.time >= slowEndTime || multiplier < slowMultiplier) slowMultiplier = multiplier;
+        slowEndTime = Mathf.Max(slowEndTime, Time.time + duration);
     }
 
     const string MovementDebuffIconKey = "MovementDebuff";
@@ -356,12 +387,6 @@ public class PlayerController : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemId)) return;
 
-        if (itemId == ItemIds.Bomb)
-        {
-            TryThrowBomb();
-            return;
-        }
-
         ItemDefinition definition = ItemDatabase.Get(itemId);
         if (definition != null && definition.HealAmount > 0)
         {
@@ -369,7 +394,28 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        TryThrow(itemId);
+        // A throwable (bomb included) no longer fires the instant its hotbar slot is pressed - it
+        // arms instead, and the next direction press is what throws it (see Update). Re-selecting
+        // the same slot while already armed cancels it.
+        if (armedThrowItemId == itemId)
+        {
+            armedThrowItemId = null;
+            if (statusIcons != null) statusIcons.HideIcon(ArmedThrowIconKey);
+            return;
+        }
+
+        armedThrowItemId = itemId;
+        if (statusIcons != null) statusIcons.ShowIcon(ArmedThrowIconKey, definition != null ? definition.Icon : null);
+    }
+
+    void ThrowArmedItem()
+    {
+        string itemId = armedThrowItemId;
+        armedThrowItemId = null;
+        if (statusIcons != null) statusIcons.HideIcon(ArmedThrowIconKey);
+
+        if (itemId == ItemIds.Bomb) TryThrowBomb();
+        else TryThrow(itemId);
     }
 
     void UsePotion(string itemId, int healAmount)
@@ -522,6 +568,8 @@ public class PlayerController : MonoBehaviour
     void HandleDeath()
     {
         isDead = true;
+        armedThrowItemId = null;
+        if (statusIcons != null) statusIcons.HideIcon(ArmedThrowIconKey);
         // A save is only ever a "come back later" convenience - it must never survive death,
         // or a player could just relaunch the game to undo dying (save-scumming).
         SaveManager.DeleteSave();
