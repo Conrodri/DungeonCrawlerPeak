@@ -26,6 +26,14 @@ public class RoomCameraController : MonoBehaviour
 
     public event Action<Vector2Int> OnRoomEntered;
 
+    // This component lives on the persistent Main Camera, reused across every floor rebuild
+    // (DungeonGenerator.Build only ever destroys/recreates DungeonRoot, never the camera) - a bare
+    // event has no owning object to unsubscribe it automatically, unlike RoomController/
+    // BossRoomController's own subscriptions (cleaned up in their OnDestroy). DungeonGenerator.Build
+    // calls this before re-wiring its own listeners each floor, so a previous floor's inline
+    // lambda (capturing a UI object already destroyed along with the old Canvas) never lingers.
+    public void ClearListeners() => OnRoomEntered = null;
+
     Camera cam;
     Rect currentRoomRect;
     bool hasRoom;

@@ -1100,6 +1100,14 @@ public static class DungeonGenerator
 
             roomCam = cam.GetComponent<RoomCameraController>();
             if (roomCam == null) roomCam = cam.gameObject.AddComponent<RoomCameraController>();
+            // This component lives on the persistent Main Camera, reused across every floor - but
+            // OnRoomEntered is a bare C# event with no owning object to unsubscribe it, unlike
+            // RoomController/BossRoomController's own subscriptions (cleaned up in their OnDestroy).
+            // Without clearing it here, the previous floor's inline lambda below (and its captured
+            // RoomAnnouncementUI, already destroyed along with the old DungeonRoot/Canvas) stayed
+            // subscribed forever - every future OnRoomEntered fired ALL of them, crashing with
+            // MissingReferenceException the first time this floor's camera crossed a room boundary.
+            roomCam.ClearListeners();
             roomCam.target = player.transform;
             roomCam.rooms = roomEntries.ToArray();
 
