@@ -297,8 +297,12 @@ public class DialogueManager : MonoBehaviour
         if (outcome.savesGame)
         {
             if (playerHealth != null) playerHealth.Heal(playerHealth.maxHealth);
+            // A rest is also the one way to fix a broken limb outright (see PlayerLimbs.RepairAll)
+            // - a normal Heal() above only tops up limbs that aren't already at 0.
+            PlayerLimbs playerLimbs = playerHealth != null ? playerHealth.GetComponent<PlayerLimbs>() : null;
+            if (playerLimbs != null) playerLimbs.RepairAll();
             SaveManager.Save(DungeonGenerator.CurrentSeed, DungeonGenerator.CurrentFloor, playerInventory, playerStats, playerHealth, playerStamina, playerController,
-                playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor);
+                playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor, playerLimbs);
         }
 
         // Not closed here directly - Resolve()/ResolveKeepOpen() already schedule the dialogue

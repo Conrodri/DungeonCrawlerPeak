@@ -21,15 +21,20 @@ public class Health : MonoBehaviour
     public event Action OnDodged;
 
     bool isDead;
-    // Null for enemies/destructibles - only the player carries a PlayerLimbs. Cached once instead
-    // of a GetComponent call on every hit.
-    PlayerLimbs limbs;
 
     void Awake()
     {
         currentHealth = maxHealth;
-        limbs = GetComponent<PlayerLimbs>();
     }
+
+    // NOT cached in Awake on purpose - a real bug caught via eval on the live Editor: Health is
+    // listed BEFORE PlayerLimbs in DungeonGenerator's player GameObject constructor, and Unity
+    // calls Awake() synchronously per-AddComponent as each type in that list is attached, so a
+    // GetComponent<PlayerLimbs>() from inside Health.Awake() ran before PlayerLimbs existed on the
+    // object yet and silently cached null forever - the entire hit-location/armor-mitigation
+    // system from earlier this session was dead in real gameplay because of it. A plain on-demand
+    // GetComponent per hit/heal (never a hot path) sidesteps the whole class of ordering bugs.
+    PlayerLimbs Limbs => GetComponent<PlayerLimbs>();
 
     public void SetInvulnerable(bool value)
     {
@@ -52,6 +57,10 @@ public class Health : MonoBehaviour
         if (amount <= 0 || isDead) return;
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
+        // A broken limb (see PlayerLimbs/LimbState) doesn't come back from a normal heal - null
+        // for enemies/destructibles, so this has no effect on them.
+        PlayerLimbs limbs = Limbs;
+        if (limbs != null) limbs.HealNonBroken(amount);
     }
 
     // Entry point for a directed enemy/boss attack (contact or projectile) as opposed to an
@@ -61,6 +70,7 @@ public class Health : MonoBehaviour
     // have no EnemyType and so roll a fully random body part (see PlayerLimbs.RollTarget).
     public void TakeDamageFromEnemy(int amount, EnemyType? attackerType)
     {
+        PlayerLimbs limbs = Limbs;
         if (limbs != null) amount = limbs.MitigateHit(attackerType, amount);
         TakeDamage(amount);
     }

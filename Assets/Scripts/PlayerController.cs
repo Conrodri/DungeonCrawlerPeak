@@ -26,6 +26,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Weapon")]
     public WeaponType currentWeapon = WeaponType.Fist;
+    // Which arm currently wields currentWeapon (Fist/Sword/Staff all count - you're still
+    // swinging/aiming with a hand either way) - toggled with H (SwitchWeaponHand). See
+    // PlayerLimbs/LimbState: a broken weaponHand blocks TryAttack entirely until the player either
+    // switches to the other arm or gets it repaired (Tavernier "Se reposer").
+    public BodyPart weaponHand = BodyPart.ArmRight;
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;
     public Sprite swordVisualSprite;
@@ -76,6 +81,7 @@ public class PlayerController : MonoBehaviour
     PlayerEquipment equipment;
     PlayerStats stats;
     PlayerSkills skills;
+    PlayerLimbs limbs;
     CircleCollider2D bodyCollider;
     StatusIconDisplay statusIcons;
     Vector2 moveInput;
@@ -90,6 +96,11 @@ public class PlayerController : MonoBehaviour
     Vector2 rollDirection;
     // Set by Hole.OnTriggerEnter2D - blocks sprint/roll until this timestamp.
     float movementDebuffEndTime = -999f;
+    // See HasBrokenLeg/FixedUpdate (-50% speed) and Update's sprint block (1 damage/second while
+    // sprinting on it) - explicit request, not from the original vision doc's "membres casses".
+    const float SprintInjuryInterval = 1f;
+    float lastSprintInjuryTime = -999f;
+    bool HasBrokenLeg => limbs != null && (limbs.IsBroken(BodyPart.LegLeft) || limbs.IsBroken(BodyPart.LegRight));
 
     void Awake()
     {
@@ -104,6 +115,7 @@ public class PlayerController : MonoBehaviour
         equipment = GetComponent<PlayerEquipment>();
         stats = GetComponent<PlayerStats>();
         skills = GetComponent<PlayerSkills>();
+        limbs = GetComponent<PlayerLimbs>();
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
@@ -137,6 +149,8 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        if (kb.hKey.wasPressedThisFrame) SwitchWeaponHand();
+
         // Movement: WASD only (ZQSD on an AZERTY layout maps to the same physical keys).
         float x = 0f;
         float y = 0f;
@@ -155,6 +169,15 @@ public class PlayerController : MonoBehaviour
             float staminaCostMultiplier = skills != null ? skills.SprintStaminaCostMultiplier : 1f;
             stamina.Drain(sprintStaminaCostPerSecond * staminaCostMultiplier * Time.deltaTime);
             if (skills != null) skills.AddUsage(SkillType.Sprint, Time.deltaTime);
+
+            // Sprinting on a broken leg re-injures it every second instead of just being slower
+            // (see HasBrokenLeg/FixedUpdate's -50% speed) - explicit request: running on a broken
+            // leg should cost you, not just be sluggish.
+            if (HasBrokenLeg && Time.time - lastSprintInjuryTime >= SprintInjuryInterval)
+            {
+                health.TakeDamage(1);
+                lastSprintInjuryTime = Time.time;
+            }
         }
 
         if (kb.spaceKey.wasPressedThisFrame) TryRoll();
@@ -205,6 +228,9 @@ public class PlayerController : MonoBehaviour
 
         float sprintBonus = skills != null ? skills.SprintSpeedBonus : 0f;
         float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier + sprintBonus : 1f);
+        // Applies whether sprinting or just walking - a broken leg slows you down outright, on top
+        // of sprinting on it also costing health (see Update's sprint block).
+        if (HasBrokenLeg) speedMultiplier *= 0.5f;
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
     }
 
@@ -274,8 +300,20 @@ public class PlayerController : MonoBehaviour
         weaponLocked = false;
     }
 
+    // Manual only, not automatic - a broken arm doesn't force-switch you, it just makes attacking
+    // useless until you either come here yourself or get the arm repaired (see PlayerLimbs).
+    void SwitchWeaponHand()
+    {
+        weaponHand = weaponHand == BodyPart.ArmRight ? BodyPart.ArmLeft : BodyPart.ArmRight;
+        Debug.Log("Main d'arme : " + weaponHand);
+    }
+
     void TryAttack()
     {
+        // A broken weaponHand can't swing/aim at all, whatever weapon it's holding - see
+        // PlayerLimbs/LimbState and SwitchWeaponHand above.
+        if (limbs != null && limbs.IsBroken(weaponHand)) return;
+
         // Attack speed only affects physical weapons (Fist/Sword) - no equivalent bonus was
         // requested for the Staff's magic cooldown. Level 5 Melee (see PlayerSkills) speeds up the
         // same two weapons further on top of Dexterite's own AttackSpeedMultiplier.

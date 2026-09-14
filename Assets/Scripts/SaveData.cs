@@ -54,4 +54,19 @@ public class SaveData
 
     public PlayerController.WeaponType currentWeapon;
     public bool weaponLocked;
+    public BodyPart weaponHand = BodyPart.ArmRight;
+
+    // Per-part HP (see PlayerLimbs/LimbState) - flat named fields, not an array/dictionary, same
+    // JsonUtility-friendly convention as the rest of this class (JsonUtility can't serialize a
+    // Dictionary, and a bare array loses the BodyPart->slot mapping across a version change). The
+    // = MaxLimbHealth initializer isn't just a sensible default for a brand new SaveData - verified
+    // via eval that JsonUtility.FromJson keeps a field's initializer when the source JSON doesn't
+    // contain that key, so an old save file from before this system existed resumes with every limb
+    // full rather than silently broken.
+    public int limbHealthHead = PlayerLimbs.MaxLimbHealth;
+    public int limbHealthTorso = PlayerLimbs.MaxLimbHealth;
+    public int limbHealthArmLeft = PlayerLimbs.MaxLimbHealth;
+    public int limbHealthArmRight = PlayerLimbs.MaxLimbHealth;
+    public int limbHealthLegLeft = PlayerLimbs.MaxLimbHealth;
+    public int limbHealthLegRight = PlayerLimbs.MaxLimbHealth;
 }

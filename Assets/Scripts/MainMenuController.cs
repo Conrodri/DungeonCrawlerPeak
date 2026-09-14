@@ -246,7 +246,8 @@ public class MainMenuController : MonoBehaviour
                 player.GetComponent<Health>(),
                 player.GetComponent<Stamina>(),
                 player.GetComponent<PlayerController>(),
-                player.GetComponent<PlayerEquipment>());
+                player.GetComponent<PlayerEquipment>(),
+                player.GetComponent<PlayerLimbs>());
         }
 
         Destroy(menuCanvas);

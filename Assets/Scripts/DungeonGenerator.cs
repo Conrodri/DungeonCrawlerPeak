@@ -693,6 +693,7 @@ public static class DungeonGenerator
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
         PlayerSkills playerSkills = player.GetComponent<PlayerSkills>();
+        PlayerLimbs playerLimbs = player.GetComponent<PlayerLimbs>();
         // Starting hotbar loadout - the player can rearrange these later via drag & drop.
         playerInventory.hotbarSlots[0] = ItemIds.Shuriken;
         playerInventory.hotbarSlots[1] = ItemIds.Caillou;
@@ -1095,6 +1096,7 @@ public static class DungeonGenerator
         inventoryUI.inventory = playerInventory;
         inventoryUI.equipment = playerEquipment;
         inventoryUI.player = playerController;
+        inventoryUI.limbs = playerLimbs;
         inventoryUI.slotSize = 72f;
         inventoryUI.spacing = 84f;
         inventoryUI.fontSize = 32;
@@ -1725,7 +1727,7 @@ public static class DungeonGenerator
         SaveData carry = SaveManager.Capture(CurrentSeed, CurrentFloor + 1,
             player.GetComponent<PlayerInventory>(), player.GetComponent<PlayerStats>(),
             player.GetComponent<Health>(), player.GetComponent<Stamina>(), player.GetComponent<PlayerController>(),
-            player.GetComponent<PlayerEquipment>());
+            player.GetComponent<PlayerEquipment>(), limbs: player.GetComponent<PlayerLimbs>());
 
         Build(Random.Range(int.MinValue, int.MaxValue), CurrentFloor + 1);
 
@@ -1734,7 +1736,7 @@ public static class DungeonGenerator
         SaveManager.Apply(carry,
             newPlayer.GetComponent<PlayerInventory>(), newPlayer.GetComponent<PlayerStats>(),
             newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>(),
-            newPlayer.GetComponent<PlayerEquipment>());
+            newPlayer.GetComponent<PlayerEquipment>(), newPlayer.GetComponent<PlayerLimbs>());
     }
 
     const int TutorialRoomWidth = RoomWidth;

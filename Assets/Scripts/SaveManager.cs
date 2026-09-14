@@ -17,7 +17,7 @@ public static class SaveManager
     // Shared field-mapping between a to-disk Save and an in-memory carry-over across floors
     // (DungeonGenerator.Descend) - avoids duplicating this list twice.
     public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null)
     {
         return new SaveData
         {
@@ -46,6 +46,13 @@ public static class SaveManager
             currentStamina = stamina.currentStamina,
             currentWeapon = controller.currentWeapon,
             weaponLocked = controller.WeaponLocked,
+            weaponHand = controller.weaponHand,
+            limbHealthHead = limbs != null ? limbs.GetLimbHealth(BodyPart.Head) : PlayerLimbs.MaxLimbHealth,
+            limbHealthTorso = limbs != null ? limbs.GetLimbHealth(BodyPart.Torso) : PlayerLimbs.MaxLimbHealth,
+            limbHealthArmLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmLeft) : PlayerLimbs.MaxLimbHealth,
+            limbHealthArmRight = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmRight) : PlayerLimbs.MaxLimbHealth,
+            limbHealthLegLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.LegLeft) : PlayerLimbs.MaxLimbHealth,
+            limbHealthLegRight = limbs != null ? limbs.GetLimbHealth(BodyPart.LegRight) : PlayerLimbs.MaxLimbHealth,
             equippedHead = equipment != null ? equipment.head : null,
             equippedShoulders = equipment != null ? equipment.shoulders : null,
             equippedGloves = equipment != null ? equipment.gloves : null,
@@ -59,9 +66,9 @@ public static class SaveManager
     }
 
     public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null)
     {
-        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, equipment, clearedRooms, bossDefeated);
+        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, equipment, clearedRooms, bossDefeated, limbs);
         File.WriteAllText(SavePath, JsonUtility.ToJson(data));
         Debug.Log("SaveManager: game saved to " + SavePath);
     }
@@ -77,7 +84,7 @@ public static class SaveManager
         if (File.Exists(SavePath)) File.Delete(SavePath);
     }
 
-    public static void Apply(SaveData data, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller, PlayerEquipment equipment)
+    public static void Apply(SaveData data, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller, PlayerEquipment equipment, PlayerLimbs limbs = null)
     {
         inventory.LoadState(data.slots, data.hotbarSlots, data.cursedItemId);
 
@@ -101,6 +108,17 @@ public static class SaveManager
 
         if (data.weaponLocked) controller.ForceEquipWeapon(data.currentWeapon);
         else controller.EquipWeapon(data.currentWeapon);
+        controller.weaponHand = data.weaponHand;
+
+        if (limbs != null)
+        {
+            limbs.SetLimbHealth(BodyPart.Head, data.limbHealthHead);
+            limbs.SetLimbHealth(BodyPart.Torso, data.limbHealthTorso);
+            limbs.SetLimbHealth(BodyPart.ArmLeft, data.limbHealthArmLeft);
+            limbs.SetLimbHealth(BodyPart.ArmRight, data.limbHealthArmRight);
+            limbs.SetLimbHealth(BodyPart.LegLeft, data.limbHealthLegLeft);
+            limbs.SetLimbHealth(BodyPart.LegRight, data.limbHealthLegRight);
+        }
 
         // Plain field restore, NOT PlayerEquipment.Set() - the saved stat values above (data.force
         // etc.) already include any equipped ring's bonus at the time it was captured (PlayerStats
