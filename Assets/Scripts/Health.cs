@@ -11,6 +11,10 @@ public class Health : MonoBehaviour
     // Set/cleared by PlayerController's dodge roll (see rollDuration) - a fully separate mechanic
     // from dodgeChance's Dexterity-based coin flip, this always blocks the hit while active.
     public bool IsInvulnerable { get; private set; }
+    // Flat reduction on every hit - 0 by default. Currently only set by DungeonGenerator on a boss
+    // rolling the Blinde modifier (see BossModifier). Never lets a hit through for less than 1
+    // damage, so a heavily-armored boss can't stall a fight out entirely.
+    public int flatDamageReduction;
 
     public event Action<int, int> OnHealthChanged;
     public event Action OnDeath;
@@ -64,6 +68,8 @@ public class Health : MonoBehaviour
     public void TakeDamage(int amount)
     {
         if (amount <= 0 || isDead || IsInvulnerable) return;
+
+        if (flatDamageReduction > 0) amount = Mathf.Max(1, amount - flatDamageReduction);
 
         if (dodgeChance > 0f && UnityEngine.Random.value < dodgeChance)
         {

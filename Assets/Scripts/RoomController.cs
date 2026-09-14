@@ -178,7 +178,10 @@ public class RoomController : MonoBehaviour
             controller.moveSpeed = preset.moveSpeed;
             controller.contactDamage = preset.contactDamage;
             controller.isFlying = preset.isFlying;
-            controller.xpReward = preset.xpReward;
+            // Floor-scaled (see DungeonGenerator.RegionBossXpFor) - a flat reward regardless of
+            // floor couldn't keep pace with a per-floor XP budget that grows several times over
+            // from one floor to the next.
+            controller.xpReward = preset.xpReward * Mathf.Max(1, DungeonGenerator.CurrentFloor);
             // Untargeted until ArmEnemies() confirms the player is actually in the room - see
             // playerPresent above.
             controller.SetRoomBounds(new Rect(roomOrigin, roomSize));

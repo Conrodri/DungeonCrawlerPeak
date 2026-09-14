@@ -19,6 +19,17 @@ public class PlayerStats : MonoBehaviour
     public int unspentAttributePoints;
     const int AttributePointsPerLevel = 2;
 
+    // Total XP needed to go from level 1 to `level`, using the same curve as AddExperience/
+    // experienceToNextLevel above. Used by DungeonGenerator to size a Region boss's XP reward so
+    // it exactly bridges a floor's "full clear" breakpoint level - see RegionBossXpFor and
+    // project_xp_monster_leveling_backlog memory for the 5->6 (floor 1), 10->11 (floor 2) spec.
+    public static int CumulativeXpForLevel(int level)
+    {
+        int total = 0;
+        for (int lv = 1; lv < level; lv++) total += ExperienceBase + (lv - 1) * ExperiencePerLevel;
+        return total;
+    }
+
     public event Action<int, int, int> OnExperienceChanged; // (experience, experienceToNextLevel, level)
 
     public int force = 1;

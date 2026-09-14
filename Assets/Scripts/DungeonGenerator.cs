@@ -764,7 +764,7 @@ public static class DungeonGenerator
                 Vector2Int tieredCell = memberCells.Find(c => bossTiers.ContainsKey(c));
                 BossTier tier = bossTiers.TryGetValue(tieredCell, out BossTier foundTier) ? foundTier : BossTier.Ville;
                 BossFamily family = BossFamilyFor(CurrentBiome);
-                BossTierStats tierStats = BossTierStatsFor(tier);
+                BossTierStats tierStats = BossTierStatsFor(tier, CurrentFloor);
 
                 SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
                     family, tier, tierStats, bossProjectileSprite, doorBarrierSprite, doors, bossRoomControllers, bossDefeatedThisFloor);
@@ -1982,17 +1982,13 @@ public static class DungeonGenerator
                 staircase.unlockAtElapsedSeconds = floorTimer.duration * TimedStairsUnlockFraction;
                 break;
             case StairsLockType.BossKill:
-                // A floor now has 3 bosses (Zone/Ville/Region) instead of 1 - requires ALL of them
-                // dead, not just whichever happened to be first in the list, or a Ville/Zone boss
-                // left alive would never block anything despite the lock existing to gate progress.
-                int bossesRemaining = bossRoomControllers.Count;
+                // Relaxed back to "any ONE of the 3 bosses" (was "all 3 dead") per explicit
+                // request in project_xp_monster_leveling_backlog: the point of a BossKill lock is
+                // to gate progress on beating A boss, not the whole floor - requiring all 3 fought
+                // against the stated goal of letting players skip a full clear to go faster.
                 foreach (BossRoomController bossRoom in bossRoomControllers)
                 {
-                    bossRoom.OnBossDefeated += () =>
-                    {
-                        bossesRemaining--;
-                        if (bossesRemaining <= 0) staircase.Unlock();
-                    };
+                    bossRoom.OnBossDefeated += staircase.Unlock;
                 }
                 break;
             case StairsLockType.Lever:
@@ -3517,12 +3513,94 @@ public static class DungeonGenerator
     // "un boss de zone facile drop 1/3 fois un item, un de ville difficile drop 1/2x un item et un
     // de region extremement difficile drop toujours un item" - stats scale with it too, since a
     // boss that's only harder to loot from but not to fight would be a strange difficulty curve.
-    static BossTierStats BossTierStatsFor(BossTier tier) => tier switch
+    //
+    // xpReward is floor-scaled (see RegionBossXpFor) instead of the old flat 6/10/16 - a flat
+    // reward could never keep up with a curve where each floor needs several times the previous
+    // floor's total XP. Ville/Zone keep the same 0.625/0.375 ratio to Region the old flat numbers
+    // had (10/16, 6/16) - only Region's absolute size changed.
+    static BossTierStats BossTierStatsFor(BossTier tier, int floor)
     {
-        BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = 1.3f, dropChance = 1f / 3f, xpReward = 6 },
-        BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = 1.5f, dropChance = 0.5f, xpReward = 10 },
-        _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = 1.8f, dropChance = 1f, xpReward = 16 },
-    };
+        int regionXp = RegionBossXpFor(floor);
+        return tier switch
+        {
+            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = 1.3f, dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
+            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = 1.5f, dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
+            _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = 1.8f, dropChance = 1f, xpReward = regionXp },
+        };
+    }
+
+    // A floor's "full clear" breakpoint level is 5*floor (see project_xp_monster_leveling_backlog:
+    // 5->6 on floor 1, 10->11 on floor 2 - i.e. cap-without-Region is 5 on floor 1, 10 on floor 2).
+    // The Region boss alone must give exactly enough XP to bridge from that cap to cap+1 - this is
+    // the one piece of the spec that's both concrete AND mechanically exact (a single guaranteed
+    // kill), unlike the "cap" itself which depends on how many regular monsters a procedurally
+    // generated floor happens to contain and so can only be approximated (see the floor-scaled
+    // regular monster xpReward in RoomController.SpawnEnemies).
+    const int FloorLevelCap = 5;
+    static int RegionBossXpFor(int floor)
+    {
+        int capLevel = FloorLevelCap * floor;
+        return PlayerStats.CumulativeXpForLevel(capLevel + 1) - PlayerStats.CumulativeXpForLevel(capLevel);
+    }
+
+    // Every boss draws N distinct modifiers from the shared BossModifier pool - only the count
+    // differs by tier (Zone 1, Ville 2, Region 3, per the backlog spec).
+    static readonly BossModifier[] AllBossModifiers = (BossModifier[])System.Enum.GetValues(typeof(BossModifier));
+    static List<BossModifier> RollBossModifiers(BossTier tier)
+    {
+        int count = tier switch { BossTier.Zone => 1, BossTier.Ville => 2, _ => 3 };
+        List<BossModifier> pool = new List<BossModifier>(AllBossModifiers);
+        List<BossModifier> picked = new List<BossModifier>(count);
+        for (int i = 0; i < count && pool.Count > 0; i++)
+        {
+            int index = Random.Range(0, pool.Count);
+            picked.Add(pool[index]);
+            pool.RemoveAt(index);
+        }
+        return picked;
+    }
+
+    // Applies each rolled modifier's stat tweak directly to the just-configured boss/health, and
+    // returns a short bracketed tag for the boss's display name (see SetupBossRoom) - the only
+    // in-game feedback for which modifiers are active, no dedicated badge UI (see BossModifier.cs
+    // for what each one does and why - deliberately kept to flat stat tweaks reusing existing
+    // fields, no new combat hooks beyond Health.flatDamageReduction/BossController.lifestealFraction).
+    static string ApplyBossModifiers(BossController boss, Health health, List<BossModifier> modifiers)
+    {
+        if (modifiers.Count == 0) return "";
+
+        string tags = "";
+        foreach (BossModifier modifier in modifiers)
+        {
+            switch (modifier)
+            {
+                case BossModifier.Rapide:
+                    boss.moveSpeed *= 1.3f;
+                    boss.chargeSpeed *= 1.3f;
+                    break;
+                case BossModifier.Colossal:
+                    health.maxHealth = Mathf.RoundToInt(health.maxHealth * 1.5f);
+                    health.currentHealth = health.maxHealth;
+                    boss.transform.localScale *= 1.15f;
+                    break;
+                case BossModifier.Devastateur:
+                    boss.contactDamage += 1;
+                    boss.volleyDamage += 1;
+                    break;
+                case BossModifier.Rafale:
+                    boss.volleyProjectileCount += 2;
+                    break;
+                case BossModifier.Blinde:
+                    health.flatDamageReduction += 1;
+                    break;
+                case BossModifier.Vampirique:
+                    boss.lifestealFraction = 0.5f;
+                    break;
+            }
+            tags += "[" + modifier + "] ";
+        }
+        return tags;
+    }
 
     static void SetupBossRoom(Vector2Int gridPos, List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
         BossFamily family, BossTier tier, BossTierStats stats, Sprite bossProjectileSprite, Sprite doorBarrierSprite,
@@ -3568,6 +3646,11 @@ public static class DungeonGenerator
         boss.volleyProjectileCount = stats.volleyCount;
         boss.moveSpeed = stats.moveSpeed;
 
+        List<BossModifier> modifiers = RollBossModifiers(tier);
+        string modifierTags = ApplyBossModifiers(boss, health, modifiers);
+        string taggedBossName = modifierTags + bossName;
+        if (modifiers.Count > 0) Debug.Log(taggedBossName + ": modificateurs " + string.Join(", ", modifiers));
+
         GameObject roomGO = new GameObject("BossRoom_" + gridPos, typeof(BossRoomController));
         roomGO.transform.SetParent(parent);
 
@@ -3579,7 +3662,7 @@ public static class DungeonGenerator
         controller.roomOrigin = roomOrigin;
         controller.roomSize = roomSize;
         controller.startDefeated = startDefeated;
-        controller.bossName = bossName;
+        controller.bossName = taggedBossName;
         controller.dropItemId = family.dropItemId;
         controller.dropChance = stats.dropChance;
         controller.xpReward = stats.xpReward;

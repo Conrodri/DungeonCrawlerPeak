@@ -30,6 +30,12 @@ public class BossController : MonoBehaviour
     public float rageSpeedMultiplier = 1.5f;
     public float rageCooldownMultiplier = 0.6f;
 
+    [Header("Modifiers")]
+    // Vampirique (see BossModifier/DungeonGenerator.ApplyBossModifiers) - fraction of contact
+    // damage healed back on every landed hit. 0 = no modifier. Volley hits don't trigger this -
+    // Projectile doesn't report back to its source on impact.
+    public float lifestealFraction;
+
     public event Action OnDied;
 
     Rigidbody2D rb;
@@ -160,6 +166,7 @@ public class BossController : MonoBehaviour
         // No EnemyType - bosses aren't part of that enum - so this rolls a fully random body part
         // (see PlayerLimbs.RollTarget).
         targetHealth.TakeDamageFromEnemy(contactDamage, null);
+        if (lifestealFraction > 0f) health.Heal(Mathf.CeilToInt(contactDamage * lifestealFraction));
         lastContactTime = Time.time;
     }
 
