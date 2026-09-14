@@ -56,17 +56,21 @@ public class SaveData
     public bool weaponLocked;
     public BodyPart weaponHand = BodyPart.ArmRight;
 
-    // Per-part HP (see PlayerLimbs/LimbState) - flat named fields, not an array/dictionary, same
-    // JsonUtility-friendly convention as the rest of this class (JsonUtility can't serialize a
-    // Dictionary, and a bare array loses the BodyPart->slot mapping across a version change). The
-    // = MaxLimbHealth initializer isn't just a sensible default for a brand new SaveData - verified
-    // via eval that JsonUtility.FromJson keeps a field's initializer when the source JSON doesn't
-    // contain that key, so an old save file from before this system existed resumes with every limb
-    // full rather than silently broken.
-    public int limbHealthHead = PlayerLimbs.MaxLimbHealth;
-    public int limbHealthTorso = PlayerLimbs.MaxLimbHealth;
-    public int limbHealthArmLeft = PlayerLimbs.MaxLimbHealth;
-    public int limbHealthArmRight = PlayerLimbs.MaxLimbHealth;
-    public int limbHealthLegLeft = PlayerLimbs.MaxLimbHealth;
-    public int limbHealthLegRight = PlayerLimbs.MaxLimbHealth;
+    // Per-part HP (see PlayerLimbs/LimbState - Head 35/Torso 70/Arm 20 each/Leg 30 each) - flat
+    // named fields, not an array/dictionary, same JsonUtility-friendly convention as the rest of
+    // this class (JsonUtility can't serialize a Dictionary, and a bare array loses the
+    // BodyPart->slot mapping across a version change). The = BaseMaxFor(...) initializer isn't
+    // just a sensible default for a brand new SaveData - verified via eval that
+    // JsonUtility.FromJson keeps a field's initializer when the source JSON doesn't contain that
+    // key, so a save file from before this field existed resumes with every limb full rather than
+    // silently broken. A save from the OLD flat-3-per-limb system (this same session, before this
+    // HP rework) is a separate, narrower case NOT specially migrated - its small saved values
+    // would clamp down to nearly-broken limbs under the new much larger maxes. Acceptable for a
+    // single-save prototype still under active development; revisit if that ever stops being true.
+    public int limbHealthHead = PlayerLimbs.BaseMaxFor(BodyPart.Head);
+    public int limbHealthTorso = PlayerLimbs.BaseMaxFor(BodyPart.Torso);
+    public int limbHealthArmLeft = PlayerLimbs.BaseMaxFor(BodyPart.ArmLeft);
+    public int limbHealthArmRight = PlayerLimbs.BaseMaxFor(BodyPart.ArmRight);
+    public int limbHealthLegLeft = PlayerLimbs.BaseMaxFor(BodyPart.LegLeft);
+    public int limbHealthLegRight = PlayerLimbs.BaseMaxFor(BodyPart.LegRight);
 }

@@ -2,59 +2,115 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Rolls which BodyPart an enemy/boss attack lands on, mitigates the damage with the armor on
-// whichever equipment slot(s) protect that part (see EquipmentSlotType/ItemDefinition.ArmorValue),
-// and tracks each part's own small HP pool - separate from the player's overall Health, which is
-// still the one that actually kills them. A part reaching 0 goes Broken (see LimbState): normal
-// healing skips it (Health.Heal -> HealNonBroken) until repaired outright (RepairAll, currently
-// only from the Tavernier's "Se reposer" - see DungeonGenerator.SpawnTavernNpc), and further hits
-// on an already-broken part skip its armor entirely (nothing left there to protect it).
-// PlayerController additionally refuses to attack with a broken weaponHand.
+// Each BodyPart carries its own real HP pool - together they ARE the player's total HP (see
+// TotalMaxHealth/TotalCurrentHealth, synced into Health.SetFromLimbs after every change), not a
+// small cosmetic layer on top of a separate flat pool. Base pools given explicitly by the user:
+// Head 35, Torso 70, each Arm 20, each Leg 30 (205 total, see BaseMaxFor) - Constitution adds +1 to
+// EVERY limb per point (so +6 total HP per point), also specified explicitly (see
+// SetConstitutionBonus, called from PlayerStats).
+//
+// Also rolls which BodyPart an enemy/boss attack lands on and mitigates the damage with the armor
+// on whichever equipment slot(s) protect that part (see EquipmentSlotType/ItemDefinition.
+// ArmorValue). A part reaching 0 goes Broken (see LimbState): normal healing skips it
+// (Health.Heal -> HealNonBroken) until repaired outright (RepairAll, currently only from the
+// Tavernier's "Se reposer"), and further hits on an already-broken part skip its armor entirely
+// (nothing left there to protect it). PlayerController additionally refuses to attack with a
+// broken weaponHand, and treats either broken leg as -50% speed + damage while sprinting.
 [RequireComponent(typeof(PlayerEquipment))]
+[RequireComponent(typeof(Health))]
 public class PlayerLimbs : MonoBehaviour
 {
-    // Not tied to Constitution or anything else on purpose - a small, flat, easy-to-reason-about
-    // pool distinct from the player's real (and much more variable) Health max. Not specified
-    // beyond "a limb can break"; this session's own numeric choice.
-    public const int MaxLimbHealth = 3;
+    public static int BaseMaxFor(BodyPart part) => part switch
+    {
+        BodyPart.Head => 35,
+        BodyPart.Torso => 70,
+        BodyPart.ArmLeft => 20,
+        BodyPart.ArmRight => 20,
+        BodyPart.LegLeft => 30,
+        BodyPart.LegRight => 30,
+        _ => 0,
+    };
 
     // Zombie = "haut du corps" only. ChauveSouris always targets the head (see RollTarget). Every
-    // other attacker (Larve, bosses, enemy projectiles) has no documented preference, so it rolls
-    // fully at random across all 6 parts.
+    // other attacker (Larve, bosses, enemy projectiles, environmental hazards) has no documented
+    // preference, so it rolls fully at random across all 6 parts.
     static readonly BodyPart[] UpperBodyParts = { BodyPart.Head, BodyPart.Torso, BodyPart.ArmLeft, BodyPart.ArmRight };
     static readonly BodyPart[] AllParts = (BodyPart[])Enum.GetValues(typeof(BodyPart));
 
     PlayerEquipment equipment;
     readonly Dictionary<BodyPart, int> limbHealth = new Dictionary<BodyPart, int>();
+    // Base + constitutionBonus, same bonus added to every part - never a per-species/per-part
+    // scaling, Constitution is flat across the whole body.
+    readonly Dictionary<BodyPart, int> limbMaxHealth = new Dictionary<BodyPart, int>();
+    int constitutionBonus;
 
     // (part hit, damage actually applied after armor) - for a future hit-location UI/log hookup.
     public event Action<BodyPart, int> OnHit;
-    // Fired whenever any limb's HP changes (hit, heal, or repair) - InventoryUI's silhouette
-    // panel redraws on this instead of polling every frame.
+    // Fired whenever any limb's HP (current or max) changes - InventoryUI's silhouette panel
+    // redraws on this instead of polling every frame.
     public event Action OnLimbsChanged;
 
     void Awake()
     {
         equipment = GetComponent<PlayerEquipment>();
-        foreach (BodyPart part in AllParts) limbHealth[part] = MaxLimbHealth;
+        foreach (BodyPart part in AllParts)
+        {
+            limbMaxHealth[part] = BaseMaxFor(part);
+            limbHealth[part] = limbMaxHealth[part];
+        }
     }
 
-    public int GetLimbHealth(BodyPart part) => limbHealth.TryGetValue(part, out int hp) ? hp : MaxLimbHealth;
+    public int GetMaxLimbHealth(BodyPart part) => limbMaxHealth.TryGetValue(part, out int max) ? max : BaseMaxFor(part);
+    public int GetLimbHealth(BodyPart part) => limbHealth.TryGetValue(part, out int hp) ? hp : GetMaxLimbHealth(part);
+
+    public int TotalMaxHealth
+    {
+        get { int total = 0; foreach (int v in limbMaxHealth.Values) total += v; return total; }
+    }
+
+    public int TotalCurrentHealth
+    {
+        get { int total = 0; foreach (int v in limbHealth.Values) total += v; return total; }
+    }
 
     public LimbState GetState(BodyPart part)
     {
         int hp = GetLimbHealth(part);
-        return hp <= 0 ? LimbState.Broken : hp < MaxLimbHealth ? LimbState.Damaged : LimbState.Healthy;
+        int max = GetMaxLimbHealth(part);
+        return hp <= 0 ? LimbState.Broken : hp < max ? LimbState.Damaged : LimbState.Healthy;
     }
 
     public bool IsBroken(BodyPart part) => GetState(part) == LimbState.Broken;
 
+    // Called by PlayerStats whenever Constitution changes (including once at startup, from
+    // Awake) - +1 max HP on EVERY limb per point, so +6 total per point, exactly as specified.
+    // Current HP moves by the same delta as max (a gain heals along with the new ceiling, a loss
+    // can't drop a limb below 0), mirroring how the old flat Health.maxHealth/currentHealth pair
+    // used to move together on a Constitution change.
+    public void SetConstitutionBonus(int bonus)
+    {
+        int delta = bonus - constitutionBonus;
+        constitutionBonus = bonus;
+        if (delta != 0)
+        {
+            List<BodyPart> keys = new List<BodyPart>(limbMaxHealth.Keys);
+            foreach (BodyPart part in keys)
+            {
+                limbMaxHealth[part] = Mathf.Max(1, limbMaxHealth[part] + delta);
+                limbHealth[part] = Mathf.Clamp(limbHealth[part] + delta, 0, limbMaxHealth[part]);
+            }
+        }
+        SyncHealth();
+        OnLimbsChanged?.Invoke();
+    }
+
     // Raw setter for SaveManager restore only - unlike a hit/heal, this doesn't go through the
-    // normal clamped +/- flow, it just replaces the stored value outright (still clamped to a
-    // valid range so a corrupt/old save can't leave a limb at a nonsense HP).
+    // normal clamped +/- flow, it just replaces the stored value outright (clamped to this limb's
+    // CURRENT max, which SaveManager.Apply is careful to set via SetConstitutionBonus first).
     public void SetLimbHealth(BodyPart part, int hp)
     {
-        limbHealth[part] = Mathf.Clamp(hp, 0, MaxLimbHealth);
+        limbHealth[part] = Mathf.Clamp(hp, 0, GetMaxLimbHealth(part));
+        SyncHealth();
         OnLimbsChanged?.Invoke();
     }
 
@@ -70,22 +126,35 @@ public class PlayerLimbs : MonoBehaviour
 
         limbHealth[part] = Mathf.Max(0, GetLimbHealth(part) - mitigated);
         OnHit?.Invoke(part, mitigated);
+        SyncHealth();
         OnLimbsChanged?.Invoke();
         return mitigated;
     }
 
-    // Normal healing (potions, the Tavernier's rest) - restores HP on every part that isn't
-    // already at 0, but never brings a broken part back on its own ("un membre a 0 PV ignore les
-    // soins de base"). Called from Health.Heal whenever this component is present.
+    // Distributes `amount` total HP across every non-broken limb (a broken one gets nothing - "un
+    // membre a 0 PV ignore les soins de base"), one point at a time to whichever eligible limb is
+    // currently missing the most HP. Keeps a big heal (e.g. the Tavernier's full rest, or any heal
+    // amount at all now that limb pools run into the tens/hundreds) from concentrating on a
+    // near-full limb while a badly hurt one goes untouched, without needing a fixed split ratio.
+    // Called from Health.Heal whenever this component is present.
     public void HealNonBroken(int amount)
     {
         if (amount <= 0) return;
-        List<BodyPart> keys = new List<BodyPart>(limbHealth.Keys);
-        foreach (BodyPart part in keys)
+        for (int i = 0; i < amount; i++)
         {
-            if (limbHealth[part] <= 0) continue;
-            limbHealth[part] = Mathf.Min(MaxLimbHealth, limbHealth[part] + amount);
+            BodyPart? best = null;
+            int bestDeficit = 0;
+            foreach (BodyPart part in AllParts)
+            {
+                int hp = GetLimbHealth(part);
+                if (hp <= 0) continue; // broken - skip, doesn't come back from a normal heal
+                int deficit = GetMaxLimbHealth(part) - hp;
+                if (deficit > bestDeficit) { bestDeficit = deficit; best = part; }
+            }
+            if (best == null) break; // every eligible limb is already full
+            limbHealth[best.Value] = GetLimbHealth(best.Value) + 1;
         }
+        SyncHealth();
         OnLimbsChanged?.Invoke();
     }
 
@@ -94,9 +163,29 @@ public class PlayerLimbs : MonoBehaviour
     // rest of the player's state gets a full reset. No standalone repair item/price yet.
     public void RepairAll()
     {
-        List<BodyPart> keys = new List<BodyPart>(limbHealth.Keys);
-        foreach (BodyPart part in keys) limbHealth[part] = MaxLimbHealth;
+        List<BodyPart> keys = new List<BodyPart>(limbMaxHealth.Keys);
+        foreach (BodyPart part in keys) limbHealth[part] = limbMaxHealth[part];
+        SyncHealth();
         OnLimbsChanged?.Invoke();
+    }
+
+    // Health.Kill's player-side counterpart - a guaranteed lethal hazard zeroes every limb instead
+    // of just the overall pool, so the silhouette reads consistently with the death it caused.
+    public void KillAll()
+    {
+        List<BodyPart> keys = new List<BodyPart>(limbHealth.Keys);
+        foreach (BodyPart part in keys) limbHealth[part] = 0;
+        SyncHealth();
+        OnLimbsChanged?.Invoke();
+    }
+
+    // Pushes the totals into Health (currentHealth/maxHealth + OnHealthChanged + the death check)
+    // - Health.cs stays the single source every other system (HUD, death screen, save) reads from,
+    // this component just keeps it truthfully in sync with the real per-limb pools.
+    void SyncHealth()
+    {
+        Health health = GetComponent<Health>();
+        if (health != null) health.SetFromLimbs(TotalCurrentHealth, TotalMaxHealth);
     }
 
     static BodyPart RollTarget(EnemyType? attackerType)

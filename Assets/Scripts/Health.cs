@@ -13,7 +13,9 @@ public class Health : MonoBehaviour
     public bool IsInvulnerable { get; private set; }
     // Flat reduction on every hit - 0 by default. Currently only set by DungeonGenerator on a boss
     // rolling the Blinde modifier (see BossModifier). Never lets a hit through for less than 1
-    // damage, so a heavily-armored boss can't stall a fight out entirely.
+    // damage, so a heavily-armored boss can't stall a fight out entirely. Not applied on the
+    // player's own hits below - PlayerLimbs armor is the player-side equivalent, and nothing sets
+    // this field on the player today.
     public int flatDamageReduction;
 
     public event Action<int, int> OnHealthChanged;
@@ -31,9 +33,8 @@ public class Health : MonoBehaviour
     // listed BEFORE PlayerLimbs in DungeonGenerator's player GameObject constructor, and Unity
     // calls Awake() synchronously per-AddComponent as each type in that list is attached, so a
     // GetComponent<PlayerLimbs>() from inside Health.Awake() ran before PlayerLimbs existed on the
-    // object yet and silently cached null forever - the entire hit-location/armor-mitigation
-    // system from earlier this session was dead in real gameplay because of it. A plain on-demand
-    // GetComponent per hit/heal (never a hot path) sidesteps the whole class of ordering bugs.
+    // object yet and silently cached null forever. A plain on-demand GetComponent per hit/heal
+    // (never a hot path) sidesteps the whole class of ordering bugs.
     PlayerLimbs Limbs => GetComponent<PlayerLimbs>();
 
     public void SetInvulnerable(bool value)
@@ -46,6 +47,12 @@ public class Health : MonoBehaviour
     public void Kill()
     {
         if (isDead) return;
+        PlayerLimbs limbs = Limbs;
+        if (limbs != null)
+        {
+            limbs.KillAll(); // zeroes every limb - syncs this Health's totals + fires OnDeath itself
+            return;
+        }
         currentHealth = 0;
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
         isDead = true;
@@ -55,27 +62,28 @@ public class Health : MonoBehaviour
     public void Heal(int amount)
     {
         if (amount <= 0 || isDead) return;
+        PlayerLimbs limbs = Limbs;
+        if (limbs != null)
+        {
+            // Distributes the heal across non-broken limbs and resyncs this Health's totals (see
+            // PlayerLimbs.HealNonBroken/SyncHealth) - this IS the full heal for the player, not a
+            // pre-step before the plain pool math below.
+            limbs.HealNonBroken(amount);
+            return;
+        }
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
-        // A broken limb (see PlayerLimbs/LimbState) doesn't come back from a normal heal - null
-        // for enemies/destructibles, so this has no effect on them.
-        PlayerLimbs limbs = Limbs;
-        if (limbs != null) limbs.HealNonBroken(amount);
     }
 
-    // Entry point for a directed enemy/boss attack (contact or projectile) as opposed to an
-    // environmental hazard (bomb, fuel puddle, floor trap, hole) - routes through PlayerLimbs for
-    // hit-location targeting + armor mitigation when this Health belongs to the player, otherwise
-    // behaves exactly like TakeDamage. attackerType is null for bosses/enemy projectiles, which
-    // have no EnemyType and so roll a fully random body part (see PlayerLimbs.RollTarget).
-    public void TakeDamageFromEnemy(int amount, EnemyType? attackerType)
-    {
-        PlayerLimbs limbs = Limbs;
-        if (limbs != null) amount = limbs.MitigateHit(attackerType, amount);
-        TakeDamage(amount);
-    }
+    // Entry point for a directed enemy/boss attack (contact or projectile), letting a specific
+    // attacker type bias which BodyPart gets targeted (see PlayerLimbs.RollTarget) - environmental
+    // hazards (bomb, fuel puddle, floor trap, hole) call TakeDamage below instead, which still
+    // reaches PlayerLimbs but rolls a fully random part (no attacker to bias off of).
+    public void TakeDamageFromEnemy(int amount, EnemyType? attackerType) => ApplyDamage(amount, attackerType);
 
-    public void TakeDamage(int amount)
+    public void TakeDamage(int amount) => ApplyDamage(amount, null);
+
+    void ApplyDamage(int amount, EnemyType? attackerType)
     {
         if (amount <= 0 || isDead || IsInvulnerable) return;
 
@@ -87,11 +95,42 @@ public class Health : MonoBehaviour
             return;
         }
 
+        PlayerLimbs limbs = Limbs;
+        if (limbs != null)
+        {
+            // Applies armor mitigation + the rolled limb's own damage + resyncs this Health's
+            // totals in one call (see PlayerLimbs.MitigateHit/SyncHealth, which also fires OnDeath
+            // once currentHealth reaches 0) - this IS the full damage application for the player,
+            // every other Health instance (enemies/bosses) has no PlayerLimbs and falls through to
+            // the plain pool math below exactly as before.
+            limbs.MitigateHit(attackerType, amount);
+            return;
+        }
+
         currentHealth = Mathf.Max(0, currentHealth - amount);
         Debug.Log(name + " took " + amount + " damage (" + currentHealth + "/" + maxHealth + ")");
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
         if (currentHealth == 0)
+        {
+            isDead = true;
+            OnDeath?.Invoke();
+        }
+    }
+
+    // Called by PlayerLimbs after any per-limb HP change (hit, heal, repair, Constitution change) -
+    // keeps this Health's pool truthfully in sync with the real source of truth (the sum of all
+    // limb pools) so every other system (HUD, death screen, save) can keep reading plain
+    // currentHealth/maxHealth/OnHealthChanged without knowing PlayerLimbs exists. Bypasses dodge/
+    // invulnerable/flatDamageReduction on purpose - those already applied once, per-hit, before
+    // PlayerLimbs ever changed; this is a totals resync, not a new damage/heal event of its own.
+    public void SetFromLimbs(int current, int max)
+    {
+        maxHealth = max;
+        currentHealth = Mathf.Clamp(current, 0, max);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+
+        if (currentHealth == 0 && !isDead)
         {
             isDead = true;
             OnDeath?.Invoke();

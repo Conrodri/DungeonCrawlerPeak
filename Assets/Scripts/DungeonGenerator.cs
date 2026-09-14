@@ -515,13 +515,9 @@ public static class DungeonGenerator
         // that at a glance without needing new art.
         Sprite npcBadgeSprite = LoadIconPackSprite("Quest01_Bright");
 
-        // The pack only has two heart styles (solid + outline), no dedicated half/empty art, so a
-        // third state is faked by re-using the outline shape at a dimmer color for "empty".
-        Color heartRed = new Color(0.85f, 0.15f, 0.2f);
-        Color heartEmpty = new Color(0.4f, 0.38f, 0.4f);
+        // Still used by StatsUI's Constitution icon below - HeartHUD itself no longer needs a
+        // heart sprite at all (see HeartHUD.cs, now a plain fill bar).
         Sprite fullHeart = LoadIconPackSprite("Heart02_Bright");
-        Sprite halfHeart = LoadIconPackSprite("Heart01_Bright");
-        Sprite emptyHeart = LoadIconPackSprite("Heart01_Bright");
 
         Sprite forceIcon = LoadIconPackSprite("Sword_Bright");
         Sprite agiliteIcon = LoadIconPackSprite("Bow_Bright");
@@ -703,10 +699,10 @@ public static class DungeonGenerator
         playerEquipment.stats = playerStats;
         Health playerHealth = player.GetComponent<Health>();
         Stamina playerStamina = player.GetComponent<Stamina>();
-        // Health is tracked in half-heart units: 3 hearts = 6 units. Normal hits cost 1 (half a
-        // heart), elite hits cost 2 (a full heart).
-        playerHealth.maxHealth = 6;
-        playerHealth.currentHealth = playerHealth.maxHealth;
+        // No explicit maxHealth/currentHealth assignment here anymore - PlayerStats.Awake()
+        // already set both correctly via PlayerLimbs (see PlayerLimbs.BaseMaxFor/
+        // SetConstitutionBonus) by the time this line runs (Awake fires per-AddComponent, and
+        // PlayerStats is listed after Health in the Player constructor above).
 
         // --- Room content (enemies / special-room markers) ---
         var roomEntries = new List<RoomCameraController.RoomEntry>();
@@ -873,32 +869,59 @@ public static class DungeonGenerator
         if (eventSystemGO == null) eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         eventSystemGO.transform.SetParent(root.transform);
 
-        GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
-        hudGO.transform.SetParent(canvasGO.transform, false);
-        RectTransform hudRect = hudGO.GetComponent<RectTransform>();
-        hudRect.anchorMin = Vector2.zero;
-        hudRect.anchorMax = Vector2.one;
-        hudRect.offsetMin = Vector2.zero;
-        hudRect.offsetMax = Vector2.zero;
-
-        HeartHUD hud = hudGO.GetComponent<HeartHUD>();
-        hud.target = playerHealth;
-        hud.fullHeart = fullHeart;
-        hud.halfHeart = halfHeart;
-        hud.emptyHeart = emptyHeart;
-        hud.fullColor = heartRed;
-        hud.halfColor = heartRed;
-        hud.emptyColor = heartEmpty;
-        hud.maxHeartSlots = playerHealth.maxHealth / 2;
-
-        // Shared by every fillAmount-driven bar below (Stamina/Experience/Boss health) - an Image
-        // left with no sprite at all apparently never got its Filled-type geometry to actually
-        // redraw on fillAmount changes (confirmed via diagnostic logging: the numeric value was
-        // always correct, the bar itself never visibly moved). A plain white sprite, tinted per
-        // bar via Image.color exactly like every other UI graphic here, fixes that.
+        // Shared by every fillAmount-driven bar below (Health/Stamina/Experience/Boss health) - an
+        // Image left with no sprite at all apparently never got its Filled-type geometry to
+        // actually redraw on fillAmount changes (confirmed via diagnostic logging: the numeric
+        // value was always correct, the bar itself never visibly moved). A plain white sprite,
+        // tinted per bar via Image.color exactly like every other UI graphic here, fixes that.
         Sprite uiFillSprite = CreateSolidSprite("Assets/Art/UI/Fill.png", Color.white);
 
-        // --- Stamina bar (directly under the hearts, always visible) ---
+        // --- Health bar (top-left, always visible) - a fill bar + numeric readout, not discrete
+        // heart icons (see HeartHUD.cs): per-limb HP (PlayerLimbs) pushes the real total into the
+        // tens/hundreds, far past what a handful of heart slots could represent.
+        GameObject heartBarGO = new GameObject("HeartBar", typeof(RectTransform), typeof(Image), typeof(HeartHUD));
+        heartBarGO.transform.SetParent(canvasGO.transform, false);
+        Image heartBarBackground = heartBarGO.GetComponent<Image>();
+        heartBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform heartBarRect = heartBarBackground.rectTransform;
+        heartBarRect.anchorMin = heartBarRect.anchorMax = new Vector2(0f, 1f);
+        heartBarRect.pivot = new Vector2(0f, 1f);
+        heartBarRect.anchoredPosition = new Vector2(20f, -20f);
+        heartBarRect.sizeDelta = new Vector2(160f, 16f);
+
+        GameObject heartFillGO = new GameObject("Fill", typeof(Image));
+        heartFillGO.transform.SetParent(heartBarGO.transform, false);
+        Image heartFill = heartFillGO.GetComponent<Image>();
+        heartFill.sprite = uiFillSprite;
+        heartFill.color = new Color(0.85f, 0.15f, 0.2f);
+        heartFill.type = Image.Type.Filled;
+        heartFill.fillMethod = Image.FillMethod.Horizontal;
+        heartFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform heartFillRect = heartFill.rectTransform;
+        heartFillRect.anchorMin = Vector2.zero;
+        heartFillRect.anchorMax = Vector2.one;
+        heartFillRect.offsetMin = new Vector2(1f, 1f);
+        heartFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject heartLabelGO = new GameObject("HeartLabel", typeof(Text));
+        heartLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text heartLabel = heartLabelGO.GetComponent<Text>();
+        heartLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        heartLabel.fontSize = 18;
+        heartLabel.alignment = TextAnchor.MiddleLeft;
+        heartLabel.color = Color.white;
+        RectTransform heartLabelRect = heartLabel.rectTransform;
+        heartLabelRect.anchorMin = heartLabelRect.anchorMax = new Vector2(0f, 1f);
+        heartLabelRect.pivot = new Vector2(0f, 1f);
+        heartLabelRect.anchoredPosition = new Vector2(188f, -20f);
+        heartLabelRect.sizeDelta = new Vector2(100f, 16f);
+
+        HeartHUD hud = heartBarGO.GetComponent<HeartHUD>();
+        hud.target = playerHealth;
+        hud.fill = heartFill;
+        hud.label = heartLabel;
+
+        // --- Stamina bar (directly under the health bar, always visible) ---
         GameObject staminaBarGO = new GameObject("StaminaBar", typeof(RectTransform), typeof(Image), typeof(StaminaBarUI));
         staminaBarGO.transform.SetParent(canvasGO.transform, false);
         Image staminaBarBackground = staminaBarGO.GetComponent<Image>();
@@ -1772,9 +1795,6 @@ public static class DungeonGenerator
         Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
-        Sprite fullHeart = LoadIconPackSprite("Heart02_Bright");
-        Sprite halfHeart = LoadIconPackSprite("Heart01_Bright");
-        Sprite emptyHeart = LoadIconPackSprite("Heart01_Bright");
 
         GameObject existingRoot = GameObject.Find("DungeonRoot");
         if (existingRoot != null) Object.DestroyImmediate(existingRoot);
@@ -1845,23 +1865,49 @@ public static class DungeonGenerator
         if (eventSystemGO == null) eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         eventSystemGO.transform.SetParent(root.transform);
 
-        GameObject hudGO = new GameObject("HeartHUD", typeof(RectTransform), typeof(HeartHUD));
-        hudGO.transform.SetParent(canvasGO.transform, false);
-        RectTransform hudRect = hudGO.GetComponent<RectTransform>();
-        hudRect.anchorMin = Vector2.zero;
-        hudRect.anchorMax = Vector2.one;
-        hudRect.offsetMin = Vector2.zero;
-        hudRect.offsetMax = Vector2.zero;
+        Sprite uiFillSprite = CreateSolidSprite("Assets/Art/UI/Fill.png", Color.white);
 
-        HeartHUD hud = hudGO.GetComponent<HeartHUD>();
+        GameObject heartBarGO = new GameObject("HeartBar", typeof(RectTransform), typeof(Image), typeof(HeartHUD));
+        heartBarGO.transform.SetParent(canvasGO.transform, false);
+        Image heartBarBackground = heartBarGO.GetComponent<Image>();
+        heartBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform heartBarRect = heartBarBackground.rectTransform;
+        heartBarRect.anchorMin = heartBarRect.anchorMax = new Vector2(0f, 1f);
+        heartBarRect.pivot = new Vector2(0f, 1f);
+        heartBarRect.anchoredPosition = new Vector2(20f, -20f);
+        heartBarRect.sizeDelta = new Vector2(160f, 16f);
+
+        GameObject heartFillGO = new GameObject("Fill", typeof(Image));
+        heartFillGO.transform.SetParent(heartBarGO.transform, false);
+        Image heartFill = heartFillGO.GetComponent<Image>();
+        heartFill.sprite = uiFillSprite;
+        heartFill.color = new Color(0.85f, 0.15f, 0.2f);
+        heartFill.type = Image.Type.Filled;
+        heartFill.fillMethod = Image.FillMethod.Horizontal;
+        heartFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform heartFillRect = heartFill.rectTransform;
+        heartFillRect.anchorMin = Vector2.zero;
+        heartFillRect.anchorMax = Vector2.one;
+        heartFillRect.offsetMin = new Vector2(1f, 1f);
+        heartFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject heartLabelGO = new GameObject("HeartLabel", typeof(Text));
+        heartLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text heartLabel = heartLabelGO.GetComponent<Text>();
+        heartLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        heartLabel.fontSize = 18;
+        heartLabel.alignment = TextAnchor.MiddleLeft;
+        heartLabel.color = Color.white;
+        RectTransform heartLabelRect = heartLabel.rectTransform;
+        heartLabelRect.anchorMin = heartLabelRect.anchorMax = new Vector2(0f, 1f);
+        heartLabelRect.pivot = new Vector2(0f, 1f);
+        heartLabelRect.anchoredPosition = new Vector2(188f, -20f);
+        heartLabelRect.sizeDelta = new Vector2(100f, 16f);
+
+        HeartHUD hud = heartBarGO.GetComponent<HeartHUD>();
         hud.target = playerHealth;
-        hud.fullHeart = fullHeart;
-        hud.halfHeart = halfHeart;
-        hud.emptyHeart = emptyHeart;
-        hud.fullColor = new Color(0.85f, 0.15f, 0.2f);
-        hud.halfColor = new Color(0.85f, 0.15f, 0.2f);
-        hud.emptyColor = new Color(0.4f, 0.38f, 0.4f);
-        hud.maxHeartSlots = playerHealth.maxHealth / 2;
+        hud.fill = heartFill;
+        hud.label = heartLabel;
 
         // --- The one Zombie standing between the player and the portal ---
         GameObject roomGO = new GameObject("TutorialRoom", typeof(RoomController));

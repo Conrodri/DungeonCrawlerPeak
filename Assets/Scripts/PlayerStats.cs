@@ -62,12 +62,18 @@ public class PlayerStats : MonoBehaviour
 
     Health health;
     Stamina stamina;
+    PlayerLimbs limbs;
 
     void Awake()
     {
         health = GetComponent<Health>();
-        health.maxHealth += constitution; // 1 point = 1 half-heart unit, same scale as Health itself
-        health.currentHealth = health.maxHealth;
+        // PlayerLimbs (see BaseMaxFor: Head 35/Torso 70/Arm 20 each/Leg 30 each, 205 total) is now
+        // the real source of the player's HP - +1 to every limb per Constitution point (so +6
+        // total per point), applied once here and again on every future Constitution change below.
+        // Listed after PlayerLimbs in DungeonGenerator's Player constructor, so this GetComponent
+        // is safe (see the ordering trap documented in Health.cs's own Limbs property).
+        limbs = GetComponent<PlayerLimbs>();
+        if (limbs != null) limbs.SetConstitutionBonus(constitution);
 
         stamina = GetComponent<Stamina>();
         stamina.maxStamina = BaseStamina + endurance * StaminaPerEndurance;
@@ -110,8 +116,7 @@ public class PlayerStats : MonoBehaviour
             case StatType.Constitution:
                 int actualLoss = Mathf.Min(constitution, amount);
                 constitution -= actualLoss;
-                health.maxHealth = Mathf.Max(1, health.maxHealth - actualLoss);
-                health.currentHealth = Mathf.Min(health.currentHealth, health.maxHealth);
+                if (limbs != null) limbs.SetConstitutionBonus(constitution);
                 break;
             case StatType.Portee: portee = Mathf.Max(0, portee - amount); break;
             case StatType.Charisme: charisme = Mathf.Max(0, charisme - amount); break;
@@ -140,8 +145,7 @@ public class PlayerStats : MonoBehaviour
             case StatType.Vitesse: vitesse += amount; break;
             case StatType.Constitution:
                 constitution += amount;
-                health.maxHealth += amount;
-                health.currentHealth += amount;
+                if (limbs != null) limbs.SetConstitutionBonus(constitution);
                 break;
             case StatType.Portee: portee += amount; break;
             case StatType.Charisme: charisme += amount; break;

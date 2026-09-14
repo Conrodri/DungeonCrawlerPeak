@@ -47,12 +47,12 @@ public static class SaveManager
             currentWeapon = controller.currentWeapon,
             weaponLocked = controller.WeaponLocked,
             weaponHand = controller.weaponHand,
-            limbHealthHead = limbs != null ? limbs.GetLimbHealth(BodyPart.Head) : PlayerLimbs.MaxLimbHealth,
-            limbHealthTorso = limbs != null ? limbs.GetLimbHealth(BodyPart.Torso) : PlayerLimbs.MaxLimbHealth,
-            limbHealthArmLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmLeft) : PlayerLimbs.MaxLimbHealth,
-            limbHealthArmRight = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmRight) : PlayerLimbs.MaxLimbHealth,
-            limbHealthLegLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.LegLeft) : PlayerLimbs.MaxLimbHealth,
-            limbHealthLegRight = limbs != null ? limbs.GetLimbHealth(BodyPart.LegRight) : PlayerLimbs.MaxLimbHealth,
+            limbHealthHead = limbs != null ? limbs.GetLimbHealth(BodyPart.Head) : PlayerLimbs.BaseMaxFor(BodyPart.Head),
+            limbHealthTorso = limbs != null ? limbs.GetLimbHealth(BodyPart.Torso) : PlayerLimbs.BaseMaxFor(BodyPart.Torso),
+            limbHealthArmLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmLeft) : PlayerLimbs.BaseMaxFor(BodyPart.ArmLeft),
+            limbHealthArmRight = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmRight) : PlayerLimbs.BaseMaxFor(BodyPart.ArmRight),
+            limbHealthLegLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.LegLeft) : PlayerLimbs.BaseMaxFor(BodyPart.LegLeft),
+            limbHealthLegRight = limbs != null ? limbs.GetLimbHealth(BodyPart.LegRight) : PlayerLimbs.BaseMaxFor(BodyPart.LegRight),
             equippedHead = equipment != null ? equipment.head : null,
             equippedShoulders = equipment != null ? equipment.shoulders : null,
             equippedGloves = equipment != null ? equipment.gloves : null,
@@ -101,6 +101,9 @@ public static class SaveManager
         stats.charisme = data.charisme;
         stats.endurance = data.endurance;
 
+        // Fallback for a limbs == null caller only - if limbs is present (the normal case, always
+        // present on the player), the SetConstitutionBonus/SetLimbHealth block below immediately
+        // overwrites this with the true per-limb-derived totals (see PlayerLimbs.SyncHealth).
         health.maxHealth = data.maxHealth;
         health.currentHealth = data.currentHealth;
         stamina.maxStamina = data.maxStamina;
@@ -112,6 +115,10 @@ public static class SaveManager
 
         if (limbs != null)
         {
+            // Must run BEFORE restoring individual limb HPs below - it resizes every limb's max
+            // (base + this Constitution's bonus), which SetLimbHealth then clamps each restored
+            // value against.
+            limbs.SetConstitutionBonus(stats.constitution);
             limbs.SetLimbHealth(BodyPart.Head, data.limbHealthHead);
             limbs.SetLimbHealth(BodyPart.Torso, data.limbHealthTorso);
             limbs.SetLimbHealth(BodyPart.ArmLeft, data.limbHealthArmLeft);

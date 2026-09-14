@@ -17,7 +17,7 @@ public class LimbSlotUI : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         LimbState state = limbs.GetState(part);
         string stateLabel = state == LimbState.Healthy ? "Sain" : state == LimbState.Damaged ? "Endommage" : "Casse";
-        string body = "PV : " + limbs.GetLimbHealth(part) + "/" + PlayerLimbs.MaxLimbHealth + " (" + stateLabel + ")";
+        string body = "PV : " + limbs.GetLimbHealth(part) + "/" + limbs.GetMaxLimbHealth(part) + " (" + stateLabel + ")";
         if (state == LimbState.Broken) body += "\nSoins normaux sans effet - va voir le Tavernier pour te reposer.";
         TooltipUI.Instance.Show(label, body, eventData.position);
     }
