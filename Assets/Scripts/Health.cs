@@ -76,14 +76,14 @@ public class Health : MonoBehaviour
     }
 
     // Entry point for a directed enemy/boss attack (contact or projectile), letting a specific
-    // attacker type bias which BodyPart gets targeted (see PlayerLimbs.RollTarget) - environmental
-    // hazards (bomb, fuel puddle, floor trap, hole) call TakeDamage below instead, which still
-    // reaches PlayerLimbs but rolls a fully random part (no attacker to bias off of).
-    public void TakeDamageFromEnemy(int amount, EnemyType? attackerType) => ApplyDamage(amount, attackerType);
+    // AttackSource bias which BodyPart gets targeted (see PlayerLimbs.RollTarget). A hazard that
+    // has its own defined zone (e.g. FloorTrap's BearTrap/CollapsingCeiling) passes it to
+    // TakeDamage's own optional parameter instead of using this overload, which is for mob attacks.
+    public void TakeDamageFromEnemy(int amount, AttackSource source) => ApplyDamage(amount, source);
 
-    public void TakeDamage(int amount) => ApplyDamage(amount, null);
+    public void TakeDamage(int amount, AttackSource source = AttackSource.Random) => ApplyDamage(amount, source);
 
-    void ApplyDamage(int amount, EnemyType? attackerType)
+    void ApplyDamage(int amount, AttackSource source)
     {
         if (amount <= 0 || isDead || IsInvulnerable) return;
 
@@ -103,7 +103,7 @@ public class Health : MonoBehaviour
             // once currentHealth reaches 0) - this IS the full damage application for the player,
             // every other Health instance (enemies/bosses) has no PlayerLimbs and falls through to
             // the plain pool math below exactly as before.
-            limbs.MitigateHit(attackerType, amount);
+            limbs.MitigateHit(source, amount);
             return;
         }
 

@@ -19,6 +19,21 @@ public class EnemyController : MonoBehaviour
     public EliteModifier modifier;
     public int xpReward = 1;
 
+    [Header("Rush (ChauveSouris only)")]
+    // Set true only for ChauveSouris in RoomController.SpawnEnemies - "Rush permet aux
+    // chauves-souris d'avancer en ligne comme la roulade du joueur" (2026-09-14 spec): a
+    // committed straight-line dash at boosted speed, same shape as PlayerController's roll
+    // (rollDirection/rollSpeed/rollDuration). Purely a movement/gap-closer - it doesn't change
+    // which BodyPart a landed hit targets (see AttackSourceMapping - ChauveSouris is always the
+    // head regardless of whether the hit connected mid-rush or during a normal chase).
+    public bool canRush;
+    public float rushSpeed = 8f;
+    public float rushDuration = 0.3f;
+    public float rushCooldown = 3f;
+    // Too close and there's no room to build up a meaningful dash - a rush that starts already
+    // adjacent to the target would just be a normal chase step with extra math.
+    const float RushMinRange = 2.5f;
+
     const float BobAmplitude = 0.15f;
     const float BobSpeed = 4f;
     const float SpeedUpMultiplier = 1.6f;
@@ -52,6 +67,10 @@ public class EnemyController : MonoBehaviour
     float lastHitTime = -999f;
     Rect? roomBounds;
     float activeAtTime;
+    bool rushing;
+    Vector2 rushDirection;
+    float rushEndTime;
+    float lastRushTime = -999f;
 
     void Awake()
     {
@@ -123,8 +142,29 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
+        if (rushing)
+        {
+            rb.linearVelocity = rushDirection * rushSpeed;
+            if (Time.time >= rushEndTime) rushing = false;
+            return;
+        }
+
         Vector2 toTarget = (Vector2)target.position - rb.position;
+        float distanceToTarget = toTarget.magnitude;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
+
+        // Committed once started (no separation/steering blended in, same as the player's own
+        // roll) - a straight line is the whole point, a curved "dash" would just look like a
+        // faster chase.
+        if (canRush && distanceToTarget >= RushMinRange && Time.time - lastRushTime >= rushCooldown)
+        {
+            rushing = true;
+            rushDirection = toTarget;
+            rushEndTime = Time.time + rushDuration;
+            lastRushTime = Time.time;
+            rb.linearVelocity = rushDirection * rushSpeed;
+            return;
+        }
 
         Vector2 separation = Vector2.zero;
         int hitCount = Physics2D.OverlapCircleNonAlloc(rb.position, SeparationRadius, SeparationBuffer);
@@ -182,7 +222,7 @@ public class EnemyController : MonoBehaviour
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
 
-        targetHealth.TakeDamageFromEnemy(contactDamage, enemyType);
+        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSourceMapping.For(enemyType));
         lastHitTime = Time.time;
     }
 

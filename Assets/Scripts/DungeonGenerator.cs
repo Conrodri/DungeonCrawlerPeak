@@ -3387,6 +3387,10 @@ public static class DungeonGenerator
         renderer.sortingOrder = -1;
 
         go.GetComponent<CircleCollider2D>().isTrigger = true;
+
+        // Flavor only - never visible before the trap triggers (see FloorTrap's own comment) -
+        // decides which BodyPart zone it targets (see FloorTrap.AttackSourceFor).
+        go.GetComponent<FloorTrap>().trapType = Random.value < 0.5f ? TrapType.BearTrap : TrapType.CollapsingCeiling;
     }
 
     static void SpawnHole(Vector2 position, Sprite sprite, Transform parent)

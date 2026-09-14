@@ -163,9 +163,9 @@ public class BossController : MonoBehaviour
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
 
-        // No EnemyType - bosses aren't part of that enum - so this rolls a fully random body part
+        // No AttackSource given for bosses in the 2026-09-14 spec - rolls a fully random body part
         // (see PlayerLimbs.RollTarget).
-        targetHealth.TakeDamageFromEnemy(contactDamage, null);
+        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSource.Random);
         if (lifestealFraction > 0f) health.Heal(Mathf.CeilToInt(contactDamage * lifestealFraction));
         lastContactTime = Time.time;
     }

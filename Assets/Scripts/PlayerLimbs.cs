@@ -31,9 +31,9 @@ public class PlayerLimbs : MonoBehaviour
         _ => 0,
     };
 
-    // Zombie = "haut du corps" only. ChauveSouris always targets the head (see RollTarget). Every
-    // other attacker (Larve, bosses, enemy projectiles, environmental hazards) has no documented
-    // preference, so it rolls fully at random across all 6 parts.
+    // CollapsingCeiling = "tete, epaules (torse), bras" - see RollTarget. AttackSource.Random (the
+    // catch-all: bosses, Larve, enemy projectiles, generic hazards) rolls fully at random across
+    // all 6 parts instead.
     static readonly BodyPart[] UpperBodyParts = { BodyPart.Head, BodyPart.Torso, BodyPart.ArmLeft, BodyPart.ArmRight };
     static readonly BodyPart[] AllParts = (BodyPart[])Enum.GetValues(typeof(BodyPart));
 
@@ -114,9 +114,9 @@ public class PlayerLimbs : MonoBehaviour
         OnLimbsChanged?.Invoke();
     }
 
-    public int MitigateHit(EnemyType? attackerType, int amount)
+    public int MitigateHit(AttackSource source, int amount)
     {
-        BodyPart part = RollTarget(attackerType);
+        BodyPart part = RollTarget(source);
         // An already-broken part has nothing left to protect it - the hit goes straight through
         // instead of being looked up against that slot's armor ("toute attaque dessus tant qu'il
         // est casse se repartit sur tout le corps en ignorant les resistances").
@@ -188,11 +188,44 @@ public class PlayerLimbs : MonoBehaviour
         if (health != null) health.SetFromLimbs(TotalCurrentHealth, TotalMaxHealth);
     }
 
-    static BodyPart RollTarget(EnemyType? attackerType)
+    // Every explicit source below comes straight from the 2026-09-14 spec:
+    // - ChauveSouris (Rush + Morsure, both) -> always the head. Rush is a pure gap-closing dash
+    //   (see EnemyController.canRush) - no zone of its own was given, and the bat's whole identity
+    //   was already "always the head", so it shares Morsure's zone rather than inventing a second.
+    // - Zombie (Morsure + Griffure, same mechanical contact hit - see EnemyController.TryDamage)
+    //   -> weighted 50% Torso / 25% each arm, exact split given by the user, never the head.
+    // - BearTrap -> 50/50 either leg.
+    // - CollapsingCeiling -> uniform among Head/Torso/ArmLeft/ArmRight (UpperBodyParts).
+    // - Random (bosses, Larve, enemy projectiles, unlabeled hazards) -> uniform across all 6.
+    static BodyPart RollTarget(AttackSource source)
     {
-        if (attackerType == EnemyType.ChauveSouris) return BodyPart.Head;
-        if (attackerType == EnemyType.Zombie) return UpperBodyParts[UnityEngine.Random.Range(0, UpperBodyParts.Length)];
-        return AllParts[UnityEngine.Random.Range(0, AllParts.Length)];
+        switch (source)
+        {
+            case AttackSource.ChauveSouris:
+                return BodyPart.Head;
+            case AttackSource.Zombie:
+                return RollWeighted((BodyPart.Torso, 0.5f), (BodyPart.ArmLeft, 0.25f), (BodyPart.ArmRight, 0.25f));
+            case AttackSource.BearTrap:
+                return UnityEngine.Random.value < 0.5f ? BodyPart.LegLeft : BodyPart.LegRight;
+            case AttackSource.CollapsingCeiling:
+                return UpperBodyParts[UnityEngine.Random.Range(0, UpperBodyParts.Length)];
+            default:
+                return AllParts[UnityEngine.Random.Range(0, AllParts.Length)];
+        }
+    }
+
+    static BodyPart RollWeighted(params (BodyPart part, float weight)[] options)
+    {
+        float total = 0f;
+        foreach (var option in options) total += option.weight;
+        float roll = UnityEngine.Random.value * total;
+        float cumulative = 0f;
+        foreach (var option in options)
+        {
+            cumulative += option.weight;
+            if (roll <= cumulative) return option.part;
+        }
+        return options[options.Length - 1].part;
     }
 
     // Torso is covered by 3 slots at once (shoulders/belt/neck all sit around the torso), arms

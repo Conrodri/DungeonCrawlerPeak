@@ -188,6 +188,10 @@ public class RoomController : MonoBehaviour
             controller.moveSpeed = scaledMoveSpeed;
             controller.contactDamage = scaledContactDamage;
             controller.isFlying = preset.isFlying;
+            // "chauve souris aura Rush et Morsure, rush permet aux chauves souris d'avancer en
+            // ligne comme la roulade du joueur" (2026-09-14 spec) - every bat can rush, not just
+            // elites.
+            controller.canRush = spawn.type == EnemyType.ChauveSouris;
             // Floor-scaled (see DungeonGenerator.RegionBossXpFor) - a flat reward regardless of
             // floor couldn't keep pace with a per-floor XP budget that grows several times over
             // from one floor to the next.
