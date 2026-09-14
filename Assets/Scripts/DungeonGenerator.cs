@@ -3560,12 +3560,28 @@ public static class DungeonGenerator
         return picked;
     }
 
-    // Applies each rolled modifier's stat tweak directly to the just-configured boss/health, and
-    // returns a short bracketed tag for the boss's display name (see SetupBossRoom) - the only
-    // in-game feedback for which modifiers are active, no dedicated badge UI (see BossModifier.cs
-    // for what each one does and why - deliberately kept to flat stat tweaks reusing existing
-    // fields, no new combat hooks beyond Health.flatDamageReduction/BossController.lifestealFraction).
-    static string ApplyBossModifiers(BossController boss, Health health, List<BossModifier> modifiers)
+    // Same icon pack StatusIconDisplay/EnemyController's Elite badges already draw from (see
+    // LoadIconPackSprite) - Rapide reuses the exact SpeedUp icon for a consistent icon language.
+    // Heart01 (outline) vs Heart02 (solid) tells Vampirique's life-drain apart from Colossal's flat
+    // HP bump at a glance.
+    static string IconNameFor(BossModifier modifier) => modifier switch
+    {
+        BossModifier.Rapide => "ThunderStrike_Bright",
+        BossModifier.Colossal => "Heart02_Bright",
+        BossModifier.Devastateur => "Sword_Bright",
+        BossModifier.Rafale => "Bow_Bright",
+        BossModifier.Blinde => "Shield_Bright",
+        _ => "Heart01_Bright", // Vampirique
+    };
+
+    // Applies each rolled modifier's stat tweak directly to the just-configured boss/health, shows
+    // a standing icon above the boss's head per modifier (same StatusIconDisplay every regular
+    // enemy's Elite badge already uses - never expires, see ShowIcon's duration=-1 default, so it
+    // just goes with the boss on death), and returns a short bracketed tag for the boss's display
+    // name (see SetupBossRoom) as a second, text-only cue. See BossModifier.cs for what each one
+    // does and why - deliberately kept to flat stat tweaks reusing existing fields, no new combat
+    // hooks beyond Health.flatDamageReduction/BossController.lifestealFraction.
+    static string ApplyBossModifiers(BossController boss, Health health, StatusIconDisplay statusIcons, List<BossModifier> modifiers)
     {
         if (modifiers.Count == 0) return "";
 
@@ -3598,6 +3614,8 @@ public static class DungeonGenerator
                     break;
             }
             tags += "[" + modifier + "] ";
+            Sprite icon = LoadIconPackSprite(IconNameFor(modifier));
+            if (icon != null) statusIcons.ShowIcon(modifier.ToString(), icon);
         }
         return tags;
     }
@@ -3619,10 +3637,16 @@ public static class DungeonGenerator
         // distinct without needing 3x as many hand-drawn silhouettes per family.
         Sprite bossSprite = CreateMaskedSprite("Assets/Art/Enemies/Boss_" + gridPos + ".png", family.mask, BossTierColorFor(family.color, tier));
 
-        GameObject bossGO = new GameObject(bossName, typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(BossController));
+        GameObject bossGO = new GameObject(bossName, typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(BossController));
         bossGO.transform.SetParent(parent);
         bossGO.transform.position = center;
         bossGO.transform.localScale = Vector3.one * (tier == BossTier.Region ? 2f : tier == BossTier.Ville ? 1.6f : 1.25f);
+
+        // Taller than a regular enemy's badge height (0.7, see EnemyController) - a boss's own
+        // transform scale (1.25-2x above) already stretches this world-space anyway, but the base
+        // needs to clear the bigger sprite before that scaling even applies.
+        StatusIconDisplay bossStatusIcons = bossGO.GetComponent<StatusIconDisplay>();
+        bossStatusIcons.height = 1.1f;
 
         SpriteRenderer renderer = bossGO.GetComponent<SpriteRenderer>();
         renderer.sprite = bossSprite;
@@ -3647,7 +3671,7 @@ public static class DungeonGenerator
         boss.moveSpeed = stats.moveSpeed;
 
         List<BossModifier> modifiers = RollBossModifiers(tier);
-        string modifierTags = ApplyBossModifiers(boss, health, modifiers);
+        string modifierTags = ApplyBossModifiers(boss, health, bossStatusIcons, modifiers);
         string taggedBossName = modifierTags + bossName;
         if (modifiers.Count > 0) Debug.Log(taggedBossName + ": modificateurs " + string.Join(", ", modifiers));
 
