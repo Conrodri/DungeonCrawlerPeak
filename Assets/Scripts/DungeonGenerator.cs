@@ -529,6 +529,13 @@ public static class DungeonGenerator
         Sprite backroomsPillarSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsPillar.png", new Color(0.75f, 0.68f, 0.35f));
         Sprite backroomsDoorSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsDoor.png", new Color(0.45f, 0.32f, 0.12f));
         Sprite backroomsStainSprite = CreateCircleSprite("Assets/Art/Decor/BackroomsStain.png", new Color(0.35f, 0.3f, 0.08f, 0.6f));
+        // Tavern/shop furniture (see SpawnTavernFurniture/SpawnShopFurniture) - same "one plain
+        // sprite, stretched/rotated/tinted per prop" trick as the Backrooms decor above, so a
+        // handful of squares becomes a bar counter, tables, chairs, crates and shelves.
+        Sprite furnitureWoodSprite = CreateSolidSprite("Assets/Art/Decor/FurnitureWood.png", new Color(0.42f, 0.28f, 0.16f));
+        Sprite rugSprite = CreateSolidSprite("Assets/Art/Decor/Rug.png", new Color(0.55f, 0.15f, 0.15f));
+        Sprite wallDecorSprite = CreateSolidSprite("Assets/Art/Decor/WallDecor.png", new Color(0.35f, 0.3f, 0.55f));
+        Sprite shopCrateSprite = CreateSolidSprite("Assets/Art/Decor/ShopCrate.png", new Color(0.5f, 0.38f, 0.22f));
         DecorSprites decorSprites = new DecorSprites
         {
             stoneBlock = stoneBlockSprite,
@@ -994,15 +1001,21 @@ public static class DungeonGenerator
 
                 if (kv.Value == RoomType.Safe)
                 {
-                    Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcElderSprite, npcBadgeSprite, root.transform);
+                    Vector2 roomOrigin = new Vector2(originX, originY);
+                    Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
+                    Vector2 npcPos = center + new Vector2(2f, 0f);
+                    SpawnTavernNpc(npcPos, npcElderSprite, npcBadgeSprite, root.transform);
                     SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
+                    SpawnTavernFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
+                        playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
                 }
 
                 if (kv.Value == RoomType.Shop)
                 {
-                    Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
+                    Vector2 roomOrigin = new Vector2(originX, originY);
+                    Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
                     SpawnMerchantNpc(center, npcMerchantSprite, npcBadgeSprite, root.transform);
+                    SpawnShopFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), center, shopCrateSprite, rugSprite, wallDecorSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Stairs)
@@ -3108,9 +3121,9 @@ public static class DungeonGenerator
 
     const int HealthPotionPrice = 5;
 
-    // The Safe room's NPC: rest (heal + save - see SaveManager/DialogueManager.savesGame), buy a
-    // representative consumable (purchase flow reused as-is by future Shop rooms), and advice for
-    // newer players - covers "salle securisee" + "PNJ conseils" from the backlog in one NPC.
+    // The Safe room's NPC - advice and attribute allocation only (2026-09-14: no longer sells
+    // anything, and no longer the way to rest - see RestBed/SpawnTavernFurniture, a physical bed
+    // in the room now does both the heal+save and the "Se reposer" flavor text).
     static void SpawnTavernNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
@@ -3130,24 +3143,6 @@ public static class DungeonGenerator
         npc.greeting = "Bienvenue, voyageur. Ici, vous ne craignez rien.";
         npc.options = new List<DialogueOption>
         {
-            new DialogueOption
-            {
-                text = "Se reposer (soigne et sauvegarde la partie)",
-                checkStat = StatType.None,
-                onSuccess = new DialogueOutcome
-                {
-                    message = "Vous vous reposez un moment. Votre progression est sauvegardee.",
-                    savesGame = true,
-                },
-            },
-            new DialogueOption
-            {
-                text = "Acheter une Potion de Soin (" + HealthPotionPrice + " or)",
-                isPurchase = true,
-                purchaseItemId = ItemIds.HealthPotion,
-                costItemId = ItemIds.Gold,
-                costAmount = HealthPotionPrice,
-            },
             new DialogueOption
             {
                 text = "Allouer mes points d'attribut",
@@ -3223,6 +3218,77 @@ public static class DungeonGenerator
                 costAmount = 2,
             },
         };
+    }
+
+    // Furniture for the Safe room ("la taverne") - a bar counter behind the Tavernier, two
+    // table+chairs clusters with a rug each, wall paintings, and a RestBed (see RestBed.cs) all in
+    // shuffled room corners (GenerateCornerPositions keeps them off walls/doors and, since this
+    // room never calls SpawnRoomDecor, away from the NPC/craft table too - both sit near center,
+    // corners sit ~8 units out). Explicit request to make special rooms feel lived-in rather than
+    // an empty box with a marker and an NPC (2026-09-14).
+    static void SpawnTavernFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent,
+        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    {
+        SpawnProp("BarCounter", npcPos + new Vector2(0f, 1.3f), woodSprite, parent, new Vector2(3.2f, 0.7f), 0f, 1, true);
+
+        List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
+        SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
+        SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
+        SpawnRestBed(corners[2], woodSprite, parent, playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+
+        // Paintings on the top wall, well clear (5 units) of a centered door's 2-unit gap - Safe is
+        // a gated room type, its doors are always centered (see IsGatedRoomType).
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+    }
+
+    static void SpawnTableCluster(Vector2 pos, Sprite woodSprite, Sprite rugSprite, Transform parent)
+    {
+        SpawnProp("Rug", pos, rugSprite, parent, new Vector2(2.6f, 2.2f), 0f, -1, false);
+        SpawnProp("Table", pos, woodSprite, parent, new Vector2(1f, 1f), 0f, 0, true);
+        Color chairTint = new Color(0.5f, 0.34f, 0.2f);
+        SpawnProp("Chair", pos + new Vector2(0.9f, 0f), woodSprite, parent, new Vector2(0.5f, 0.5f), 0f, 0, false, chairTint);
+        SpawnProp("Chair", pos + new Vector2(-0.9f, 0f), woodSprite, parent, new Vector2(0.5f, 0.5f), 180f, 0, false, chairTint);
+    }
+
+    // The physical stand-in for the Tavernier's old "Se reposer" dialogue option (see RestBed.cs) -
+    // wired with the same player component references DialogueManager itself uses for the outcome.
+    static void SpawnRestBed(Vector2 pos, Sprite woodSprite, Transform parent,
+        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    {
+        GameObject go = new GameObject("RestBed", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(RestBed));
+        go.transform.SetParent(parent);
+        go.transform.position = pos;
+        go.transform.localScale = new Vector3(1f, 1.8f, 1f);
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = woodSprite;
+        renderer.color = new Color(0.65f, 0.55f, 0.75f); // a blanket tone, distinct from the bare wood furniture
+        renderer.sortingOrder = 0;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.3f;
+
+        RestBed bed = go.GetComponent<RestBed>();
+        bed.playerHealth = playerHealth;
+        bed.playerLimbs = playerLimbs;
+        bed.playerInventory = playerInventory;
+        bed.playerStats = playerStats;
+        bed.playerStamina = playerStamina;
+        bed.playerController = playerController;
+        bed.playerEquipment = playerEquipment;
+    }
+
+    // Furniture for the Shop room - crates and a shelf around the Marchand, a rug underfoot, and
+    // the same wall paintings as the tavern (2026-09-14, same "make it feel lived-in" request).
+    static void SpawnShopFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite crateSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
+    {
+        SpawnProp("Rug", npcPos, rugSprite, parent, new Vector2(3f, 2.4f), 0f, -1, false, new Color(0.3f, 0.32f, 0.4f));
+        SpawnProp("Crate", npcPos + new Vector2(-2.2f, 1.2f), crateSprite, parent, new Vector2(0.9f, 0.9f), 0f, 0, true);
+        SpawnProp("Crate", npcPos + new Vector2(2.2f, 1.2f), crateSprite, parent, new Vector2(0.9f, 0.9f), 15f, 0, true);
+        SpawnProp("Shelf", npcPos + new Vector2(0f, 2.4f), crateSprite, parent, new Vector2(3.4f, 0.6f), 0f, 1, true);
+
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 6f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 6f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
     }
 
     // Shop rooms had a marker only until now (no purchase flow existed) - reuses the exact same
@@ -3495,26 +3561,30 @@ public static class DungeonGenerator
                     // Wildly inconsistent scale on purpose - a chair the size of a doormat next to
                     // one the size of a fridge, with nothing explaining why.
                     float chairScale = Random.Range(0.6f, 2.4f);
-                    SpawnBackroomsProp("Chair", pos, sprites.backroomsChair, parent, new Vector2(chairScale, chairScale), 0f, 0, false);
+                    SpawnProp("Chair", pos, sprites.backroomsChair, parent, new Vector2(chairScale, chairScale), 0f, 0, false);
                     break;
                 case BackroomsDecorType.Pillar:
-                    SpawnBackroomsProp("Pillar", pos, sprites.backroomsPillar, parent, new Vector2(0.8f, 2.4f), 0f, 1, true);
+                    SpawnProp("Pillar", pos, sprites.backroomsPillar, parent, new Vector2(0.8f, 2.4f), 0f, 1, true);
                     break;
                 case BackroomsDecorType.LoneDoor:
                     // Standing in open floor, never against a wall, sometimes sideways - it leads
                     // nowhere, but you still can't walk through it.
                     float doorRotation = Random.value < 0.5f ? 0f : 90f;
-                    SpawnBackroomsProp("LoneDoor", pos, sprites.backroomsDoor, parent, new Vector2(1f, 1.8f), doorRotation, 0, true);
+                    SpawnProp("LoneDoor", pos, sprites.backroomsDoor, parent, new Vector2(1f, 1.8f), doorRotation, 0, true);
                     break;
                 case BackroomsDecorType.DampStain:
                     float stainScale = Random.Range(1f, 2.8f);
-                    SpawnBackroomsProp("DampStain", pos, sprites.backroomsStain, parent, new Vector2(stainScale, stainScale), 0f, -1, false);
+                    SpawnProp("DampStain", pos, sprites.backroomsStain, parent, new Vector2(stainScale, stainScale), 0f, -1, false);
                     break;
             }
         }
     }
 
-    static void SpawnBackroomsProp(string name, Vector2 position, Sprite sprite, Transform parent, Vector2 scale, float rotationZ, int sortingOrder, bool solid)
+    // Generic "flat sprite stretched/rotated into a prop" spawner - started out Backrooms-only,
+    // now reused for tavern/shop furniture too (see SpawnTavernFurniture/SpawnShopFurniture) since
+    // the same trick (one plain colored square, non-uniform scale + rotation) reads fine as a bar
+    // counter, a table, a crate, etc. without needing a dedicated sprite per furniture piece.
+    static void SpawnProp(string name, Vector2 position, Sprite sprite, Transform parent, Vector2 scale, float rotationZ, int sortingOrder, bool solid, Color? tint = null)
     {
         GameObject go = solid
             ? new GameObject(name, typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D))
@@ -3527,6 +3597,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = sortingOrder;
+        if (tint.HasValue) renderer.color = tint.Value;
 
         if (solid)
         {
