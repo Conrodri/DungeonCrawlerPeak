@@ -444,9 +444,10 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.");
 
-        // Equipment - one plain placeholder per slot (see EquipmentSlotType/PlayerEquipment), just
-        // enough to fill and test the new equipment panel. No stat bonuses yet (none requested) -
-        // sold at the Shop so they're actually reachable in a real run.
+        // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
+        // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
+        // PlayerLimbs.GetArmor) - Torso is covered by Shoulders+Belt+Neck at once, Arms/Legs share
+        // a single Gloves/Boots+Knees slot each, matching this project's one-slot-per-type layout.
         Sprite ironHelmetSprite = CreateSolidSprite("Assets/Art/Items/IronHelmet.png", new Color(0.55f, 0.56f, 0.6f));
         Sprite leatherPauldronsSprite = CreateSolidSprite("Assets/Art/Items/LeatherPauldrons.png", new Color(0.45f, 0.32f, 0.18f));
         Sprite combatGlovesSprite = CreateSolidSprite("Assets/Art/Items/CombatGloves.png", new Color(0.35f, 0.25f, 0.15f));
@@ -456,19 +457,19 @@ public static class DungeonGenerator
         Sprite leatherKneepadsSprite = CreateSolidSprite("Assets/Art/Items/LeatherKneepads.png", new Color(0.42f, 0.3f, 0.17f));
         Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
         RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
-            "Protege la tete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head);
+            "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
-            "Protege les epaules.", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
-            "Protege les mains.", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves);
+            "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
-            "Protege les pieds.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots);
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
-            "Se porte autour du cou.", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
-            "Se porte a la taille.", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
-            "Protege les genoux.", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees);
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1);
         RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
             "Se porte a n'importe quel doigt.", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft);
 
@@ -669,7 +670,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerLimbs), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -2690,21 +2691,21 @@ public static class DungeonGenerator
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
         PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0,
-        bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None)
+        bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0)
     {
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
             CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount,
-            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat
+            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue
         });
         entries.Add(new ItemCatalog.Entry
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
             cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount,
-            isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat
+            isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue
         });
     }
 

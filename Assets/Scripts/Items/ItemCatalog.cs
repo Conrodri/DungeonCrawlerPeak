@@ -25,6 +25,7 @@ public class ItemCatalog : MonoBehaviour
         public bool isEquipment;
         public EquipmentSlotType equipmentSlot;
         public StatType ringBonusStat;
+        public int armorValue;
     }
 
     public List<Entry> entries = new List<Entry>();
@@ -50,7 +51,8 @@ public class ItemCatalog : MonoBehaviour
                 HealAmount = entry.healAmount,
                 IsEquipment = entry.isEquipment,
                 EquipmentSlot = entry.equipmentSlot,
-                RingBonusStat = entry.ringBonusStat
+                RingBonusStat = entry.ringBonusStat,
+                ArmorValue = entry.armorValue
             });
         }
     }

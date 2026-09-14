@@ -174,6 +174,7 @@ public class RoomController : MonoBehaviour
             health.currentHealth = health.maxHealth;
 
             EnemyController controller = enemy.GetComponent<EnemyController>();
+            controller.enemyType = spawn.type;
             controller.moveSpeed = preset.moveSpeed;
             controller.contactDamage = preset.contactDamage;
             controller.isFlying = preset.isFlying;

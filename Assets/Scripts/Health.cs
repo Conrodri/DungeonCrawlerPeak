@@ -17,10 +17,14 @@ public class Health : MonoBehaviour
     public event Action OnDodged;
 
     bool isDead;
+    // Null for enemies/destructibles - only the player carries a PlayerLimbs. Cached once instead
+    // of a GetComponent call on every hit.
+    PlayerLimbs limbs;
 
     void Awake()
     {
         currentHealth = maxHealth;
+        limbs = GetComponent<PlayerLimbs>();
     }
 
     public void SetInvulnerable(bool value)
@@ -44,6 +48,17 @@ public class Health : MonoBehaviour
         if (amount <= 0 || isDead) return;
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
+    // Entry point for a directed enemy/boss attack (contact or projectile) as opposed to an
+    // environmental hazard (bomb, fuel puddle, floor trap, hole) - routes through PlayerLimbs for
+    // hit-location targeting + armor mitigation when this Health belongs to the player, otherwise
+    // behaves exactly like TakeDamage. attackerType is null for bosses/enemy projectiles, which
+    // have no EnemyType and so roll a fully random body part (see PlayerLimbs.RollTarget).
+    public void TakeDamageFromEnemy(int amount, EnemyType? attackerType)
+    {
+        if (limbs != null) amount = limbs.MitigateHit(attackerType, amount);
+        TakeDamage(amount);
     }
 
     public void TakeDamage(int amount)

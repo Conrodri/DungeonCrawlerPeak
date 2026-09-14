@@ -41,8 +41,12 @@ public class Projectile : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(ignoreTag) && collision.collider.CompareTag(ignoreTag)) return;
 
+        // TakeDamageFromEnemy with no EnemyType (projectiles aren't tied to one) - a no-op fallback
+        // to plain TakeDamage against a non-player target (no PlayerLimbs there), and a random
+        // body-part roll + armor mitigation on the rare projectile that actually lands on the
+        // player (a boss volley - see BossController).
         Health health = collision.collider.GetComponent<Health>();
-        if (health != null) health.TakeDamage(damage);
+        if (health != null) health.TakeDamageFromEnemy(damage, null);
 
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);

@@ -9,6 +9,9 @@ public class EnemyController : MonoBehaviour
     public int contactDamage = 1;
     public float contactCooldown = 1f;
     public bool isFlying;
+    // Set by RoomController.SpawnEnemies right after creation - drives PlayerLimbs' hit-location
+    // roll (see Health.TakeDamageFromEnemy) so a Zombie/ChauveSouris hit targets the right part.
+    public EnemyType enemyType;
     public EliteModifier modifier;
     public int xpReward = 1;
 
@@ -175,7 +178,7 @@ public class EnemyController : MonoBehaviour
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
 
-        targetHealth.TakeDamage(contactDamage);
+        targetHealth.TakeDamageFromEnemy(contactDamage, enemyType);
         lastHitTime = Time.time;
     }
 
