@@ -800,6 +800,39 @@ public static class DungeonGenerator
         {
             BuildRoomGeometry(kv.Key.x * StepX, kv.Key.y * StepY, floorMap, wallsMap, floorTile, wallTile);
         }
+        // A merged duo/trio/quad room (see MergeMultiCellRooms) then gets its WHOLE bounding
+        // rectangle repainted as one room (solid only on the true outer border) - overwrites the
+        // per-cell interior walls BuildRoomGeometry just drew. Bug found 2026-09-14: the old
+        // approach instead patched each adjacent PAIR's shared wall one seam at a time
+        // (OpenFullHorizontalSeam/OpenFullVerticalSeam, removed) - correct for a 2-cell room, but
+        // a 2x2 (quadruple) room has a 3x3 pocket at its exact center where neither a horizontal
+        // nor a vertical seam call ever reaches (each only clears its own row/column band, never
+        // the diagonal gap corner shared by all 4 cells) - left permanently walled off on all 4
+        // sides with no floor, so anything spawned there (the boss, always exactly at the group's
+        // center - see SetupBossRoom) was sealed in a tiny box. Repainting the full rect at once
+        // has no such gap for any shape, so it replaces the seam-by-seam approach entirely.
+        var repaintedGroups = new HashSet<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
+        {
+            RectInt group = cellGroups[kv.Key];
+            if (group.width * group.height <= 1) continue; // unmerged - BuildRoomGeometry's own border is already correct
+            Vector2Int groupKey = new Vector2Int(group.xMin, group.yMin);
+            if (!repaintedGroups.Add(groupKey)) continue; // one repaint per group, not per member cell
+
+            Rect worldRect = GroupWorldRect(group);
+            int gxMin = Mathf.RoundToInt(worldRect.xMin), gyMin = Mathf.RoundToInt(worldRect.yMin);
+            int gw = Mathf.RoundToInt(worldRect.width), gh = Mathf.RoundToInt(worldRect.height);
+            for (int x = 0; x < gw; x++)
+            {
+                for (int y = 0; y < gh; y++)
+                {
+                    Vector3Int pos = new Vector3Int(gxMin + x, gyMin + y, 0);
+                    bool isWall = x == 0 || y == 0 || x == gw - 1 || y == gh - 1;
+                    wallsMap.SetTile(pos, isWall ? wallTile : null);
+                    floorMap.SetTile(pos, isWall ? null : floorTile);
+                }
+            }
+        }
         // Each room's doors, so a Monster room can later block/unblock its own thresholds. Door
         // TRIGGERS aren't created yet here - that happens once every Monster room's
         // RoomController exists below, so each trigger can be wired to check the lock state of
@@ -814,8 +847,8 @@ public static class DungeonGenerator
             {
                 if (SameGroup(cellGroups, cell, rightCell))
                 {
-                    // Two cells of the same merged room - no door, just one continuous floor.
-                    OpenFullHorizontalSeam(cell.x * StepX, rightCell.x * StepX, cell.y * StepY, floorMap, wallsMap, floorTile, wallTile);
+                    // Two cells of the same merged room - no door, already one continuous floor
+                    // (see the group repaint pass above).
                 }
                 else
                 {
@@ -853,7 +886,7 @@ public static class DungeonGenerator
             {
                 if (SameGroup(cellGroups, cell, upCell))
                 {
-                    OpenFullVerticalSeam(cell.y * StepY, upCell.y * StepY, cell.x * StepX, floorMap, wallsMap, floorTile, wallTile);
+                    // Same as the horizontal case above - already one continuous floor.
                 }
                 else
                 {
@@ -2785,53 +2818,6 @@ public static class DungeonGenerator
             Vector3Int pos = fixedIsX ? new Vector3Int(fixedCoord, doorStart + d, 0) : new Vector3Int(doorStart + d, fixedCoord, 0);
             wallsMap.SetTile(pos, null);
             floorMap.SetTile(pos, floorTile);
-        }
-    }
-
-    // Merges two adjacent cells of the SAME multi-cell room into one seamless space: removes both
-    // rooms' facing interior wall columns and opens the gap between them the same way a normal
-    // room's interior is built (floor in the middle, wall only at the outer top/bottom border) -
-    // no door, no teleport, just one continuous floor across the former seam.
-    static void OpenFullHorizontalSeam(int leftOriginX, int rightOriginX, int originY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
-    {
-        for (int y = 1; y < RoomHeight - 1; y++)
-        {
-            wallsMap.SetTile(new Vector3Int(leftOriginX + RoomWidth - 1, originY + y, 0), null);
-            floorMap.SetTile(new Vector3Int(leftOriginX + RoomWidth - 1, originY + y, 0), floorTile);
-            wallsMap.SetTile(new Vector3Int(rightOriginX, originY + y, 0), null);
-            floorMap.SetTile(new Vector3Int(rightOriginX, originY + y, 0), floorTile);
-        }
-        for (int gx = 0; gx < Gap; gx++)
-        {
-            int worldX = leftOriginX + RoomWidth + gx;
-            for (int y = 0; y < RoomHeight; y++)
-            {
-                bool isBorderRow = y == 0 || y == RoomHeight - 1;
-                wallsMap.SetTile(new Vector3Int(worldX, originY + y, 0), isBorderRow ? wallTile : null);
-                floorMap.SetTile(new Vector3Int(worldX, originY + y, 0), isBorderRow ? null : floorTile);
-            }
-        }
-    }
-
-    // Same as OpenFullHorizontalSeam, for two cells stacked vertically in the same merged room.
-    static void OpenFullVerticalSeam(int bottomOriginY, int topOriginY, int originX, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
-    {
-        for (int x = 1; x < RoomWidth - 1; x++)
-        {
-            wallsMap.SetTile(new Vector3Int(originX + x, bottomOriginY + RoomHeight - 1, 0), null);
-            floorMap.SetTile(new Vector3Int(originX + x, bottomOriginY + RoomHeight - 1, 0), floorTile);
-            wallsMap.SetTile(new Vector3Int(originX + x, topOriginY, 0), null);
-            floorMap.SetTile(new Vector3Int(originX + x, topOriginY, 0), floorTile);
-        }
-        for (int gy = 0; gy < Gap; gy++)
-        {
-            int worldY = bottomOriginY + RoomHeight + gy;
-            for (int x = 0; x < RoomWidth; x++)
-            {
-                bool isBorderCol = x == 0 || x == RoomWidth - 1;
-                wallsMap.SetTile(new Vector3Int(originX + x, worldY, 0), isBorderCol ? wallTile : null);
-                floorMap.SetTile(new Vector3Int(originX + x, worldY, 0), isBorderCol ? null : floorTile);
-            }
         }
     }
 
