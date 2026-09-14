@@ -24,7 +24,7 @@ public class ExplosiveBarrel : MonoBehaviour
     void Explode()
     {
         ExplosionUtility.Explode(transform.position, explosionRadius, damage, int.MaxValue, explosionSprite);
-        LootTable.TryDropLoot(transform.position);
+        LootTable.TryDropLoot(transform.position, transform.parent);
         Destroy(gameObject);
     }
 }

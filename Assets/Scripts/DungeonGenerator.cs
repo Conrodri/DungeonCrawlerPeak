@@ -383,6 +383,15 @@ public static class DungeonGenerator
         " XXXXXXXX ",
         "  XXXXXX  ",
     };
+    static readonly string[] ClothMask =
+    {
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XX X X X X",
+        " X X X X  ",
+    };
     static readonly string[] StoneMask =
     {
         "  XX  XX  ",
@@ -658,6 +667,11 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.");
+
+        // Corpse-only material (see CorpseLoot.cs) - no destructible-decor source, only found on
+        // NPC-type bodies.
+        Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
+        RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Misc, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.");
 
         // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
         // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see

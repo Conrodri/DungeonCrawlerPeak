@@ -106,8 +106,20 @@ public class BossRoomController : MonoBehaviour
         UpdateDoors();
 
         Vector2 dropPos = boss.transform.position;
-        if (!string.IsNullOrEmpty(dropItemId) && UnityEngine.Random.value < dropChance) ItemPickup.SpawnAt(dropPos, dropItemId, 1);
-        LootTable.TryDropLoot(dropPos);
+        // A corpse to examine (E) instead of loot silently auto-dropping - see Corpse.cs/
+        // CorpseLoot.cs. guaranteed: true - a boss is never empty-handed (this is what the
+        // "killed the Region boss, got nothing" report was actually hitting: the family trophy's
+        // own dropChance AND the old generic LootTable.TryDropLoot roll could both whiff at once).
+        // The family trophy (if it rolls) still rides along in the same corpse rather than a
+        // separate ground pickup.
+        var loot = CorpseLoot.Generate(isNpc: false, guaranteed: true);
+        if (!string.IsNullOrEmpty(dropItemId) && UnityEngine.Random.value < dropChance) loot.Add((dropItemId, 1));
+        PlayerInventory playerInventory = player != null ? player.GetComponent<PlayerInventory>() : null;
+        GameObject corpse = Corpse.SpawnAt(dropPos, "Depouille de " + bossName, loot, boss.GetComponent<SpriteRenderer>().sprite, playerInventory);
+        // Same parent as the boss itself (DungeonRoot) - see the matching comment in
+        // EnemyController.HandleDeath for why this matters (otherwise never cleaned up on Build()).
+        corpse.transform.SetParent(boss.transform.parent);
+
         if (player != null) player.GetComponent<PlayerStats>()?.AddExperience(xpReward);
 
         if (victoryBanner != null) victoryBanner.ShowVictory(bossName + " est vaincu !");

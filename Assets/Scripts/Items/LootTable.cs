@@ -17,12 +17,17 @@ public static class LootTable
         (ItemIds.HealthPotion, 1, 2),
     };
 
-    public static void TryDropLoot(Vector2 position)
+    // `parent` should always be passed by a caller whose own GameObject lives under DungeonRoot
+    // (every current caller does) - without it, the dropped pickup has no parent at all and
+    // survives DungeonGenerator.Build()'s "destroy the old DungeonRoot" step, piling up across
+    // floors forever instead of getting cleaned up with everything else from that floor.
+    public static void TryDropLoot(Vector2 position, Transform parent = null)
     {
         if (Random.value > DropChance) return;
 
         PickRandomItem(out string itemId, out int amount);
-        ItemPickup.SpawnAt(position, itemId, amount);
+        GameObject pickup = ItemPickup.SpawnAt(position, itemId, amount);
+        if (parent != null) pickup.transform.SetParent(parent);
     }
 
     public static void PickRandomItem(out string itemId, out int amount)

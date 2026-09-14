@@ -29,8 +29,10 @@ public class DestructibleObject : MonoBehaviour
         currentHealth = Mathf.Max(0, currentHealth - amount);
         if (currentHealth == 0)
         {
-            if (!string.IsNullOrEmpty(guaranteedDropItemId)) ItemPickup.SpawnAt(transform.position, guaranteedDropItemId, 1);
-            LootTable.TryDropLoot(transform.position);
+            // Parented like this decor piece itself (under DungeonRoot) - see LootTable.TryDropLoot's
+            // own comment for why an unparented pickup would otherwise leak across floors.
+            if (!string.IsNullOrEmpty(guaranteedDropItemId)) ItemPickup.SpawnAt(transform.position, guaranteedDropItemId, 1).transform.SetParent(transform.parent);
+            LootTable.TryDropLoot(transform.position, transform.parent);
             OnDestroyed?.Invoke();
             Destroy(gameObject);
         }

@@ -13,6 +13,10 @@ public static class ItemIds
     public const string Wood = "wood";
     public const string Metal = "metal";
     public const string Stone = "stone";
+    // Corpse-only material (see CorpseLoot.cs) - NPC-type bodies drop this instead of Wood/Metal/
+    // Stone. No destructible-decor source (yet) - foreshadows the future clothing flammability
+    // chantier (see project vision), not usable for anything today beyond being a lootable good.
+    public const string Cloth = "cloth";
 
     // Equipment (see EquipmentSlotType) - one plain placeholder per slot for now, no stat bonuses
     // yet, just enough to actually fill and test the new equipment panel. Sold at the Shop.

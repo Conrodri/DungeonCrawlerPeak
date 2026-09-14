@@ -229,7 +229,18 @@ public class EnemyController : MonoBehaviour
     void HandleDeath()
     {
         Debug.Log(name + " died.");
-        LootTable.TryDropLoot(transform.position);
+        // A corpse to examine (E) instead of loot silently auto-dropping - see Corpse.cs/
+        // CorpseLoot.cs. Not guaranteed (CorpseLoot.Generate's 75% has-loot roll) - an ordinary
+        // mob can still leave nothing behind, unlike a boss.
+        PlayerInventory playerInventory = target != null ? target.GetComponent<PlayerInventory>() : null;
+        var loot = CorpseLoot.Generate(isNpc: false);
+        GameObject corpse = Corpse.SpawnAt(transform.position, "Cadavre de " + enemyType, loot, GetComponent<SpriteRenderer>().sprite, playerInventory);
+        // Same parent as this enemy (its owning RoomController, itself under DungeonRoot) - without
+        // this the corpse (like the old ItemPickup.SpawnAt ground drops it replaces) would survive
+        // DungeonGenerator.Build()'s "destroy the old DungeonRoot" step and pile up across floors
+        // forever, since nothing else ever destroys it.
+        corpse.transform.SetParent(transform.parent);
+
         if (target != null) target.GetComponent<PlayerStats>()?.AddExperience(xpReward);
         OnDied?.Invoke();
         Destroy(gameObject);
