@@ -153,8 +153,10 @@ public class RoomController : MonoBehaviour
         foreach (EnemySpawn spawn in recipe)
         {
             EnemyPresetEntry preset = FindPreset(spawn.type);
+            int floor = Mathf.Max(1, DungeonGenerator.CurrentFloor);
+            int level = MonsterLeveling.RollLevel(floor);
 
-            GameObject enemy = new GameObject(spawn.type.ToString(),
+            GameObject enemy = new GameObject(spawn.type + " Niv." + level,
                 typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(EnemyController));
             enemy.transform.SetParent(transform);
             enemy.transform.position = roomOrigin + spawn.localOffset;
@@ -169,19 +171,27 @@ public class RoomController : MonoBehaviour
 
             enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
 
+            // Force/Vitesse scale with this instance's rolled level within its species' band (see
+            // MonsterLeveling.ApplyLevelStats); Constitution instead scales with the FLOOR, not the
+            // level, so depth always has a real HP floor regardless of how a monster's level rolled.
+            float scaledMoveSpeed = preset.moveSpeed;
+            int scaledContactDamage = preset.contactDamage;
+            MonsterLeveling.ApplyLevelStats(spawn.type, level, floor, ref scaledMoveSpeed, ref scaledContactDamage);
+
             Health health = enemy.GetComponent<Health>();
-            health.maxHealth = preset.maxHealth;
+            health.maxHealth = preset.maxHealth + MonsterLeveling.ConstitutionBonusForFloor(floor);
             health.currentHealth = health.maxHealth;
 
             EnemyController controller = enemy.GetComponent<EnemyController>();
             controller.enemyType = spawn.type;
-            controller.moveSpeed = preset.moveSpeed;
-            controller.contactDamage = preset.contactDamage;
+            controller.level = level;
+            controller.moveSpeed = scaledMoveSpeed;
+            controller.contactDamage = scaledContactDamage;
             controller.isFlying = preset.isFlying;
             // Floor-scaled (see DungeonGenerator.RegionBossXpFor) - a flat reward regardless of
             // floor couldn't keep pace with a per-floor XP budget that grows several times over
             // from one floor to the next.
-            controller.xpReward = preset.xpReward * Mathf.Max(1, DungeonGenerator.CurrentFloor);
+            controller.xpReward = preset.xpReward * floor;
             // Untargeted until ArmEnemies() confirms the player is actually in the room - see
             // playerPresent above.
             controller.SetRoomBounds(new Rect(roomOrigin, roomSize));

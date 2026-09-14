@@ -12,6 +12,10 @@ public class EnemyController : MonoBehaviour
     // Set by RoomController.SpawnEnemies right after creation - drives PlayerLimbs' hit-location
     // roll (see Health.TakeDamageFromEnemy) so a Zombie/ChauveSouris hit targets the right part.
     public EnemyType enemyType;
+    // Rolled once at spawn from the current floor's range (see MonsterLeveling.RollLevel) - no
+    // live leveling, this enemy instance never persists long enough to grow. Debug-only for now
+    // (shown in the GameObject name, see RoomController.SpawnEnemies) - no dedicated UI.
+    public int level = 1;
     public EliteModifier modifier;
     public int xpReward = 1;
 
