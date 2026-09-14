@@ -13,6 +13,10 @@ public static class DungeonBootstrap
     // baked into the same IconPackData/lookup as the icon atlas so DungeonGenerator.LoadIconPackSprite
     // works for both without a second runtime code path.
     const string CharacterAtlasPath = "Assets/Kenney Game Assets/2D assets/Roguelike Characters Pack/Spritesheet/roguelikeChar_transparent.png";
+    // Sliced by KenneyDungeonTileSlicer.SliceDungeonTiles - floor/wall tiles sampled pixel-by-pixel
+    // at runtime (DungeonGenerator.CreateTexturedFloorSprite/CreateWallSprite), not just assigned
+    // whole to a SpriteRenderer like the two atlases above.
+    const string DungeonTileAtlasPath = "Assets/Kenney Game Assets/2D assets/Roguelike Dungeon Pack/Spritesheet/roguelikeDungeon_transparent.png";
 
     [MenuItem("Dungeon/Generate Floor")]
     public static void Build()
@@ -51,6 +55,10 @@ public static class DungeonBootstrap
             if (obj is Sprite sprite) data.entries.Add(new IconPackData.Entry { name = sprite.name, sprite = sprite });
         }
         foreach (Object obj in AssetDatabase.LoadAllAssetsAtPath(CharacterAtlasPath))
+        {
+            if (obj is Sprite sprite) data.entries.Add(new IconPackData.Entry { name = sprite.name, sprite = sprite });
+        }
+        foreach (Object obj in AssetDatabase.LoadAllAssetsAtPath(DungeonTileAtlasPath))
         {
             if (obj is Sprite sprite) data.entries.Add(new IconPackData.Entry { name = sprite.name, sprite = sprite });
         }

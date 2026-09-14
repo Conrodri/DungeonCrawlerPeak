@@ -13,12 +13,12 @@ public static class KenneyCharacterSlicer
     const int Pitch = Tile + Margin;
     const int SheetHeight = 203; // Assets/.../roguelikeChar_transparent.png's actual pixel height
 
-    // Row 5, col 0 - a blonde adventurer in an orange tunic, picked by visually inspecting an
-    // upscaled crop of the sheet (it's a modular body+hair+clothes builder sheet, not one clean
-    // grid of ready characters, so coordinates aren't guessable from Instructions.txt alone).
-    // Re-run this (then Dungeon/Rebuild Icon Pack Data) if the chosen tile ever changes.
-    // pixelsPerUnit matches DungeonGenerator.TilePixelSize (16) so it renders at exactly 1 world
-    // unit, the same convention every procedurally-generated sprite already uses.
+    // Row/col picked by visually inspecting an upscaled crop of the sheet (it's a modular
+    // body+hair+clothes builder sheet, not one clean grid of ready characters, so coordinates
+    // aren't guessable from Instructions.txt alone). Re-run this (then Dungeon/Rebuild Icon Pack
+    // Data) if a chosen tile ever changes. pixelsPerUnit matches DungeonGenerator.TilePixelSize
+    // (16) so each renders at exactly 1 world unit, the same convention every procedurally-
+    // generated sprite already uses.
     [MenuItem("Dungeon/Kenney/Slice Player Sprite")]
     public static void SlicePlayerSprite()
     {
@@ -31,20 +31,34 @@ public static class KenneyCharacterSlicer
         importer.mipmapEnabled = false;
         importer.alphaIsTransparency = true;
 
-        int row = 5, col = 0;
-        int srcY = SheetHeight - Pitch * (row + 1);
-        importer.spritesheet = new[]
+        // Ready-made single-tile characters beyond the player's own (row 5 col 0) - picked by the
+        // same visual-inspection method, distinct enough silhouettes to tell NPC roles apart even
+        // before DungeonGenerator applies a per-role color tint (SpawnExampleNpc/SpawnTavernNpc/
+        // SpawnMerchantNpc/SpawnTutorialNpc - see "meme si c'est les memes, change la couleur" 2026-09-14).
+        (string name, int row, int col)[] tiles =
         {
-            new SpriteMetaData
+            ("PlayerHero", 5, 0),        // blonde adventurer, orange tunic
+            ("NpcElder", 5, 1),          // white-haired elder, teal robe - Le Tavernier
+            ("NpcStranger", 6, 0),       // rugged shirtless wanderer - Etranger encapuchonne
+            ("NpcMerchant", 6, 1),       // bearded, teal pauldrons - Marchand
+            ("NpcGuide", 7, 0),          // tan vest - Le Guide (tutoriel)
+        };
+
+        var metas = new SpriteMetaData[tiles.Length];
+        for (int i = 0; i < tiles.Length; i++)
+        {
+            int srcY = SheetHeight - Pitch * (tiles[i].row + 1);
+            metas[i] = new SpriteMetaData
             {
-                name = "PlayerHero",
-                rect = new Rect(col * Pitch, srcY, Tile, Tile),
+                name = tiles[i].name,
+                rect = new Rect(tiles[i].col * Pitch, srcY, Tile, Tile),
                 pivot = new Vector2(0.5f, 0.5f),
                 alignment = (int)SpriteAlignment.Custom,
-            },
-        };
+            };
+        }
+        importer.spritesheet = metas;
         importer.SaveAndReimport();
 
-        Debug.Log("Sliced PlayerHero from " + SheetPath + " at row " + row + ", col " + col + " - run Dungeon/Rebuild Icon Pack Data next.");
+        Debug.Log("Sliced " + tiles.Length + " character tiles from " + SheetPath + " - run Dungeon/Rebuild Icon Pack Data next.");
     }
 }

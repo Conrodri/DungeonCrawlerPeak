@@ -260,6 +260,214 @@ public static class DungeonGenerator
         "XXXXXXXXXX",
     };
 
+    // Ground item silhouettes (see RegisterItem below) - same mask-to-texture approach as the
+    // enemy/marker shapes above, recognizable shapes instead of a plain flat-colored square.
+    static readonly string[] SwordMask =
+    {
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "  XXXXXX  ",
+        "    XX    ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+    static readonly string[] CursedSwordMask =
+    {
+        "    XX    ",
+        "   X  X   ",
+        "    XX    ",
+        "   XX     ",
+        "    XX    ",
+        "   X  X   ",
+        "  XXXXXX  ",
+        "    XX    ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+    static readonly string[] StaffMask =
+    {
+        "   XXXX   ",
+        "  XXXXXX  ",
+        "   XXXX   ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+    };
+    static readonly string[] ShurikenMask =
+    {
+        "X        X",
+        "XX      XX",
+        " XX    XX ",
+        "  XX  XX  ",
+        "   XXXX   ",
+        "   XXXX   ",
+        "  XX  XX  ",
+        " XX    XX ",
+        "XX      XX",
+        "X        X",
+    };
+    static readonly string[] BatonMask =
+    {
+        "XX        ",
+        "XXX       ",
+        " XXX      ",
+        "  XXX     ",
+        "   XXX    ",
+        "    XXX   ",
+        "     XXX  ",
+        "      XXX ",
+        "       XXX",
+        "        XX",
+    };
+    static readonly string[] AnvilMask =
+    {
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "   XXXX   ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] TrapSackMask =
+    {
+        "   XXXX   ",
+        "   XXXX   ",
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] CerberusCollarMask =
+    {
+        " X  X  X  ",
+        "  XXXXXX  ",
+        " XX    XX ",
+        "XX      XX",
+        "X        X",
+        "X        X",
+        "XX      XX",
+        " XX    XX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] WoodMask =
+    {
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXOXXXXOXX",
+        "XXOXXXXOXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+    };
+    static readonly string[] MetalMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] StoneMask =
+    {
+        "  XX  XX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XX  XX  ",
+    };
+    static readonly string[] HelmetMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXX    XXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "   XXXX   ",
+    };
+    static readonly string[] PauldronsMask =
+    {
+        "XXX    XXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] GlovesMask =
+    {
+        " XX XX XX ",
+        " XXXXXXXX ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] BootsMask =
+    {
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXXXXX ",
+        "XXXXXXXXXX",
+    };
+    static readonly string[] AntiHoleBootsMask =
+    {
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXX    ",
+        "  XXXXXXX ",
+        "XXXXXXXXXX",
+        "X X X X X ",
+    };
+    static readonly string[] BeltMask =
+    {
+        "          ",
+        "XXXXXXXXXX",
+        "XXX XX XXX",
+        "XXX XX XXX",
+        "XXXXXXXXXX",
+        "          ",
+    };
+    static readonly string[] KneepadsMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        "XX      XX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        "  XXXXXX  ",
+    };
+    static readonly string[] GlassesMask =
+    {
+        "          ",
+        " XX    XX ",
+        "X  X  X  X",
+        "X  X  X  X",
+        " XX    XX ",
+        "          ",
+    };
+
     // The seed the currently-loaded floor was built with - a Safe room's "rest" option saves this
     // alongside player state, so DungeonGenerator.Build(CurrentSeed) recreates the exact same floor.
     public static int CurrentSeed { get; private set; }
@@ -297,7 +505,7 @@ public static class DungeonGenerator
         CurrentBiome = biome;
         BiomeTheme biomeTheme = BiomeTheme.Get(biome);
 
-        Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
+        Sprite floorSprite = CreateTexturedFloorSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", biomeTheme.wallFaceColor, biomeTheme.wallTopColor, biomeTheme.wallEdgeColor);
         // "PlayerHero" is a real Kenney character tile (see KenneyCharacterSlicer.SlicePlayerSprite
         // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
@@ -366,12 +574,12 @@ public static class DungeonGenerator
         Sprite craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
 
         Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
-        Sprite swordPickupSprite = CreateSolidSprite("Assets/Art/Items/Sword.png", new Color(0.75f, 0.78f, 0.82f));
-        Sprite staffPickupSprite = CreateSolidSprite("Assets/Art/Items/Staff.png", new Color(0.5f, 0.25f, 0.65f));
+        Sprite swordPickupSprite = CreateMaskedSprite("Assets/Art/Items/Sword.png", SwordMask, new Color(0.75f, 0.78f, 0.82f));
+        Sprite staffPickupSprite = CreateMaskedSprite("Assets/Art/Items/Staff.png", StaffMask, new Color(0.5f, 0.25f, 0.65f));
         Sprite goldSprite = LoadIconPackSprite("Coin_Bright");
-        Sprite shurikenSprite = CreateSolidSprite("Assets/Art/Items/Shuriken.png", new Color(0.6f, 0.6f, 0.65f));
+        Sprite shurikenSprite = CreateMaskedSprite("Assets/Art/Items/Shuriken.png", ShurikenMask, new Color(0.6f, 0.6f, 0.65f));
         Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
-        Sprite batonSprite = CreateSolidSprite("Assets/Art/Items/Baton.png", new Color(0.5f, 0.35f, 0.2f));
+        Sprite batonSprite = CreateMaskedSprite("Assets/Art/Items/Baton.png", BatonMask, new Color(0.5f, 0.35f, 0.2f));
 
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
@@ -393,9 +601,9 @@ public static class DungeonGenerator
 
         // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
         // never in the common LootTable drop pool.
-        Sprite anvilSprite = CreateSolidSprite("Assets/Art/Items/Anvil.png", new Color(0.2f, 0.2f, 0.22f));
-        Sprite cursedSwordSprite = CreateSolidSprite("Assets/Art/Items/CursedSword.png", new Color(0.35f, 0.1f, 0.4f));
-        Sprite trapSackSprite = CreateSolidSprite("Assets/Art/Items/TrapSack.png", new Color(0.5f, 0.4f, 0.3f));
+        Sprite anvilSprite = CreateMaskedSprite("Assets/Art/Items/Anvil.png", AnvilMask, new Color(0.2f, 0.2f, 0.22f));
+        Sprite cursedSwordSprite = CreateMaskedSprite("Assets/Art/Items/CursedSword.png", CursedSwordMask, new Color(0.35f, 0.1f, 0.4f));
+        Sprite trapSackSprite = CreateMaskedSprite("Assets/Art/Items/TrapSack.png", TrapSackMask, new Color(0.5f, 0.4f, 0.3f));
         RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Misc, 1, anvilSprite,
             "Une lourde enclume de forgeron.", weight: 5);
         RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite", ItemCategory.Weapon, 1, cursedSwordSprite,
@@ -408,7 +616,7 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
             "Restaure un peu de vie.", healAmount: 3);
 
-        Sprite cerberusCollarSprite = CreateSolidSprite("Assets/Art/Items/CerberusCollar.png", new Color(0.75f, 0.6f, 0.15f));
+        Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Neck);
@@ -437,9 +645,9 @@ public static class DungeonGenerator
         // Crafting materials - guaranteed drops from the matching decor material (see
         // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
         // crafting table (SpawnCraftingTable).
-        Sprite woodMaterialSprite = CreateSolidSprite("Assets/Art/Items/Wood.png", new Color(0.55f, 0.4f, 0.25f));
-        Sprite metalMaterialSprite = CreateSolidSprite("Assets/Art/Items/Metal.png", new Color(0.5f, 0.53f, 0.58f));
-        Sprite stoneMaterialSprite = CreateSolidSprite("Assets/Art/Items/Stone.png", new Color(0.42f, 0.4f, 0.38f));
+        Sprite woodMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Wood.png", WoodMask, new Color(0.55f, 0.4f, 0.25f));
+        Sprite metalMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Metal.png", MetalMask, new Color(0.5f, 0.53f, 0.58f));
+        Sprite stoneMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Stone.png", StoneMask, new Color(0.42f, 0.4f, 0.38f));
         RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.");
         RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.");
@@ -448,13 +656,13 @@ public static class DungeonGenerator
         // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
         // PlayerLimbs.GetArmor) - Torso is covered by Shoulders+Belt+Neck at once, Arms/Legs share
         // a single Gloves/Boots+Knees slot each, matching this project's one-slot-per-type layout.
-        Sprite ironHelmetSprite = CreateSolidSprite("Assets/Art/Items/IronHelmet.png", new Color(0.55f, 0.56f, 0.6f));
-        Sprite leatherPauldronsSprite = CreateSolidSprite("Assets/Art/Items/LeatherPauldrons.png", new Color(0.45f, 0.32f, 0.18f));
-        Sprite combatGlovesSprite = CreateSolidSprite("Assets/Art/Items/CombatGloves.png", new Color(0.35f, 0.25f, 0.15f));
-        Sprite walkingBootsSprite = CreateSolidSprite("Assets/Art/Items/WalkingBoots.png", new Color(0.3f, 0.2f, 0.12f));
+        Sprite ironHelmetSprite = CreateMaskedSprite("Assets/Art/Items/IronHelmet.png", HelmetMask, new Color(0.55f, 0.56f, 0.6f));
+        Sprite leatherPauldronsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherPauldrons.png", PauldronsMask, new Color(0.45f, 0.32f, 0.18f));
+        Sprite combatGlovesSprite = CreateMaskedSprite("Assets/Art/Items/CombatGloves.png", GlovesMask, new Color(0.35f, 0.25f, 0.15f));
+        Sprite walkingBootsSprite = CreateMaskedSprite("Assets/Art/Items/WalkingBoots.png", BootsMask, new Color(0.3f, 0.2f, 0.12f));
         Sprite simpleNecklaceSprite = CreateCircleSprite("Assets/Art/Items/SimpleNecklace.png", new Color(0.8f, 0.75f, 0.3f));
-        Sprite leatherBeltSprite = CreateSolidSprite("Assets/Art/Items/LeatherBelt.png", new Color(0.4f, 0.28f, 0.16f));
-        Sprite leatherKneepadsSprite = CreateSolidSprite("Assets/Art/Items/LeatherKneepads.png", new Color(0.42f, 0.3f, 0.17f));
+        Sprite leatherBeltSprite = CreateMaskedSprite("Assets/Art/Items/LeatherBelt.png", BeltMask, new Color(0.4f, 0.28f, 0.16f));
+        Sprite leatherKneepadsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherKneepads.png", KneepadsMask, new Color(0.42f, 0.3f, 0.17f));
         Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
         RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
             "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1);
@@ -495,11 +703,11 @@ public static class DungeonGenerator
                 equipmentSlot: EquipmentSlotType.RingLeft, ringBonusStat: ring.stat);
         }
 
-        Sprite antiHoleBootsSprite = CreateSolidSprite("Assets/Art/Items/AntiHoleBoots.png", new Color(0.35f, 0.28f, 0.15f));
+        Sprite antiHoleBootsSprite = CreateMaskedSprite("Assets/Art/Items/AntiHoleBoots.png", AntiHoleBootsMask, new Color(0.35f, 0.28f, 0.15f));
         RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipment, 1, antiHoleBootsSprite,
             "Immunise contre le ralentissement des trous au sol.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots);
 
-        Sprite visionGlassesSprite = CreateSolidSprite("Assets/Art/Items/VisionGlasses.png", new Color(0.5f, 0.7f, 0.85f));
+        Sprite visionGlassesSprite = CreateMaskedSprite("Assets/Art/Items/VisionGlasses.png", GlassesMask, new Color(0.5f, 0.7f, 0.85f));
         RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipment, 1, visionGlassesSprite,
             "Revele les murs dissimulant une salle secrete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head);
 
@@ -508,7 +716,13 @@ public static class DungeonGenerator
         // visual hint, on purpose (detection items are a separate future feature).
         Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
-        Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        // Real Kenney character tiles (see KenneyCharacterSlicer.SlicePlayerSprite), one per NPC
+        // role, each with its own color tint applied at spawn time (SpawnExampleNpc etc. below) so
+        // even a reused silhouette still reads as a distinct character - same fallback convention
+        // as PlayerHero if the slice/bake step was never run.
+        Sprite npcStrangerSprite = LoadIconPackSprite("NpcStranger") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        Sprite npcElderSprite = LoadIconPackSprite("NpcElder") ?? npcStrangerSprite;
+        Sprite npcMerchantSprite = LoadIconPackSprite("NpcMerchant") ?? npcStrangerSprite;
         // Ground items are flat colored circles/squares too (no dedicated art beyond a handful of
         // icon-pack sprites) - without a marker, an NPC reads as just another item on the floor.
         // A floating "!" above the head (same convention as EnemyController's elite badges) fixes
@@ -775,20 +989,20 @@ public static class DungeonGenerator
                 if (kv.Value == RoomType.Event)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnExampleNpc(center + new Vector2(2f, 0f), npcSprite, npcBadgeSprite, root.transform);
+                    SpawnExampleNpc(center + new Vector2(2f, 0f), npcStrangerSprite, npcBadgeSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Safe)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcSprite, npcBadgeSprite, root.transform);
+                    SpawnTavernNpc(center + new Vector2(2f, 0f), npcElderSprite, npcBadgeSprite, root.transform);
                     SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Shop)
                 {
                     Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
-                    SpawnMerchantNpc(center, npcSprite, npcBadgeSprite, root.transform);
+                    SpawnMerchantNpc(center, npcMerchantSprite, npcBadgeSprite, root.transform);
                 }
 
                 if (kv.Value == RoomType.Stairs)
@@ -1778,7 +1992,7 @@ public static class DungeonGenerator
         clearedRoomsThisFloor.Clear();
         bossDefeatedThisFloor = false;
 
-        Sprite floorSprite = CreateSolidSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
+        Sprite floorSprite = CreateTexturedFloorSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
         Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
         Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
@@ -1792,7 +2006,7 @@ public static class DungeonGenerator
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
-        Sprite npcSprite = CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        Sprite npcSprite = LoadIconPackSprite("NpcGuide") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
 
@@ -1968,6 +2182,7 @@ public static class DungeonGenerator
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
+        renderer.color = new Color(0.75f, 0.88f, 1f); // cool, reassuring - a guide, not a threat
         renderer.sortingOrder = 0;
 
         go.GetComponent<CircleCollider2D>().radius = 1.2f;
@@ -2814,6 +3029,7 @@ public static class DungeonGenerator
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
+        renderer.color = new Color(0.55f, 0.5f, 0.68f); // dim, faintly purple - a shady wanderer
         renderer.sortingOrder = 0;
         AddNpcBadge(go, badgeSprite);
 
@@ -2903,6 +3119,7 @@ public static class DungeonGenerator
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
+        renderer.color = new Color(1f, 0.9f, 0.7f); // warm, welcoming
         renderer.sortingOrder = 0;
         AddNpcBadge(go, badgeSprite);
 
@@ -3018,6 +3235,7 @@ public static class DungeonGenerator
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
+        renderer.color = new Color(1f, 0.88f, 0.5f); // gold, mercantile
         renderer.sortingOrder = 0;
         AddNpcBadge(go, badgeSprite);
 
@@ -3792,18 +4010,72 @@ public static class DungeonGenerator
         return SaveTextureAsSprite(tex, path);
     }
 
+    // Average brightness of the Kenney stone tiles sliced by KenneyDungeonTileSlicer (measured by
+    // sampling them directly) - lets TintFor reproduce each biome's intended flat color on average
+    // while the tile's own pixels (mortar lines, subtle noise) still show through as real texture,
+    // instead of guessing a tint and hoping it looks right.
+    static readonly Color FloorTileAvg = new Color(0.605f, 0.655f, 0.659f);
+    static readonly Color WallTileAvg = new Color(0.579f, 0.626f, 0.630f);
+
+    static Color TintFor(Color desired, Color textureAvg)
+    {
+        return new Color(
+            desired.r / Mathf.Max(textureAvg.r, 0.05f),
+            desired.g / Mathf.Max(textureAvg.g, 0.05f),
+            desired.b / Mathf.Max(textureAvg.b, 0.05f),
+            1f);
+    }
+
+    // Alpha forced to 1 - a couple of pixels in the source tile (a highlight/damage notch baked
+    // into the art) are partially transparent, which would otherwise punch stray see-through
+    // pixels into what's meant to be a solid architectural surface.
+    static Color SampleTile(Sprite tile, int x, int y)
+    {
+        Rect r = tile.rect;
+        Color c = tile.texture.GetPixel((int)r.x + x, (int)r.y + y);
+        c.a = 1f;
+        return c;
+    }
+
+    // Real Kenney stone texture (see KenneyDungeonTileSlicer) tinted to the biome's floor color
+    // (see TintFor) instead of a single flat-filled pixel - falls back to the old flat fill if the
+    // slice/bake step was never run, same "never means an invisible tile" pattern as PlayerHero.
+    static Sprite CreateTexturedFloorSprite(string path, Color desiredColor)
+    {
+        Sprite tile = LoadIconPackSprite("DungeonFloor");
+        if (tile == null) return CreateSolidSprite(path, desiredColor);
+
+        Color tint = TintFor(desiredColor, FloorTileAvg);
+        Texture2D tex = new Texture2D(TilePixelSize, TilePixelSize, TextureFormat.RGBA32, false);
+        for (int y = 0; y < TilePixelSize; y++)
+            for (int x = 0; x < TilePixelSize; x++)
+                tex.SetPixel(x, y, SampleTile(tile, x, y) * tint);
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path);
+    }
+
     static Sprite CreateWallSprite(string path, Color faceColor, Color topColor, Color edgeHighlight)
     {
+        Sprite faceTile = LoadIconPackSprite("DungeonWallFace");
+        Sprite topTile = LoadIconPackSprite("DungeonFloor"); // wall's top cap, seen from above - a stone floor tile reads fine for this
+        Color faceTint = TintFor(faceColor, WallTileAvg);
+        Color topTint = TintFor(topColor, FloorTileAvg);
+
         int height = TilePixelSize + WallExtraHeight;
         Texture2D tex = new Texture2D(TilePixelSize, height, TextureFormat.RGBA32, false);
         for (int y = 0; y < height; y++)
         {
-            Color rowColor;
-            if (y >= height - 1) rowColor = edgeHighlight;       // 1px lit edge along the very top
-            else if (y >= TilePixelSize) rowColor = topColor;    // raised top face, seen from above
-            else rowColor = faceColor;                            // shadowed front face, at floor level
+            for (int x = 0; x < TilePixelSize; x++)
+            {
+                Color rowColor;
+                if (y >= height - 1) rowColor = edgeHighlight;    // 1px lit edge along the very top
+                else if (y >= TilePixelSize)                       // raised top face, seen from above
+                    rowColor = topTile != null ? SampleTile(topTile, x, y - TilePixelSize) * topTint : topColor;
+                else                                                // shadowed front face, at floor level
+                    rowColor = faceTile != null ? SampleTile(faceTile, x, y) * faceTint : faceColor;
 
-            for (int x = 0; x < TilePixelSize; x++) tex.SetPixel(x, y, rowColor);
+                tex.SetPixel(x, y, rowColor);
+            }
         }
         tex.Apply();
         // Pivot at the bottom so the extra height pokes upward out of the tile's own cell.

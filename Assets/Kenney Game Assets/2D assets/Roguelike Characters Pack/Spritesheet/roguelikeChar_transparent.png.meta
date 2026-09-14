@@ -1124,6 +1124,18 @@ TextureImporter:
   - first:
       213: 397579493016949401
     second: PlayerHero
+  - first:
+      213: 3744392532695164729
+    second: NpcElder
+  - first:
+      213: -698010360134820119
+    second: NpcStranger
+  - first:
+      213: -6631832645870271270
+    second: NpcMerchant
+  - first:
+      213: 9215829035488301278
+    second: NpcGuide
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -1240,6 +1252,94 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
+    - serializedVersion: 2
+      name: NpcElder
+      rect:
+        serializedVersion: 2
+        x: 17
+        y: 101
+        width: 16
+        height: 16
+      alignment: 9
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 937abea7b21c6f330800000000000000
+      internalID: 3744392532695164729
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: NpcStranger
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 84
+        width: 16
+        height: 16
+      alignment: 9
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9ee1f92964b2056f0800000000000000
+      internalID: -698010360134820119
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: NpcMerchant
+      rect:
+        serializedVersion: 2
+        x: 17
+        y: 84
+        width: 16
+        height: 16
+      alignment: 9
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ad44015785ff6f3a0800000000000000
+      internalID: -6631832645870271270
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: NpcGuide
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 67
+        width: 16
+        height: 16
+      alignment: 9
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ed0d2032ea335ef70800000000000000
+      internalID: 9215829035488301278
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
@@ -1254,6 +1354,10 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
+      NpcElder: 3744392532695164729
+      NpcGuide: 9215829035488301278
+      NpcMerchant: -6631832645870271270
+      NpcStranger: -698010360134820119
       PlayerHero: 397579493016949401
       roguelikeChar_transparent_0: 7117352459926733294
       roguelikeChar_transparent_1: -4594815229075491804

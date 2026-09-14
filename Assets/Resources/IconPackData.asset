@@ -119,3 +119,15 @@ MonoBehaviour:
     sprite: {fileID: 1870898176, guid: 132358e9bf26b60458b731bf001e31db, type: 3}
   - name: PlayerHero
     sprite: {fileID: 397579493016949401, guid: 7c774061b3cf959488f7c00c965926af, type: 3}
+  - name: NpcElder
+    sprite: {fileID: 3744392532695164729, guid: 7c774061b3cf959488f7c00c965926af, type: 3}
+  - name: NpcGuide
+    sprite: {fileID: 9215829035488301278, guid: 7c774061b3cf959488f7c00c965926af, type: 3}
+  - name: NpcMerchant
+    sprite: {fileID: -6631832645870271270, guid: 7c774061b3cf959488f7c00c965926af, type: 3}
+  - name: NpcStranger
+    sprite: {fileID: -698010360134820119, guid: 7c774061b3cf959488f7c00c965926af, type: 3}
+  - name: DungeonFloor
+    sprite: {fileID: -5684043782580662049, guid: 5d02054a5058a7f45857d85a48dcf435, type: 3}
+  - name: DungeonWallFace
+    sprite: {fileID: -8118204363847496810, guid: 5d02054a5058a7f45857d85a48dcf435, type: 3}
