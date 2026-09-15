@@ -17,6 +17,10 @@ public class DialogueOutcome
     public bool npcDisappearsForever; // destroys the NPC - it never comes back in this floor
     public bool removesCursedItem; // lifts PlayerInventory's cursed-item lock and any forced weapon
     public bool savesGame; // writes a save file (see SaveManager) - only meaningful on a Safe-room NPC
+    // Heals the player immediately (see DialogueManager.ApplyOutcome) - used by an on-the-spot
+    // consumable (e.g. a Restaurant dish, see DungeonGenerator.EatOption) that never touches the
+    // inventory, unlike a real item's ItemDefinition.HealAmount consumed via PlayerController.UsePotion.
+    public int healAmount;
     // Opens AttributeAllocationUI - only meaningful on a Safe-room NPC (see DungeonGenerator.
     // SpawnTavernNpc). A dedicated panel rather than one DialogueOption per stat, since the
     // available-points count and each stat's live value need to update as points are spent, which

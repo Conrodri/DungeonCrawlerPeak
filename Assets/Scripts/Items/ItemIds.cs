@@ -9,11 +9,6 @@ public static class ItemIds
     public const string CursedSword = "cursed_sword";
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";
-    // Restaurant wares (see DungeonGenerator.SpawnCookNpc) - same HealAmount mechanism as
-    // HealthPotion, bigger heals at a gold price to match, distinct from the Shop's potion.
-    public const string Soup = "soup";
-    public const string Stew = "stew";
-    public const string Feast = "feast";
     public const string CerberusCollar = "cerberus_collar";
     public const string Wood = "wood";
     public const string Metal = "metal";
@@ -22,6 +17,13 @@ public static class ItemIds
     // Stone. No destructible-decor source (yet) - foreshadows the future clothing flammability
     // chantier (see project vision), not usable for anything today beyond being a lootable good.
     public const string Cloth = "cloth";
+
+    // Flora scattered through decorable rooms (see DungeonGenerator.DecorType.Flower) - crafting
+    // ingredients for the Table de Craft's Potion de Soin recipes, no other use.
+    public const string FlowerRed = "flower_red";
+    public const string FlowerBlue = "flower_blue";
+    public const string Herb = "herb";
+    public const string Mushroom = "mushroom";
 
     // Equipment (see EquipmentSlotType) - one plain placeholder per slot for now, no stat bonuses
     // yet, just enough to actually fill and test the new equipment panel. Sold at the Shop.

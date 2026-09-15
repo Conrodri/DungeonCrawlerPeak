@@ -131,10 +131,13 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
+    // Capped at 9 (digit1-9) - the Table de Craft now lists up to 8 options at once (2026-09-16,
+    // 4 flower-based Potion de Soin recipes added alongside Baton/Caillou/Bombe/Reparer), the most
+    // any NPC in this project offers at a fixed (non-scrolling) list.
     void HandleOptionInput()
     {
         if (Keyboard.current == null || activeNpc == null) return;
-        for (int i = 0; i < activeNpc.options.Count && i < 5; i++)
+        for (int i = 0; i < activeNpc.options.Count && i < 9; i++)
         {
             if (!NumberKeyPressed(i)) continue;
             if (!activeNpc.options[i].disabled) ChooseOption(activeNpc.options[i]);
@@ -151,6 +154,10 @@ public class DialogueManager : MonoBehaviour
             case 2: return Keyboard.current.digit3Key.wasPressedThisFrame;
             case 3: return Keyboard.current.digit4Key.wasPressedThisFrame;
             case 4: return Keyboard.current.digit5Key.wasPressedThisFrame;
+            case 5: return Keyboard.current.digit6Key.wasPressedThisFrame;
+            case 6: return Keyboard.current.digit7Key.wasPressedThisFrame;
+            case 7: return Keyboard.current.digit8Key.wasPressedThisFrame;
+            case 8: return Keyboard.current.digit9Key.wasPressedThisFrame;
             default: return false;
         }
     }
@@ -210,8 +217,18 @@ public class DialogueManager : MonoBehaviour
 
         if (playerInventory.GetCount(option.costItemId) >= cost && playerInventory.RemoveAmount(option.costItemId, cost))
         {
-            playerInventory.Add(option.purchaseItemId, 1);
-            bodyText.text = isGold ? "Vous achetez l'objet pour " + cost + " or." : "Vous fabriquez l'objet.";
+            if (!string.IsNullOrEmpty(option.purchaseItemId))
+            {
+                playerInventory.Add(option.purchaseItemId, 1);
+                bodyText.text = isGold ? "Vous achetez l'objet pour " + cost + " or." : "Vous fabriquez l'objet.";
+            }
+            else
+            {
+                // No item id - an on-the-spot consumable (see EatOption) resolves through
+                // onSuccess instead, same as any other outcome, and never touches the inventory.
+                bodyText.text = option.onSuccess != null && !string.IsNullOrEmpty(option.onSuccess.message) ? option.onSuccess.message : "...";
+                if (option.onSuccess != null) ApplyOutcome(option.onSuccess);
+            }
         }
         else
         {
@@ -287,6 +304,8 @@ public class DialogueManager : MonoBehaviour
         }
 
         if (outcome.curse) playerStats.ApplyCurse();
+
+        if (outcome.healAmount > 0 && playerHealth != null) playerHealth.Heal(outcome.healAmount);
 
         if (outcome.removesCursedItem)
         {

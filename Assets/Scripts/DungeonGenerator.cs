@@ -713,19 +713,6 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
             "Restaure un peu de vie.", healAmount: 3);
 
-        // Restaurant dishes (see SpawnCookNpc) - bigger heals than the Potion de Soin, priced in
-        // gold to match, sold only at the second Safe room of a floor (the Restaurant, distinct
-        // from the Tavern's first Safe room - see restaurantCell in GenerateLayout).
-        Sprite soupSprite = CreateCircleSprite("Assets/Art/Items/Soup.png", new Color(0.85f, 0.55f, 0.2f));
-        RegisterItem(itemEntries, ItemIds.Soup, "Soupe du Jour", ItemCategory.Misc, 5, soupSprite,
-            "Chaude et simple. Restaure un peu de vie.", healAmount: 4);
-        Sprite stewSprite = CreateCircleSprite("Assets/Art/Items/Stew.png", new Color(0.6f, 0.35f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.Stew, "Ragout Costaud", ItemCategory.Misc, 5, stewSprite,
-            "Un plat roboratif. Restaure une bonne quantite de vie.", healAmount: 10);
-        Sprite feastSprite = CreateCircleSprite("Assets/Art/Items/Feast.png", new Color(0.9f, 0.7f, 0.25f));
-        RegisterItem(itemEntries, ItemIds.Feast, "Festin du Chef", ItemCategory.Misc, 5, feastSprite,
-            "La meilleure table du donjon. Restaure une grande quantite de vie.", healAmount: 20);
-
         Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
@@ -766,6 +753,17 @@ public static class DungeonGenerator
         // NPC-type bodies.
         Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
         RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Misc, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.");
+
+        // Flora (see DecorType.Flower) - crafting-only ingredients, no heal/effect of their own,
+        // spent at the Table de Craft for a Potion de Soin (see SpawnCraftingTable).
+        Sprite flowerRedSprite = CreateCircleSprite("Assets/Art/Items/FlowerRed.png", new Color(0.85f, 0.15f, 0.25f));
+        RegisterItem(itemEntries, ItemIds.FlowerRed, "Fleur Ecarlate", ItemCategory.Misc, 20, flowerRedSprite, "Une fleur aux petales rouge vif.");
+        Sprite flowerBlueSprite = CreateCircleSprite("Assets/Art/Items/FlowerBlue.png", new Color(0.25f, 0.4f, 0.85f));
+        RegisterItem(itemEntries, ItemIds.FlowerBlue, "Fleur Azur", ItemCategory.Misc, 20, flowerBlueSprite, "Une fleur bleue au parfum leger.");
+        Sprite herbSprite = CreateCircleSprite("Assets/Art/Items/Herb.png", new Color(0.3f, 0.65f, 0.3f));
+        RegisterItem(itemEntries, ItemIds.Herb, "Herbe Argentee", ItemCategory.Misc, 20, herbSprite, "Une touffe d'herbe aux reflets argentes.");
+        Sprite mushroomSprite = CreateCircleSprite("Assets/Art/Items/Mushroom.png", new Color(0.8f, 0.65f, 0.2f));
+        RegisterItem(itemEntries, ItemIds.Mushroom, "Champignon Dore", ItemCategory.Misc, 20, mushroomSprite, "Un champignon a la teinte doree.");
 
         // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
         // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
@@ -3577,6 +3575,40 @@ public static class DungeonGenerator
                 costItemId = ItemIds.Metal,
                 costAmount = 2,
             },
+            // 4 different flowers, each its own recipe for the same Potion de Soin (see
+            // DecorType.Flower) - variety in what you gather, not in what comes out.
+            new DialogueOption
+            {
+                text = "Fabriquer une Potion de Soin (2 Fleur Ecarlate)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.HealthPotion,
+                costItemId = ItemIds.FlowerRed,
+                costAmount = 2,
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer une Potion de Soin (2 Fleur Azur)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.HealthPotion,
+                costItemId = ItemIds.FlowerBlue,
+                costAmount = 2,
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer une Potion de Soin (2 Herbe Argentee)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.HealthPotion,
+                costItemId = ItemIds.Herb,
+                costAmount = 2,
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer une Potion de Soin (2 Champignon Dore)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.HealthPotion,
+                costItemId = ItemIds.Mushroom,
+                costAmount = 2,
+            },
             new DialogueOption
             {
                 text = "Reparer / demonter mon equipement",
@@ -3648,9 +3680,10 @@ public static class DungeonGenerator
         bed.playerEquipment = playerEquipment;
     }
 
-    // The second Safe room's NPC (see restaurantCell in GenerateLayout) - sells food (bigger heals
-    // than the Shop's Potion de Soin, priced in gold), nothing else. Reuses BuyOption, the exact
-    // same purchase flow as the Marchand/Table de Craft.
+    // The second Safe room's NPC (see restaurantCell in GenerateLayout) - serves food eaten on the
+    // spot (see EatOption): pay gold, get healed immediately, nothing ever enters the inventory.
+    // Distinct from the Shop's Potion de Soin (a real carryable item) and from the Table de Craft's
+    // potion recipes (see SpawnCraftingTable) - the Restaurant's dishes exist only as this dialogue.
     static void SpawnCookNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
     {
         GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
@@ -3670,9 +3703,9 @@ public static class DungeonGenerator
         npc.greeting = "Un bon repas chaud avant de repartir ?";
         npc.options = new List<DialogueOption>
         {
-            BuyOption("Acheter une Soupe du Jour (3 or)", ItemIds.Soup, 3),
-            BuyOption("Acheter un Ragout Costaud (8 or)", ItemIds.Stew, 8),
-            BuyOption("Acheter un Festin du Chef (15 or)", ItemIds.Feast, 15),
+            EatOption("Manger une Soupe du Jour (3 or)", 3, 4, "Une soupe chaude et simple. Ca fait du bien."),
+            EatOption("Manger un Ragout Costaud (8 or)", 8, 12, "Un plat roboratif qui vous requinque bien."),
+            EatOption("Manger un Festin du Chef (15 or)", 15, 25, "La meilleure table du donjon."),
         };
     }
 
@@ -3771,6 +3804,21 @@ public static class DungeonGenerator
             purchaseItemId = itemId,
             costItemId = ItemIds.Gold,
             costAmount = goldPrice,
+        };
+    }
+
+    // Same isPurchase flow as BuyOption, minus a purchaseItemId - DialogueManager.ResolvePurchase
+    // treats a null/empty purchaseItemId as "consumed on the spot", applying onSuccess (here just a
+    // heal) directly instead of adding anything to the inventory. Used by the Restaurant's Cuisinier.
+    static DialogueOption EatOption(string text, int goldPrice, int healAmount, string message)
+    {
+        return new DialogueOption
+        {
+            text = text,
+            isPurchase = true,
+            costItemId = ItemIds.Gold,
+            costAmount = goldPrice,
+            onSuccess = new DialogueOutcome { message = message, healAmount = healAmount },
         };
     }
 
@@ -3882,7 +3930,11 @@ public static class DungeonGenerator
     static List<Vector2> GenerateDecorPositions(int count, Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, List<Vector2> avoid)
         => GeneratePlacementPositions(count, roomOrigin, roomSize, doors, avoid, DecorWallMargin, DecorMinSpacing, DecorMinDoorDistance, DecorMinAvoidDistance);
 
-    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap, Hole }
+    enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap, Hole, Flower }
+
+    // Crafting-only ingredients (see DecorType.Flower/SpawnCraftingTable) - one picked at random
+    // per Flower decor slot, same ground-pickup pattern as LootPickup.
+    static readonly string[] FlowerIds = { ItemIds.FlowerRed, ItemIds.FlowerBlue, ItemIds.Herb, ItemIds.Mushroom };
 
     // Chance a LootPickup slot spawns one of the special weight/curse/trap items instead of the
     // common LootTable pool - rare environmental finds, never a kill/break reward.
@@ -3921,7 +3973,7 @@ public static class DungeonGenerator
 
         foreach (Vector2 pos in GenerateDecorPositions(count, roomOrigin, roomSize, doors, avoid))
         {
-            switch ((DecorType)Random.Range(0, 8))
+            switch ((DecorType)Random.Range(0, 9))
             {
                 case DecorType.StoneBlock:
                     SpawnDestructible("StoneBlock", pos, sprites.stoneBlock, StoneBlockHealth, StoneBlockRequiredForce, parent, ItemIds.Stone);
@@ -3955,6 +4007,10 @@ public static class DungeonGenerator
                     break;
                 case DecorType.Hole:
                     SpawnHole(pos, sprites.hole, parent);
+                    break;
+                case DecorType.Flower:
+                    string flowerId = FlowerIds[Random.Range(0, FlowerIds.Length)];
+                    SpawnItemPickup(flowerId + "Pickup", pos, flowerId, 1, parent);
                     break;
             }
         }
