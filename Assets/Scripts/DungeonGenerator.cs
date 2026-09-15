@@ -2596,8 +2596,9 @@ public static class DungeonGenerator
         if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
         // Guaranteed, like Treasure/Shop - a save point must always be reachable. Placed twice
-        // (explicit request for an extra Safe room per floor) - the second call naturally lands on
-        // a different cell since the first already reclassified its own candidate out of the pool.
+        // (explicit request for an extra Safe room per floor) - the second call lands as far as
+        // possible from the first (see FindPlacementCandidate's same-type spacing), not just on a
+        // merely-different cell, so the two never read as sitting side by side.
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
 
@@ -2844,9 +2845,9 @@ public static class DungeonGenerator
     static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, out Vector2Int chosenCell)
     {
         Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
-        Vector2Int? chosen = FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart)
-            ?? FindPlacementCandidate(rooms, protectedAnchor, dist, maxDistanceFromStart + 1)
-            ?? FindPlacementCandidate(rooms, protectedAnchor, dist, int.MaxValue);
+        Vector2Int? chosen = FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart)
+            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart + 1)
+            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, int.MaxValue);
         if (!chosen.HasValue) { chosenCell = default; return false; }
         rooms[chosen.Value] = type;
         chosenCell = chosen.Value;
@@ -2870,10 +2871,11 @@ public static class DungeonGenerator
         rooms[candidates[Random.Range(0, candidates.Count)]] = RoomType.Stairs;
     }
 
-    static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart)
+    static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart)
     {
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         var candidates = new List<Vector2Int>();
+        var anchors = new List<Vector2Int>(); // parallel to candidates - the existing cell each one would branch off of
 
         foreach (Vector2Int cell in rooms.Keys)
         {
@@ -2886,11 +2888,62 @@ public static class DungeonGenerator
 
                 int neighborCount = 0;
                 foreach (Vector2Int d2 in dirs) if (rooms.ContainsKey(next + d2)) neighborCount++;
-                if (neighborCount == 1) candidates.Add(next);
+                if (neighborCount == 1) { candidates.Add(next); anchors.Add(cell); }
             }
         }
 
-        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : (Vector2Int?)null;
+        if (candidates.Count == 0) return null;
+
+        // A type placed more than once per floor (currently Safe x2, see GenerateLayout) picks the
+        // dead end FARTHEST from every already-placed room of that same type, instead of a purely
+        // random one among all valid dead ends - a random pick can land the new room right next to
+        // an existing one of the same type (reported 2026-09-15: two Safe rooms/"tavernes" side by
+        // side), which reads as a placement bug even though it's technically a different cell. A
+        // type placed only once (Treasure/Shop/Event/Gamble/the farthest Boss) never has an
+        // existing same-type cell yet, so sameTypeCells is empty and this is a no-op for them.
+        List<Vector2Int> sameTypeCells = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == type) sameTypeCells.Add(kv.Key);
+        if (sameTypeCells.Count == 0) return candidates[Random.Range(0, candidates.Count)];
+
+        Dictionary<Vector2Int, int> distToSameType = ComputeDistancesMultiSource(rooms, sameTypeCells);
+        int best = -1;
+        var farthest = new List<Vector2Int>();
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            int candidateDist = (distToSameType.TryGetValue(anchors[i], out int anchorDist) ? anchorDist : 0) + 1;
+            if (candidateDist > best) { best = candidateDist; farthest.Clear(); farthest.Add(candidates[i]); }
+            else if (candidateDist == best) farthest.Add(candidates[i]);
+        }
+        return farthest[Random.Range(0, farthest.Count)];
+    }
+
+    // Multi-source BFS room-hop distance, same graph rule as ComputeDistances (two cells adjacent
+    // iff both already exist in `rooms`) - used to find, for every existing room, its distance to
+    // the NEAREST of several source cells at once (see FindPlacementCandidate's same-type spacing).
+    static Dictionary<Vector2Int, int> ComputeDistancesMultiSource(Dictionary<Vector2Int, RoomType> rooms, List<Vector2Int> sources)
+    {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        var dist = new Dictionary<Vector2Int, int>();
+        var queue = new Queue<Vector2Int>();
+        foreach (Vector2Int source in sources)
+        {
+            if (dist.ContainsKey(source)) continue;
+            dist[source] = 0;
+            queue.Enqueue(source);
+        }
+
+        while (queue.Count > 0)
+        {
+            Vector2Int current = queue.Dequeue();
+            foreach (Vector2Int d in dirs)
+            {
+                Vector2Int next = current + d;
+                if (!rooms.ContainsKey(next) || dist.ContainsKey(next)) continue;
+                dist[next] = dist[current] + 1;
+                queue.Enqueue(next);
+            }
+        }
+        return dist;
     }
 
     static void BuildRoomGeometry(int originX, int originY, Tilemap floorMap, Tilemap wallsMap, Tile floorTile, Tile wallTile)
