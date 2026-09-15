@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 // One equipped item id per slot (see EquipmentSlotType), plus 5 ring slots per hand as the user
@@ -72,6 +73,7 @@ public class PlayerEquipment : MonoBehaviour
         string old = Get(slot, ringIndex);
         if (old == itemId) return;
         RemoveItemEffects(old);
+        Extinguish(slot); // whatever WAS burning here (see TryIgnite) is leaving the body either way
 
         switch (slot)
         {
@@ -159,6 +161,86 @@ public class PlayerEquipment : MonoBehaviour
 
         SetDurabilityRaw(slot, ringIndex, Mathf.Min(definition.MaxDurability, GetDurability(slot, ringIndex) + amount));
         OnEquipmentChanged?.Invoke();
+    }
+
+    // Inflammabilite (chantier 5 de la vision Souls-like) - only Tissu-material slots can catch
+    // fire (see MaterialType). Simplified vs. the original "retire + jette au sol + eteint" spec:
+    // this project's inventory has no per-instance durability once an item is back in a stack slot
+    // (InventorySlot only tracks itemId/count), so there's no way to represent "this specific
+    // burning item is now sitting unequipped, still on fire" without a much bigger rework. Fire is
+    // therefore a property of the EQUIPPED SLOT, not the item instance - unequipping (by the
+    // player, or automatically when DamageDurability burns it to 0) always extinguishes it
+    // immediately, since an unequipped item can no longer hurt the wearer either way.
+    static readonly EquipmentSlotType[] FlammableSlots = { EquipmentSlotType.Shoulders, EquipmentSlotType.Gloves, EquipmentSlotType.Neck, EquipmentSlotType.Belt };
+
+    [Header("Feu")]
+    // Chance per flammable slot, per exposure (see TryIgnite) - an explosion or a few seconds
+    // standing in a lit FuelPuddle can call this more than once, so this isn't the ONLY chance.
+    public float burnChance = 0.5f;
+    public float burnTickInterval = 1f;
+    public int burnDurabilityPerTick = 2;
+    public int burnHealthDamagePerTick = 1;
+    public Sprite fireIcon;
+
+    readonly HashSet<EquipmentSlotType> burningSlots = new HashSet<EquipmentSlotType>();
+    float lastBurnTickTime = -999f;
+
+    // Not cached in Awake, deliberately - StatusIconDisplay/Health are listed AFTER PlayerEquipment
+    // in the Player's new GameObject(...) constructor (see DungeonGenerator.Build), and Unity runs
+    // Awake in that same order, so caching either here would silently capture null forever (this
+    // exact trap already bit PlayerLimbs once - see feedback_unity_awake_ordering). Both are cheap
+    // GetComponent calls on the same GameObject, at most a few times per second.
+    StatusIconDisplay StatusIcons => GetComponent<StatusIconDisplay>();
+    Health PlayerHealth => GetComponent<Health>();
+
+    public bool IsBurning(EquipmentSlotType slot) => burningSlots.Contains(slot);
+
+    // Called by any fire source the player is exposed to (see ExplosionUtility.Explode/
+    // FuelPuddle.OnTriggerStay2D) - each currently-equipped Tissu slot independently rolls to
+    // catch fire, already-burning slots are left alone (no double-dipping the roll).
+    public void TryIgnite()
+    {
+        foreach (EquipmentSlotType slot in FlammableSlots)
+        {
+            if (burningSlots.Contains(slot)) continue;
+            string itemId = Get(slot);
+            if (string.IsNullOrEmpty(itemId)) continue;
+            ItemDefinition definition = ItemDatabase.Get(itemId);
+            if (definition == null || definition.Material != MaterialType.Tissu) continue;
+
+            if (UnityEngine.Random.value <= burnChance)
+            {
+                burningSlots.Add(slot);
+                StatusIconDisplay statusIcons = StatusIcons;
+                if (statusIcons != null && fireIcon != null) statusIcons.ShowIcon("Fire_" + slot, fireIcon);
+            }
+        }
+    }
+
+    void Update()
+    {
+        if (burningSlots.Count == 0) return;
+        if (Time.time - lastBurnTickTime < burnTickInterval) return;
+        lastBurnTickTime = Time.time;
+
+        // Snapshot first - DamageDurability below can unequip mid-loop (Set() clears burningSlots
+        // for that slot via Extinguish, called below), which would otherwise mutate the set while
+        // this foreach is walking it.
+        List<EquipmentSlotType> ticking = new List<EquipmentSlotType>(burningSlots);
+        Health health = PlayerHealth;
+        foreach (EquipmentSlotType slot in ticking)
+        {
+            if (!burningSlots.Contains(slot)) continue; // already extinguished earlier this same tick
+            DamageDurability(slot, 0, burnDurabilityPerTick);
+            if (health != null) health.TakeDamage(burnHealthDamagePerTick);
+        }
+    }
+
+    void Extinguish(EquipmentSlotType slot)
+    {
+        if (!burningSlots.Remove(slot)) return;
+        StatusIconDisplay statusIcons = StatusIcons;
+        if (statusIcons != null) statusIcons.HideIcon("Fire_" + slot);
     }
 
     void ApplyItemEffects(string itemId)

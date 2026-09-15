@@ -14,6 +14,11 @@ public static class ExplosionUtility
             Health health = hit.GetComponent<Health>();
             if (health != null) health.TakeDamage(damage);
 
+            // Standing in the blast can set any equipped Tissu piece alight (see PlayerEquipment.
+            // TryIgnite) - a real risk of the same "stand in your own explosion" danger as above.
+            PlayerEquipment equipment = hit.GetComponent<PlayerEquipment>();
+            if (equipment != null) equipment.TryIgnite();
+
             DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
             if (destructible != null) destructible.TryDamage(damage, attackerForce);
 

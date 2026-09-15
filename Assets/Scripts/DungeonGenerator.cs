@@ -976,6 +976,7 @@ public static class DungeonGenerator
         playerInventory.hotbarSlots[3] = ItemIds.Bomb;
         PlayerStats playerStats = player.GetComponent<PlayerStats>();
         playerEquipment.stats = playerStats;
+        playerEquipment.fireIcon = CreateCircleSprite("Assets/Art/Fx/Fire.png", new Color(0.95f, 0.35f, 0.1f));
         Health playerHealth = player.GetComponent<Health>();
         Stamina playerStamina = player.GetComponent<Stamina>();
         // No explicit maxHealth/currentHealth assignment here anymore - PlayerStats.Awake()

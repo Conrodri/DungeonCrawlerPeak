@@ -45,5 +45,10 @@ public class FuelPuddle : MonoBehaviour
 
         health.TakeDamage(burnDamage);
         lastTickTime = Time.time;
+
+        // Standing in a lit puddle can also set any equipped Tissu piece alight (see
+        // PlayerEquipment.TryIgnite) - same throttle as the damage tick above.
+        PlayerEquipment equipment = other.GetComponent<PlayerEquipment>();
+        if (equipment != null) equipment.TryIgnite();
     }
 }
