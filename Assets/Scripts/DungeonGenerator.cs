@@ -2167,6 +2167,13 @@ public static class DungeonGenerator
 
         GameObject newPlayer = GameObject.FindWithTag("Player");
         if (newPlayer == null) return;
+        // `carry` still holds the OLD floor's position (captured above, before Build() ran) -
+        // overwrite it with wherever Build() just placed the new player (its Start room spawn)
+        // before Apply() blindly restores `carry.playerPosition` onto them. Without this, a
+        // player descending stairs would land on the new floor at their old floor's raw
+        // coordinates instead of its actual spawn point (found live while adding SaveData.
+        // playerPosition for the "Continuer" position fix, 2026-09-15).
+        carry.playerPosition = newPlayer.transform.position;
         SaveManager.Apply(carry,
             newPlayer.GetComponent<PlayerInventory>(), newPlayer.GetComponent<PlayerStats>(),
             newPlayer.GetComponent<Health>(), newPlayer.GetComponent<Stamina>(), newPlayer.GetComponent<PlayerController>(),
