@@ -18,8 +18,10 @@ public static class ItemIds
     // chantier (see project vision), not usable for anything today beyond being a lootable good.
     public const string Cloth = "cloth";
 
-    // Flora scattered through decorable rooms (see DungeonGenerator.DecorType.Flower) - crafting
-    // ingredients for the Table de Craft's Potion de Soin recipes, no other use.
+    // Flora - crafting ingredients for the Table de Craft's Potion de Soin recipes, no other use.
+    // FlowerRed/FlowerBlue/Herb are scattered through decorable rooms (see DungeonGenerator.
+    // DecorType.Flower); Mushroom only grows in the Flower Garden Safe-room variant (see
+    // SafeRoomVariant.FlowerGarden/SpawnFlowerGardenContent) - deliberately exclusive to it.
     public const string FlowerRed = "flower_red";
     public const string FlowerBlue = "flower_blue";
     public const string Herb = "herb";

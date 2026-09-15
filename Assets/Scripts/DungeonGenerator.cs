@@ -13,6 +13,10 @@ public static class DungeonGenerator
 {
     enum RoomType { Start, Empty, Monster, Shop, Treasure, Secret, Gamble, Boss, Event, Safe, Stairs }
 
+    // What the third Safe room of a floor actually contains (see arcadeCell/arcadeVariant in
+    // GenerateLayout) - picked at random per floor, Arcade is no longer guaranteed.
+    enum SafeRoomVariant { Arcade, FlowerGarden, MaterialStorage }
+
     // Sized to fill a 16:9 screen at the camera's orthographic size (RoomHeight/2) with no
     // letterboxing: 22x12 slightly overscans widescreen rather than under-filling it.
     const int RoomWidth = 22;
@@ -910,7 +914,7 @@ public static class DungeonGenerator
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell);
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell, out SafeRoomVariant arcadeVariant);
 
         // Carve the room geometry and cut door openings for every adjacent pair.
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
@@ -1162,14 +1166,24 @@ public static class DungeonGenerator
                     if (kv.Key == restaurantCell)
                     {
                         SpawnCookNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
-                        SpawnRestaurantFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
-                            playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                        SpawnRestaurantFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform);
                     }
                     else if (kv.Key == arcadeCell)
                     {
-                        SpawnArcadeNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
-                        SpawnArcadeFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
-                            playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                        List<(Vector2 pos, bool onVerticalWall)> safeDoors = doorsByRoom.TryGetValue(kv.Key, out var sd) ? sd : new List<(Vector2, bool)>();
+                        switch (arcadeVariant)
+                        {
+                            case SafeRoomVariant.FlowerGarden:
+                                SpawnFlowerGardenContent(roomOrigin, new Vector2(RoomWidth, RoomHeight), safeDoors, center, wallDecorSprite, root.transform);
+                                break;
+                            case SafeRoomVariant.MaterialStorage:
+                                SpawnMaterialStorageContent(roomOrigin, new Vector2(RoomWidth, RoomHeight), safeDoors, center, shopCrateSprite, wallDecorSprite, root.transform);
+                                break;
+                            default:
+                                SpawnArcadeNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
+                                SpawnArcadeFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform);
+                                break;
+                        }
                     }
                     else
                     {
@@ -2675,7 +2689,7 @@ public static class DungeonGenerator
         new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
     };
 
-    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell)
+    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell, out SafeRoomVariant arcadeVariant)
     {
         var rooms = new Dictionary<Vector2Int, RoomType>();
         Vector2Int start = Vector2Int.zero;
@@ -2777,6 +2791,9 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance, out restaurantCell);
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance, out arcadeCell);
+        // Which content that third Safe room actually gets (2026-09-16: Arcade is no longer the
+        // only option - see SafeRoomVariant/SpawnFlowerGardenContent/SpawnMaterialStorageContent).
+        arcadeVariant = (SafeRoomVariant)Random.Range(0, 3);
 
         // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
         // other room type is already placed) may absorb some cells' free neighbors into a bigger
@@ -3717,17 +3734,17 @@ public static class DungeonGenerator
     }
 
     // Furniture for the Restaurant room - a kitchen counter (stove) behind the Cuisinier instead of
-    // the Tavern's bar, two dining table+chairs clusters, and the same RestBed every Safe room
-    // gets (still a save point/rest spot, just a different NPC/purpose - see SpawnTavernFurniture).
-    static void SpawnRestaurantFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent,
-        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    // the Tavern's bar, two dining table+chairs clusters. No RestBed here (2026-09-16, explicit
+    // request) - the Tavern (first Safe room, always guaranteed) is now the only save/rest point;
+    // Restaurant/Arcade/the other Safe variants are pure content rooms.
+    static void SpawnRestaurantFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
     {
         SpawnProp("Stove", npcPos + new Vector2(0f, 1.3f), woodSprite, parent, new Vector2(3.2f, 0.7f), 0f, 1, true, new Color(0.55f, 0.25f, 0.15f));
 
         List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
         SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
         SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
-        SpawnRestBed(corners[2], woodSprite, parent, playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+        SpawnTableCluster(corners[2], woodSprite, rugSprite, parent);
 
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
@@ -3769,10 +3786,9 @@ public static class DungeonGenerator
     }
 
     // Furniture for the Arcade room - cabinets around the machines instead of the Tavern's bar or
-    // the Restaurant's stove, otherwise the same lived-in treatment (table clusters, RestBed, wall
-    // decor) every Safe room gets.
-    static void SpawnArcadeFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent,
-        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    // the Restaurant's stove. No RestBed here (2026-09-16, explicit request) - see
+    // SpawnRestaurantFurniture's note, the Tavern is now the only Safe-room save/rest point.
+    static void SpawnArcadeFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
     {
         Color cabinetTint = new Color(0.3f, 0.2f, 0.4f);
         SpawnProp("Cabinet", npcPos + new Vector2(-1.6f, 0.6f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
@@ -3782,7 +3798,75 @@ public static class DungeonGenerator
         List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
         SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
         SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
-        SpawnRestBed(corners[2], woodSprite, parent, playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+        SpawnTableCluster(corners[2], woodSprite, rugSprite, parent);
+
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+    }
+
+    // Ingredients found ONLY in the Flower Garden variant (see SafeRoomVariant/ItemIds.Mushroom) -
+    // includes Mushroom, unlike the world's FlowerIds pool (DecorType.Flower). No NPC/furniture
+    // here, unlike the other Safe-room variants - just a resource-heavy room to walk through and
+    // pick clean, with purely cosmetic jungle/ivy wall sprites (see SpawnIvyWall) setting the mood.
+    static readonly string[] GardenFlowerIds = { ItemIds.FlowerRed, ItemIds.FlowerBlue, ItemIds.Herb, ItemIds.Mushroom };
+
+    static void SpawnFlowerGardenContent(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, Vector2 center, Sprite ivySprite, Transform parent)
+    {
+        List<Vector2> positions = GenerateDecorPositions(12, roomOrigin, roomSize, doors, new List<Vector2> { center });
+        foreach (Vector2 pos in positions)
+        {
+            string flowerId = GardenFlowerIds[Random.Range(0, GardenFlowerIds.Length)];
+            SpawnItemPickup(flowerId + "GardenPickup", pos, flowerId, 1, parent);
+        }
+
+        SpawnIvyWall(roomOrigin, roomSize, ivySprite, parent, new Color(0.2f, 0.5f, 0.25f));
+    }
+
+    // Dense ring of purely cosmetic wall sprites (no collider, no script - can never be picked up
+    // or interacted with, see the explicit "uniquement sprite, pas ramassable" request) covering
+    // all 4 walls, unlike the usual 2-on-the-top-wall WallDecor pattern every other Safe/Shop room
+    // uses - this variant is meant to read as an overgrown room, not a room with a painting or two.
+    static void SpawnIvyWall(Vector2 roomOrigin, Vector2 roomSize, Sprite ivySprite, Transform parent, Color tint)
+    {
+        float[] topBottomOffsets = { -8f, -3f, 3f, 8f };
+        foreach (float off in topBottomOffsets)
+        {
+            SpawnProp("Ivy", roomOrigin + new Vector2(roomSize.x / 2f + off, roomSize.y - 1.1f), ivySprite, parent, new Vector2(1f, 1.3f), 0f, 1, false, tint);
+            SpawnProp("Ivy", roomOrigin + new Vector2(roomSize.x / 2f + off, 1.1f), ivySprite, parent, new Vector2(1f, 1.3f), 0f, 1, false, tint);
+        }
+        float[] sideOffsets = { -3f, 3f };
+        foreach (float off in sideOffsets)
+        {
+            SpawnProp("Ivy", roomOrigin + new Vector2(1.1f, roomSize.y / 2f + off), ivySprite, parent, new Vector2(1.3f, 1f), 0f, 1, false, tint);
+            SpawnProp("Ivy", roomOrigin + new Vector2(roomSize.x - 1.1f, roomSize.y / 2f + off), ivySprite, parent, new Vector2(1.3f, 1f), 0f, 1, false, tint);
+        }
+    }
+
+    // Abundant crafting materials, the Material Storage variant's counterpart to the Flower
+    // Garden - no exclusive material here (Wood/Metal/Stone are all already found elsewhere via
+    // destructible decor), just a lot of them in one guaranteed place.
+    static readonly string[] StorageMaterialIds = { ItemIds.Wood, ItemIds.Metal, ItemIds.Stone };
+
+    static void SpawnMaterialStorageContent(Vector2 roomOrigin, Vector2 roomSize, List<(Vector2 pos, bool onVerticalWall)> doors, Vector2 center, Sprite crateSprite, Sprite wallDecorSprite, Transform parent)
+    {
+        Color crateTint = new Color(0.45f, 0.4f, 0.32f);
+        Vector2[] cratePositions =
+        {
+            center + new Vector2(-3f, 3f), center + new Vector2(3f, 3f),
+            center + new Vector2(-3f, -3f), center + new Vector2(3f, -3f),
+        };
+        float[] crateRotations = { 10f, -10f, 5f, -5f };
+        for (int i = 0; i < cratePositions.Length; i++)
+            SpawnProp("Crate", cratePositions[i], crateSprite, parent, new Vector2(1f, 1f), crateRotations[i], 1, true, crateTint);
+
+        List<Vector2> avoid = new List<Vector2> { center };
+        avoid.AddRange(cratePositions);
+        List<Vector2> positions = GenerateDecorPositions(12, roomOrigin, roomSize, doors, avoid);
+        foreach (Vector2 pos in positions)
+        {
+            string materialId = StorageMaterialIds[Random.Range(0, StorageMaterialIds.Length)];
+            SpawnItemPickup(materialId + "StoragePickup", pos, materialId, Random.Range(1, 4), parent);
+        }
 
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
@@ -3869,7 +3953,7 @@ public static class DungeonGenerator
         };
     }
 
-    // Same isPurchase flow as BuyOption, minus a purchaseItemId - DialogueManager.ResolvePurchase
+    // Same isPurchase flow as BuyOption, minus a purchaseItemId - DialogueManager.ChooseOption
     // treats a null/empty purchaseItemId as "consumed on the spot", applying onSuccess (here just a
     // heal) directly instead of adding anything to the inventory. Used by the Restaurant's Cuisinier.
     static DialogueOption EatOption(string text, int goldPrice, int healAmount, string message)
@@ -4017,8 +4101,10 @@ public static class DungeonGenerator
     enum DecorType { StoneBlock, WoodDebris, MetalDebris, ExplosiveBarrel, FuelPuddle, LootPickup, FloorTrap, Hole, Flower }
 
     // Crafting-only ingredients (see DecorType.Flower/SpawnCraftingTable) - one picked at random
-    // per Flower decor slot, same ground-pickup pattern as LootPickup.
-    static readonly string[] FlowerIds = { ItemIds.FlowerRed, ItemIds.FlowerBlue, ItemIds.Herb, ItemIds.Mushroom };
+    // per Flower decor slot, same ground-pickup pattern as LootPickup. Mushroom is deliberately left
+    // out (2026-09-16, explicit request) - it only grows in the Flower Garden Safe-room variant
+    // (see GardenFlowerIds/SpawnFlowerGardenContent), everywhere else it's simply never found.
+    static readonly string[] FlowerIds = { ItemIds.FlowerRed, ItemIds.FlowerBlue, ItemIds.Herb };
 
     // Chance a LootPickup slot spawns one of the special weight/curse/trap items instead of the
     // common LootTable pool - rare environmental finds, never a kill/break reward.
