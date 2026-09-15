@@ -136,39 +136,42 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    // Labeled slots to the right of the inventory grid: 8 single-item slots (Weapon/Head/Shoulders/
-    // Gloves/Boots/Neck/Belt/Knees), then two 5-slot ring columns (left hand / right hand) - see
-    // EquipmentSlotType/PlayerEquipment.
+    // A paperdoll silhouette to the right of the inventory grid, instead of a flat top-to-bottom
+    // list (explicit request - "comme dans un rpg classique... type diablo 3/4 ou path of exile"):
+    // helmet on top, pauldrons/necklace flanking the head, weapon/belt at hip height on the
+    // center spine, gloves/knees below that, boots at the very bottom - each slot sits roughly
+    // where the gear would actually be worn. Ring columns flank the whole silhouette at hand
+    // height. See EquipmentSlotType/PlayerEquipment.
     void BuildEquipmentPanel()
     {
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize - 6);
         float equipSlotSize = slotSize * 0.85f;
-        float baseX = 260f;
-        float startY = 260f;
-        float rowSpacing = 76f;
+        float cx = 280f;
+        float cy = 210f;
+        float colSpacing = 100f;
+        float rowSpacing = 84f;
 
-        (EquipmentSlotType type, string label)[] singleSlots =
+        (EquipmentSlotType type, string label, Vector2 pos)[] silhouetteSlots =
         {
-            (EquipmentSlotType.Weapon, "Arme"),
-            (EquipmentSlotType.Head, "Casque"),
-            (EquipmentSlotType.Shoulders, "Epaulieres"),
-            (EquipmentSlotType.Gloves, "Gants"),
-            (EquipmentSlotType.Boots, "Bottes"),
-            (EquipmentSlotType.Neck, "Cou"),
-            (EquipmentSlotType.Belt, "Ceinture"),
-            (EquipmentSlotType.Knees, "Genouilleres"),
+            (EquipmentSlotType.Head, "Casque", new Vector2(cx, cy + rowSpacing * 2f)),
+            (EquipmentSlotType.Shoulders, "Epaulieres", new Vector2(cx - colSpacing, cy + rowSpacing)),
+            (EquipmentSlotType.Neck, "Cou", new Vector2(cx + colSpacing, cy + rowSpacing)),
+            (EquipmentSlotType.Weapon, "Arme", new Vector2(cx - colSpacing, cy)),
+            (EquipmentSlotType.Belt, "Ceinture", new Vector2(cx, cy)),
+            (EquipmentSlotType.Gloves, "Gants", new Vector2(cx - colSpacing, cy - rowSpacing)),
+            (EquipmentSlotType.Knees, "Genouilleres", new Vector2(cx + colSpacing, cy - rowSpacing)),
+            (EquipmentSlotType.Boots, "Bottes", new Vector2(cx, cy - rowSpacing * 2f)),
         };
 
-        for (int i = 0; i < singleSlots.Length; i++)
+        foreach (var slot in silhouetteSlots)
         {
-            float y = startY - i * rowSpacing;
-            Image img = BuildEquipmentSlot(singleSlots[i].label, font, new Vector2(baseX, y), equipSlotSize, singleSlots[i].type, 0);
-            equipmentImages[singleSlots[i].type] = img;
+            Image img = BuildEquipmentSlot(slot.label, font, slot.pos, equipSlotSize, slot.type, 0);
+            equipmentImages[slot.type] = img;
         }
 
-        float ringsTop = startY - singleSlots.Length * rowSpacing - 40f;
-        BuildRingColumn("Anneaux\n(main gauche)", font, new Vector2(baseX - 45f, ringsTop), equipSlotSize, EquipmentSlotType.RingLeft);
-        BuildRingColumn("Anneaux\n(main droite)", font, new Vector2(baseX + 45f, ringsTop), equipSlotSize, EquipmentSlotType.RingRight);
+        float ringsTop = cy + 50f;
+        BuildRingColumn("Anneaux\n(main gauche)", font, new Vector2(cx - colSpacing * 2f, ringsTop), equipSlotSize, EquipmentSlotType.RingLeft);
+        BuildRingColumn("Anneaux\n(main droite)", font, new Vector2(cx + colSpacing * 2f, ringsTop), equipSlotSize, EquipmentSlotType.RingRight);
     }
 
     // A small colored body diagram (green/orange/red per BodyPart, see LimbState/Refresh) further
@@ -178,7 +181,10 @@ public class InventoryUI : MonoBehaviour
     void BuildLimbSilhouette()
     {
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize - 6);
-        float cx = 560f;
+        // Pushed further right than before (was 560) - the equipment panel's silhouette layout
+        // (see BuildEquipmentPanel) is wider than the old flat list it replaced, its ring columns
+        // now reach out to about x=550.
+        float cx = 700f;
         float cy = 180f;
 
         GameObject titleGO = new GameObject("LimbsTitle", typeof(Text));
@@ -263,19 +269,23 @@ public class InventoryUI : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(label))
         {
+            // Centered directly under the icon rather than off to one side - a fixed side (the old
+            // layout always put it to the left) reads fine in a flat top-to-bottom list, but the
+            // silhouette has slots on both the left and right column, where a left-anchored label
+            // would either collide with a neighboring slot or float away from its own icon.
             GameObject labelGO = new GameObject(label + "Label", typeof(Text));
             labelGO.transform.SetParent(panel.transform, false);
             Text labelText = labelGO.GetComponent<Text>();
             labelText.text = label;
             labelText.font = font;
-            labelText.fontSize = fontSize - 8;
-            labelText.alignment = TextAnchor.MiddleRight;
+            labelText.fontSize = fontSize - 12;
+            labelText.alignment = TextAnchor.UpperCenter;
             labelText.color = Color.white;
             RectTransform labelRect = labelText.rectTransform;
             labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            labelRect.pivot = new Vector2(1f, 0.5f);
-            labelRect.anchoredPosition = anchoredPos + new Vector2(-size / 2f - 10f, 0f);
-            labelRect.sizeDelta = new Vector2(140f, size);
+            labelRect.pivot = new Vector2(0.5f, 1f);
+            labelRect.anchoredPosition = anchoredPos + new Vector2(0f, -size / 2f - 4f);
+            labelRect.sizeDelta = new Vector2(size + 50f, 22f);
         }
 
         GameObject slotGO = new GameObject("Equip_" + slotType + "_" + ringIndex, typeof(Image));
