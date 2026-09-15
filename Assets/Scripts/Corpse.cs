@@ -9,7 +9,7 @@ using UnityEngine.UI;
 // proximity-prompt pattern as TutorialNpc/RestBed - a single action with no branching needs no
 // shared dialogue panel.
 [RequireComponent(typeof(CircleCollider2D))]
-public class Corpse : MonoBehaviour
+public class Corpse : MonoBehaviour, UIWindowStack.IWindow
 {
     const string ExaminePrompt = "Appuyez sur E pour examiner le corps";
 
@@ -97,6 +97,7 @@ public class Corpse : MonoBehaviour
 
         if (isOpen)
         {
+            // Escape also closes this (see TryCloseFromStack/UIWindowStack).
             if (Keyboard.current.eKey.wasPressedThisFrame) Close();
             return;
         }
@@ -108,6 +109,7 @@ public class Corpse : MonoBehaviour
     void Open()
     {
         isOpen = true;
+        UIWindowStack.Push(this);
         promptGO.SetActive(false);
         panel.SetActive(true);
 
@@ -136,10 +138,18 @@ public class Corpse : MonoBehaviour
         return sb.ToString();
     }
 
+    public bool TryCloseFromStack()
+    {
+        if (!isOpen) return false;
+        Close();
+        return true;
+    }
+
     void Close()
     {
         isOpen = false;
         panel.SetActive(false);
+        UIWindowStack.Remove(this);
     }
 
     void OnTriggerEnter2D(Collider2D other)

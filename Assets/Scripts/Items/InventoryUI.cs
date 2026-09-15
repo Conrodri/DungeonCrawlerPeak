@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-public class InventoryUI : MonoBehaviour
+public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
 {
     static InventoryUI instance;
     public static bool IsOpen => instance != null && instance.panel != null && instance.panel.activeSelf;
@@ -12,7 +12,7 @@ public class InventoryUI : MonoBehaviour
     // actually sees the projectile fly instead of it firing behind a still-open menu.
     public static void CloseIfOpen()
     {
-        if (instance != null && instance.panel != null) instance.panel.SetActive(false);
+        if (instance != null) instance.ClosePanel();
     }
 
     public PlayerInventory inventory;
@@ -67,11 +67,34 @@ public class InventoryUI : MonoBehaviour
         Keyboard kb = Keyboard.current;
         if (kb == null || (!kb.iKey.wasPressedThisFrame && !kb.tabKey.wasPressedThisFrame)) return;
 
-        bool opening = !panel.activeSelf;
-        panel.SetActive(opening);
+        if (panel.activeSelf) ClosePanel();
+        else OpenPanel();
+    }
+
+    void OpenPanel()
+    {
+        panel.SetActive(true);
+        UIWindowStack.Push(this);
         // Weapon hand (H, see PlayerController.SwitchWeaponHand) has no change event to refresh
         // from like inventory/equipment/limbs do - catch it fresh on every open instead.
-        if (opening) Refresh();
+        Refresh();
+    }
+
+    void ClosePanel()
+    {
+        panel.SetActive(false);
+        UIWindowStack.Remove(this);
+        // Without this, hovering an item and then closing the panel (I/Tab, Escape, or a
+        // click-to-use) leaves the description stuck on screen - OnPointerExit never fires because
+        // the slot's GameObject just got deactivated instead of the cursor actually leaving it.
+        if (TooltipUI.Instance != null) TooltipUI.Instance.Hide();
+    }
+
+    public bool TryCloseFromStack()
+    {
+        if (panel == null || !panel.activeSelf) return false;
+        ClosePanel();
+        return true;
     }
 
     void BuildPanel()

@@ -31,7 +31,18 @@ public class PauseMenuUI : MonoBehaviour
             return;
         }
 
-        SetPaused(!isPaused);
+        if (isPaused)
+        {
+            SetPaused(false);
+            return;
+        }
+
+        // Any other window open (dialogue, inspect panel, chest, corpse, inventory, repair,
+        // attribute allocation, shop...) - close the most recently opened one instead of opening
+        // the pause menu underneath it (explicit request).
+        if (UIWindowStack.CloseTop()) return;
+
+        SetPaused(true);
     }
 
     void SetPaused(bool paused)

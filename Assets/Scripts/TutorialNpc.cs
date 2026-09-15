@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // its own minimal UI on Start() (finds the scene's "Canvas" by name) so a caller only needs to
 // set npcName/bodyText, without wiring a shared dialogue panel just for one tutorial line.
 [RequireComponent(typeof(CircleCollider2D))]
-public class TutorialNpc : MonoBehaviour
+public class TutorialNpc : MonoBehaviour, UIWindowStack.IWindow
 {
     public string npcName = "Le Guide";
     [TextArea] public string bodyText;
@@ -95,6 +95,7 @@ public class TutorialNpc : MonoBehaviour
 
         if (isOpen)
         {
+            // Escape also closes this (see TryCloseFromStack/UIWindowStack).
             if (Keyboard.current.eKey.wasPressedThisFrame) Close();
             return;
         }
@@ -106,15 +107,24 @@ public class TutorialNpc : MonoBehaviour
     void Open()
     {
         isOpen = true;
+        UIWindowStack.Push(this);
         if (promptGO != null) promptGO.SetActive(false);
         if (panel != null) panel.SetActive(true);
         if (bodyLabel != null) bodyLabel.text = bodyText + "\n\n[E] Fermer";
+    }
+
+    public bool TryCloseFromStack()
+    {
+        if (!isOpen) return false;
+        Close();
+        return true;
     }
 
     void Close()
     {
         isOpen = false;
         if (panel != null) panel.SetActive(false);
+        UIWindowStack.Remove(this);
     }
 
     void OnTriggerEnter2D(Collider2D other)

@@ -6,14 +6,14 @@ using UnityEngine.UI;
 // ItemDefinition.MaxDurability). Same "fixed rows, externally refreshed" pattern as
 // AttributeAllocationUI - which rows exist never changes, only their live content does, since a
 // static per-floor option list can't reflect what's actually equipped/damaged right now.
-public class RepairUI : MonoBehaviour
+public class RepairUI : MonoBehaviour, UIWindowStack.IWindow
 {
     public static RepairUI Instance { get; private set; }
 
     public GameObject root;
     public PlayerEquipment equipment;
     public PlayerInventory inventory;
-    public EquipmentSlotType[] slots; // fixed 7, in display order
+    public EquipmentSlotType[] slots; // fixed 8 (Weapon + 7 armor), in display order
     public Text[] nameLabels;
     public Text[] durabilityLabels;
     public Button[] repairButtons;
@@ -25,12 +25,21 @@ public class RepairUI : MonoBehaviour
     public void Show()
     {
         if (root != null) root.SetActive(true);
+        UIWindowStack.Push(this);
         Refresh();
     }
 
     public void Hide()
     {
         if (root != null) root.SetActive(false);
+        UIWindowStack.Remove(this);
+    }
+
+    public bool TryCloseFromStack()
+    {
+        if (root == null || !root.activeSelf) return false;
+        Hide();
+        return true;
     }
 
     public static string MaterialItemId(MaterialType material) => material switch

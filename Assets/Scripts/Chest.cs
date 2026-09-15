@@ -9,7 +9,7 @@ using UnityEngine.UI;
 // (which auto-grants everything on open) this one is a real choice: [E] Prendre or leave it
 // closed and walk away, reopenable any time until actually taken.
 [RequireComponent(typeof(CircleCollider2D))]
-public class Chest : MonoBehaviour
+public class Chest : MonoBehaviour, UIWindowStack.IWindow
 {
     const string ExaminePrompt = "Appuyez sur E pour ouvrir le coffre";
 
@@ -112,7 +112,7 @@ public class Chest : MonoBehaviour
         if (isOpen)
         {
             if (!taken && Keyboard.current.eKey.wasPressedThisFrame) TakeItem();
-            else if (Keyboard.current.escapeKey.wasPressedThisFrame) Close();
+            // Escape closes this (see TryCloseFromStack/UIWindowStack), handled centrally now.
             return;
         }
 
@@ -123,9 +123,17 @@ public class Chest : MonoBehaviour
     void Open()
     {
         isOpen = true;
+        UIWindowStack.Push(this);
         promptGO.SetActive(false);
         panel.SetActive(true);
         Refresh();
+    }
+
+    public bool TryCloseFromStack()
+    {
+        if (!isOpen) return false;
+        Close();
+        return true;
     }
 
     void Refresh()
@@ -159,6 +167,7 @@ public class Chest : MonoBehaviour
     {
         isOpen = false;
         panel.SetActive(false);
+        UIWindowStack.Remove(this);
     }
 
     void OnTriggerEnter2D(Collider2D other)

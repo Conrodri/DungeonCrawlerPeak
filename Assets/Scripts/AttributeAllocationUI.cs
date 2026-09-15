@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // rather than a DialogueOption per stat: the remaining-points count and each stat's current value
 // need to update live as points are spent, which a static option list (built once at floor
 // generation) can't reflect.
-public class AttributeAllocationUI : MonoBehaviour
+public class AttributeAllocationUI : MonoBehaviour, UIWindowStack.IWindow
 {
     public static AttributeAllocationUI Instance { get; private set; }
 
@@ -29,12 +29,21 @@ public class AttributeAllocationUI : MonoBehaviour
     public void Show()
     {
         if (root != null) root.SetActive(true);
+        UIWindowStack.Push(this);
         Refresh();
     }
 
     public void Hide()
     {
         if (root != null) root.SetActive(false);
+        UIWindowStack.Remove(this);
+    }
+
+    public bool TryCloseFromStack()
+    {
+        if (root == null || !root.activeSelf) return false;
+        Hide();
+        return true;
     }
 
     public void Allocate(StatType type)

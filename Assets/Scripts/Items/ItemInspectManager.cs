@@ -3,9 +3,9 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Proximity prompt + description panel for ground items that need a look before picking up
-// (weight/curse/trap) - same E-key interact pattern as DialogueManager/NpcInteractable, kept
+// (weight/curse/trap/weapon) - same E-key interact pattern as DialogueManager/NpcInteractable, kept
 // deliberately separate so the two never fight over which one reacts to E.
-public class ItemInspectManager : MonoBehaviour
+public class ItemInspectManager : MonoBehaviour, UIWindowStack.IWindow
 {
     public static ItemInspectManager Instance { get; private set; }
 
@@ -48,6 +48,8 @@ public class ItemInspectManager : MonoBehaviour
         {
             if (nearbyItem == null) { Close(); return; }
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) PickUp();
+            // Escape (see TryCloseFromStack) also closes this without picking up - explicit
+            // request, the player can look at a description and simply decide not to take it.
             return;
         }
 
@@ -58,6 +60,7 @@ public class ItemInspectManager : MonoBehaviour
     void Open()
     {
         isOpen = true;
+        UIWindowStack.Push(this);
         if (promptGO != null) promptGO.SetActive(false);
         panel.SetActive(true);
 
@@ -69,7 +72,7 @@ public class ItemInspectManager : MonoBehaviour
         string body = definition != null ? definition.Description : "";
         if (definition != null) body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(definition.Rarity);
         if (definition != null && definition.Weight > 0) body += "\nNecessite Force " + definition.Weight + ".";
-        body += "\n\n[E] Ramasser";
+        body += "\n\n[E] Ramasser   [ECHAP] Laisser";
         bodyText.text = body;
     }
 
@@ -83,9 +86,17 @@ public class ItemInspectManager : MonoBehaviour
         Close();
     }
 
+    public bool TryCloseFromStack()
+    {
+        if (!isOpen) return false;
+        Close();
+        return true;
+    }
+
     void Close()
     {
         isOpen = false;
         panel.SetActive(false);
+        UIWindowStack.Remove(this);
     }
 }
