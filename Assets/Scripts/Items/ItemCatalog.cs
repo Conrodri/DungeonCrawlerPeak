@@ -13,6 +13,7 @@ public class ItemCatalog : MonoBehaviour
         public int maxStack;
         public Sprite icon;
         public string description;
+        public int rarity = 1;
         public int weight;
         public bool isCursed;
         // A Nullable<WeaponType> field would silently fail to survive Unity's serialization
@@ -20,6 +21,8 @@ public class ItemCatalog : MonoBehaviour
         // flag next to a non-nullable default value doesn't have that problem.
         public bool hasCursedWeapon;
         public PlayerController.WeaponType cursedWeaponType;
+        public bool isWeapon;
+        public PlayerController.WeaponType weaponType;
         public bool isTrap;
         public int healAmount;
         public bool isEquipment;
@@ -45,10 +48,13 @@ public class ItemCatalog : MonoBehaviour
                 MaxStack = entry.maxStack,
                 Icon = entry.icon,
                 Description = entry.description,
+                Rarity = entry.rarity,
                 Weight = entry.weight,
                 IsCursed = entry.isCursed,
                 HasCursedWeapon = entry.hasCursedWeapon,
                 CursedWeaponType = entry.cursedWeaponType,
+                IsWeapon = entry.isWeapon,
+                Weapon = entry.weaponType,
                 IsTrap = entry.isTrap,
                 HealAmount = entry.healAmount,
                 IsEquipment = entry.isEquipment,

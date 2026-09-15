@@ -6,6 +6,11 @@ public static class ItemIds
     public const string Baton = "baton";
     public const string Bomb = "bomb";
     public const string Anvil = "anvil";
+    // Real, deliberately-equipped weapons (see EquipmentSlotType.Weapon/ItemDefinition.IsWeapon) -
+    // found on the ground/in a Chest/on a corpse like any other item, equipped by hand from the
+    // inventory panel. CursedSword below stays a separate, special-cased forced weapon.
+    public const string Sword = "sword";
+    public const string Staff = "staff";
     public const string CursedSword = "cursed_sword";
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";

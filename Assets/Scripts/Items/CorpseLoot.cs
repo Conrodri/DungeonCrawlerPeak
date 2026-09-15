@@ -45,7 +45,7 @@ public static class CorpseLoot
             items.Add((materialId, Random.Range(1, 3)));
         }
 
-        if (Random.value < BonusEquipmentChance) items.Add((EquipmentPool[Random.Range(0, EquipmentPool.Length)], 1));
+        if (Random.value < BonusEquipmentChance) items.Add((LootTable.PickWeighted(EquipmentPool), 1));
 
         return items;
     }

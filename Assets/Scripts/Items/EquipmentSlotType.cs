@@ -13,4 +13,9 @@ public enum EquipmentSlotType
     Knees,
     RingLeft,
     RingRight,
+    // A real weapon item (Sword/Staff, see ItemDefinition.IsWeapon) - drives PlayerController.
+    // currentWeapon through PlayerEquipment.ApplyItemEffects/RemoveItemEffects. Distinct from a
+    // cursed weapon's forced equip (PlayerController.ForceEquipWeapon), which never touches this
+    // slot at all.
+    Weapon,
 }

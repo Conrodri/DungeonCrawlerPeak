@@ -61,6 +61,10 @@ public class SaveData
     public string equippedNeck;
     public string equippedBelt;
     public string equippedKnees;
+    // A real weapon item worn in the Weapon slot (see EquipmentSlotType.Weapon) - null/empty while
+    // fighting bare-handed or while a cursed weapon is forced on (see weaponLocked/currentWeapon
+    // below, which cover that case instead).
+    public string equippedWeapon;
     public string[] equippedRingsLeft;
     public string[] equippedRingsRight;
 
@@ -79,6 +83,10 @@ public class SaveData
     public int durabilityKnees;
     public int[] durabilityRingsLeft;
     public int[] durabilityRingsRight;
+    public int durabilityWeapon;
+    // Only meaningful while weaponLocked (a forced/cursed weapon, never in the equipment slot) -
+    // see PlayerController.DamageWeaponDurability. A normal weapon's durability is durabilityWeapon
+    // above instead.
     public int currentWeaponDurability;
 
     public int maxHealth;

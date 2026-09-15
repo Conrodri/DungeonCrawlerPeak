@@ -63,6 +63,7 @@ public static class SaveManager
             equippedNeck = equipment != null ? equipment.neck : null,
             equippedBelt = equipment != null ? equipment.belt : null,
             equippedKnees = equipment != null ? equipment.knees : null,
+            equippedWeapon = equipment != null ? equipment.weapon : null,
             equippedRingsLeft = equipment != null ? (string[])equipment.ringsLeft.Clone() : null,
             equippedRingsRight = equipment != null ? (string[])equipment.ringsRight.Clone() : null,
             durabilityHead = equipment != null ? equipment.headDurability : 0,
@@ -72,6 +73,7 @@ public static class SaveManager
             durabilityNeck = equipment != null ? equipment.neckDurability : 0,
             durabilityBelt = equipment != null ? equipment.beltDurability : 0,
             durabilityKnees = equipment != null ? equipment.kneesDurability : 0,
+            durabilityWeapon = equipment != null ? equipment.weaponDurability : 0,
             durabilityRingsLeft = equipment != null ? (int[])equipment.ringsLeftDurability.Clone() : null,
             durabilityRingsRight = equipment != null ? (int[])equipment.ringsRightDurability.Clone() : null,
             currentWeaponDurability = controller.CurrentWeaponDurability,
@@ -128,12 +130,21 @@ public static class SaveManager
         stamina.maxStamina = data.maxStamina;
         stamina.currentStamina = data.currentStamina;
 
-        if (data.weaponLocked) controller.ForceEquipWeapon(data.currentWeapon);
-        else controller.EquipWeapon(data.currentWeapon);
+        if (data.weaponLocked)
+        {
+            controller.ForceEquipWeapon(data.currentWeapon);
+            // Must run AFTER ForceEquipWeapon above - it resets currentWeaponDurability to full,
+            // this overwrites it with the actually-saved (possibly worn-down) value.
+            controller.SetCurrentWeaponDurability(data.currentWeaponDurability);
+        }
+        else
+        {
+            // Plain restore, not EquipWeaponItem - durability for this item lives on the equipment
+            // side (equipment.weaponDurability, restored as a plain field just below alongside the
+            // 7 armor slots), not reset to full like a fresh equip would.
+            controller.SetCurrentWeaponItem(data.equippedWeapon, data.currentWeapon);
+        }
         controller.weaponHand = data.weaponHand;
-        // Must run AFTER Equip/ForceEquipWeapon above - both reset currentWeaponDurability to
-        // full, this overwrites it with the actually-saved (possibly worn-down) value.
-        controller.SetCurrentWeaponDurability(data.currentWeaponDurability);
 
         if (limbs != null)
         {
@@ -164,6 +175,7 @@ public static class SaveManager
             equipment.neck = data.equippedNeck;
             equipment.belt = data.equippedBelt;
             equipment.knees = data.equippedKnees;
+            equipment.weapon = data.equippedWeapon;
             equipment.ringsLeft = data.equippedRingsLeft != null
                 ? (string[])data.equippedRingsLeft.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRight = data.equippedRingsRight != null
@@ -178,6 +190,7 @@ public static class SaveManager
             equipment.neckDurability = data.durabilityNeck;
             equipment.beltDurability = data.durabilityBelt;
             equipment.kneesDurability = data.durabilityKnees;
+            equipment.weaponDurability = data.durabilityWeapon;
             equipment.ringsLeftDurability = data.durabilityRingsLeft != null
                 ? (int[])data.durabilityRingsLeft.Clone() : new int[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRightDurability = data.durabilityRingsRight != null

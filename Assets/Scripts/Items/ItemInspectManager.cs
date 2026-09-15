@@ -62,9 +62,12 @@ public class ItemInspectManager : MonoBehaviour
         panel.SetActive(true);
 
         ItemDefinition definition = ItemDatabase.Get(nearbyItem.ItemId);
-        nameText.text = definition != null ? definition.DisplayName : nearbyItem.ItemId;
+        nameText.text = definition != null
+            ? "<color=#" + ItemRarity.HexColor(definition.Rarity) + ">" + definition.DisplayName + "</color>"
+            : nearbyItem.ItemId;
 
         string body = definition != null ? definition.Description : "";
+        if (definition != null) body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(definition.Rarity);
         if (definition != null && definition.Weight > 0) body += "\nNecessite Force " + definition.Weight + ".";
         body += "\n\n[E] Ramasser";
         bodyText.text = body;

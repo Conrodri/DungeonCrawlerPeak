@@ -39,6 +39,12 @@ public class PlayerController : MonoBehaviour
     public int maxSwordDurability = 40;
     public int maxStaffDurability = 40;
     int currentWeaponDurability;
+    // Which inventory item is currently worn in the PlayerEquipment.Weapon slot (see
+    // EquipWeaponItem/UnequipToFistIfCurrent) - null for Fist or a curse-forced weapon (see
+    // ForceEquipWeapon, which never goes through the equipment slot at all). Durability for THIS
+    // case lives on equipment.weaponDurability instead of currentWeaponDurability above - see
+    // DamageWeaponDurability.
+    string currentWeaponItemId;
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;
     public Sprite swordVisualSprite;
@@ -343,36 +349,71 @@ public class PlayerController : MonoBehaviour
         _ => 0,
     };
 
-    public void EquipWeapon(WeaponType weapon)
+    // SaveManager.Apply only (the non-cursed restore path) - a plain field restore like
+    // SetCurrentWeaponDurability above, not a fresh equip (EquipWeaponItem would reset durability
+    // to full instead of the saved, possibly worn-down value already restored on the equipment side).
+    public void SetCurrentWeaponItem(string itemId, WeaponType weapon)
     {
-        if (weaponLocked) return;
         currentWeapon = weapon;
-        currentWeaponDurability = MaxDurabilityFor(weapon);
-        Debug.Log("Equipped " + weapon);
+        currentWeaponItemId = itemId;
     }
 
-    // A cursed weapon-item forces itself on and can't be swapped out until UnlockWeapon runs.
+    // A cursed weapon-item forces itself on and can't be swapped out until UnlockWeapon runs - never
+    // goes through the equipment Weapon slot (currentWeaponItemId stays null), the curse item sits
+    // in the inventory instead, locked there via PlayerInventory.ApplyCurse/CursedItemId.
     public void ForceEquipWeapon(WeaponType weapon)
     {
         currentWeapon = weapon;
+        currentWeaponItemId = null;
         weaponLocked = true;
         currentWeaponDurability = MaxDurabilityFor(weapon);
         Debug.Log("Cursed weapon forced on: " + weapon);
     }
 
-    // Called only from TryAttack's Sword/Staff cases below - a no-op on Fist (or any weapon
-    // already-broken back to Fist) since currentWeaponDurability is 0 there, same "0 = infinite/
-    // untracked" convention as ItemDefinition.MaxDurability.
+    // Called only from TryAttack's Sword/Staff cases below. A normal item-based weapon (see
+    // EquipWeaponItem) delegates to PlayerEquipment.DamageDurability, whose own Set(slot, null) at
+    // 0 already cascades back into UnequipToFistIfCurrent below - a forced/cursed weapon (never in
+    // the equipment slot to begin with) keeps the old flat counter instead.
     void DamageWeaponDurability()
     {
-        if (currentWeaponDurability <= 0) return;
-        currentWeaponDurability--;
-        if (currentWeaponDurability <= 0)
+        if (weaponLocked)
         {
-            Debug.Log(currentWeapon + " s'est brise !");
-            currentWeapon = WeaponType.Fist;
-            weaponLocked = false; // nothing left to force - a broken cursed sword releases its lock too
+            if (currentWeaponDurability <= 0) return;
+            currentWeaponDurability--;
+            if (currentWeaponDurability <= 0)
+            {
+                Debug.Log(currentWeapon + " s'est brise !");
+                currentWeapon = WeaponType.Fist;
+                weaponLocked = false; // nothing left to force - a broken cursed sword releases its lock too
+            }
+            return;
         }
+
+        if (equipment != null && !string.IsNullOrEmpty(currentWeaponItemId))
+            equipment.DamageDurability(EquipmentSlotType.Weapon, 0, 1);
+    }
+
+    // Called from PlayerEquipment.ApplyItemEffects when a real weapon item (Sword/Staff) enters the
+    // Weapon slot - drag-and-drop from the inventory, or a fresh pickup swap. A cursed weapon never
+    // reaches here (see ForceEquipWeapon).
+    public void EquipWeaponItem(string itemId, WeaponType weapon)
+    {
+        if (weaponLocked) return;
+        currentWeapon = weapon;
+        currentWeaponItemId = itemId;
+        Debug.Log("Equipped item " + itemId + " (" + weapon + ")");
+    }
+
+    // Called from PlayerEquipment.RemoveItemEffects when the item currently worn in the Weapon slot
+    // leaves it (unequipped back to inventory, swapped for another weapon, or just broke) - the
+    // itemId guard means a stale/unrelated call (e.g. a different weapon breaking after this one
+    // was already swapped out) can't wrongly reset a weapon that's no longer even the active one.
+    public void UnequipToFistIfCurrent(string itemId)
+    {
+        if (weaponLocked) return;
+        if (currentWeaponItemId != itemId) return;
+        currentWeapon = WeaponType.Fist;
+        currentWeaponItemId = null;
     }
 
     public void UnlockWeapon()

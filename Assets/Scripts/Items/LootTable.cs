@@ -7,14 +7,17 @@ public static class LootTable
 {
     const float DropChance = 0.35f;
 
-    static readonly (string itemId, int amount, int weight)[] Pool =
+    // Weight now comes from each item's own rarity (see ItemRarity.Weight) instead of a hand-tuned
+    // number per entry - a common item drops more, a rare one less, without this table having to
+    // duplicate a judgment call ItemDefinition.Rarity already makes.
+    static readonly (string itemId, int amount)[] Pool =
     {
-        (ItemIds.Gold, 3, 3),
-        (ItemIds.Shuriken, 2, 2),
-        (ItemIds.Caillou, 2, 2),
-        (ItemIds.Baton, 2, 2),
-        (ItemIds.Bomb, 1, 1),
-        (ItemIds.HealthPotion, 1, 2),
+        (ItemIds.Gold, 3),
+        (ItemIds.Shuriken, 2),
+        (ItemIds.Caillou, 2),
+        (ItemIds.Baton, 2),
+        (ItemIds.Bomb, 1),
+        (ItemIds.HealthPotion, 1),
     };
 
     // `parent` should always be passed by a caller whose own GameObject lives under DungeonRoot
@@ -33,21 +36,44 @@ public static class LootTable
     public static void PickRandomItem(out string itemId, out int amount)
     {
         int totalWeight = 0;
-        foreach (var entry in Pool) totalWeight += entry.weight;
+        foreach (var entry in Pool) totalWeight += RarityWeight(entry.itemId);
 
         int roll = Random.Range(0, totalWeight);
         foreach (var entry in Pool)
         {
-            if (roll < entry.weight)
+            int weight = RarityWeight(entry.itemId);
+            if (roll < weight)
             {
                 itemId = entry.itemId;
                 amount = entry.amount;
                 return;
             }
-            roll -= entry.weight;
+            roll -= weight;
         }
 
         itemId = Pool[0].itemId;
         amount = Pool[0].amount;
+    }
+
+    static int RarityWeight(string itemId)
+    {
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        return ItemRarity.Weight(definition != null ? definition.Rarity : ItemRarity.Min);
+    }
+
+    // Shared by CorpseLoot/Chest so every rarity-weighted pick in the game uses the same formula.
+    public static string PickWeighted(string[] pool)
+    {
+        int totalWeight = 0;
+        foreach (string id in pool) totalWeight += RarityWeight(id);
+
+        int roll = Random.Range(0, totalWeight);
+        foreach (string id in pool)
+        {
+            int weight = RarityWeight(id);
+            if (roll < weight) return id;
+            roll -= weight;
+        }
+        return pool[0];
     }
 }

@@ -8,12 +8,22 @@ public class ItemDefinition
     public int MaxStack;
     public Sprite Icon;
     public string Description;
+    // 1 (Commun) to 6 (Mythique) - every item has one, see ItemRarity for the name/color table.
+    // Drives drop-weight in LootTable/CorpseLoot/Chest (rarer = less likely), purely informational
+    // everywhere else (inspect panel, tooltip).
+    public int Rarity = 1;
     // 0 = no restriction; otherwise the player's PlayerStats.force must be at least this to pick it up.
     public int Weight;
     public bool IsCursed;
     // No Nullable<WeaponType> here on purpose - see ItemCatalog.Entry for why.
     public bool HasCursedWeapon;
     public PlayerController.WeaponType CursedWeaponType;
+    // A real, deliberately-equipped weapon (Sword/Staff, see EquipmentSlotType.Weapon) - distinct
+    // from HasCursedWeapon/CursedWeaponType above, which forces itself on outright and bypasses the
+    // equipment slot entirely (see PlayerController.ForceEquipWeapon). IsEquipment/EquipmentSlot
+    // must also be set (EquipmentSlot = Weapon) for the normal drag-to-equip flow to accept it.
+    public bool IsWeapon;
+    public PlayerController.WeaponType Weapon;
     public bool IsTrap;
     // 0 = not a potion; otherwise using it from the hotbar heals this much instead of throwing it.
     public int HealAmount;

@@ -12,7 +12,9 @@ public class ItemPickup : MonoBehaviour
         if (!other.CompareTag("Player")) return;
 
         ItemDefinition definition = ItemDatabase.Get(itemId);
-        bool needsInspection = definition != null && (definition.Weight > 0 || definition.IsCursed || definition.IsTrap);
+        // A weapon is always worth a look before it's in your inventory - explicit request, "si
+        // nous trouvons une epee... pourra etre inspectee avant d'etre recuperee".
+        bool needsInspection = definition != null && (definition.Weight > 0 || definition.IsCursed || definition.IsTrap || definition.IsWeapon);
         if (needsInspection)
         {
             if (ItemInspectManager.Instance != null) ItemInspectManager.Instance.SetNearbyItem(this);

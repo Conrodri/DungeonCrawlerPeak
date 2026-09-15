@@ -136,7 +136,7 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    // Labeled slots to the right of the inventory grid: 7 single-item slots (Head/Shoulders/
+    // Labeled slots to the right of the inventory grid: 8 single-item slots (Weapon/Head/Shoulders/
     // Gloves/Boots/Neck/Belt/Knees), then two 5-slot ring columns (left hand / right hand) - see
     // EquipmentSlotType/PlayerEquipment.
     void BuildEquipmentPanel()
@@ -149,6 +149,7 @@ public class InventoryUI : MonoBehaviour
 
         (EquipmentSlotType type, string label)[] singleSlots =
         {
+            (EquipmentSlotType.Weapon, "Arme"),
             (EquipmentSlotType.Head, "Casque"),
             (EquipmentSlotType.Shoulders, "Epaulieres"),
             (EquipmentSlotType.Gloves, "Gants"),

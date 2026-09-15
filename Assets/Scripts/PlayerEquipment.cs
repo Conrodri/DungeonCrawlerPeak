@@ -16,6 +16,9 @@ public class PlayerEquipment : MonoBehaviour
     public string neck;
     public string belt;
     public string knees;
+    // A real weapon item, worn like any other slot (see EquipmentSlotType.Weapon) - a cursed
+    // weapon's forced equip never touches this field, see ForceEquipWeapon/ApplyItemEffects below.
+    public string weapon;
     public const int RingSlotsPerHand = 5;
     public string[] ringsLeft = new string[RingSlotsPerHand];
     public string[] ringsRight = new string[RingSlotsPerHand];
@@ -32,6 +35,7 @@ public class PlayerEquipment : MonoBehaviour
     public int neckDurability;
     public int beltDurability;
     public int kneesDurability;
+    public int weaponDurability;
     public int[] ringsLeftDurability = new int[RingSlotsPerHand];
     public int[] ringsRightDurability = new int[RingSlotsPerHand];
     // Set at generation time alongside the other Player components - needed to apply/revoke a
@@ -65,6 +69,7 @@ public class PlayerEquipment : MonoBehaviour
         EquipmentSlotType.Knees => knees,
         EquipmentSlotType.RingLeft => ringsLeft[ringIndex],
         EquipmentSlotType.RingRight => ringsRight[ringIndex],
+        EquipmentSlotType.Weapon => weapon,
         _ => null,
     };
 
@@ -86,6 +91,7 @@ public class PlayerEquipment : MonoBehaviour
             case EquipmentSlotType.Knees: knees = itemId; break;
             case EquipmentSlotType.RingLeft: ringsLeft[ringIndex] = itemId; break;
             case EquipmentSlotType.RingRight: ringsRight[ringIndex] = itemId; break;
+            case EquipmentSlotType.Weapon: weapon = itemId; break;
         }
 
         // A freshly worn item always starts at full durability - SaveManager.Apply restores a
@@ -108,6 +114,7 @@ public class PlayerEquipment : MonoBehaviour
         EquipmentSlotType.Knees => kneesDurability,
         EquipmentSlotType.RingLeft => ringsLeftDurability[ringIndex],
         EquipmentSlotType.RingRight => ringsRightDurability[ringIndex],
+        EquipmentSlotType.Weapon => weaponDurability,
         _ => 0,
     };
 
@@ -124,6 +131,7 @@ public class PlayerEquipment : MonoBehaviour
             case EquipmentSlotType.Knees: kneesDurability = value; break;
             case EquipmentSlotType.RingLeft: ringsLeftDurability[ringIndex] = value; break;
             case EquipmentSlotType.RingRight: ringsRightDurability[ringIndex] = value; break;
+            case EquipmentSlotType.Weapon: weaponDurability = value; break;
         }
     }
 
@@ -192,6 +200,7 @@ public class PlayerEquipment : MonoBehaviour
     // GetComponent calls on the same GameObject, at most a few times per second.
     StatusIconDisplay StatusIcons => GetComponent<StatusIconDisplay>();
     Health PlayerHealth => GetComponent<Health>();
+    PlayerController Controller => GetComponent<PlayerController>();
 
     public bool IsBurning(EquipmentSlotType slot) => burningSlots.Contains(slot);
 
@@ -245,15 +254,22 @@ public class PlayerEquipment : MonoBehaviour
 
     void ApplyItemEffects(string itemId)
     {
-        if (string.IsNullOrEmpty(itemId) || stats == null) return;
+        if (string.IsNullOrEmpty(itemId)) return;
         ItemDefinition definition = ItemDatabase.Get(itemId);
-        if (definition != null && definition.RingBonusStat != StatType.None) stats.ApplyBonus(definition.RingBonusStat, 1);
+        if (definition == null) return;
+        if (stats != null && definition.RingBonusStat != StatType.None) stats.ApplyBonus(definition.RingBonusStat, 1);
+        // A weapon put into this slot (see EquipmentSlotType.Weapon) drives PlayerController's
+        // actual attack behaviour - unlike a ring's flat stat bonus, this can't be represented as a
+        // pure PlayerEquipment-side effect, so it delegates out.
+        if (definition.IsWeapon) Controller?.EquipWeaponItem(itemId, definition.Weapon);
     }
 
     void RemoveItemEffects(string itemId)
     {
-        if (string.IsNullOrEmpty(itemId) || stats == null) return;
+        if (string.IsNullOrEmpty(itemId)) return;
         ItemDefinition definition = ItemDatabase.Get(itemId);
-        if (definition != null && definition.RingBonusStat != StatType.None) stats.ApplyPenalty(definition.RingBonusStat, 1);
+        if (definition == null) return;
+        if (stats != null && definition.RingBonusStat != StatType.None) stats.ApplyPenalty(definition.RingBonusStat, 1);
+        if (definition.IsWeapon) Controller?.UnequipToFistIfCurrent(itemId);
     }
 }
