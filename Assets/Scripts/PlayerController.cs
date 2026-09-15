@@ -597,6 +597,10 @@ public class PlayerController : MonoBehaviour
         return direction.sqrMagnitude < 0.01f ? aimDirection : direction.normalized;
     }
 
+    // 10% of max HP, applied when a cursed-weapon swing (see weaponLocked/CurseMissDamage below)
+    // connects with nothing at all.
+    const float CurseMissDamageFraction = 0.1f;
+
     void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
     {
         if (skills != null)
@@ -606,17 +610,28 @@ public class PlayerController : MonoBehaviour
             skills.AddUsage(SkillType.Melee, 1f);
         }
 
+        // A forced/cursed weapon (see ForceEquipWeapon) always lands a critical hit - the
+        // Epee Maudite du Soldat Dechu's curse, "un coup critique automatique (+50% de degats),
+        // par contre pour chaque coup qui ne touche pas de cible, le crawler perd 10% de sa vie".
+        // A curse isn't purely a downside, and this one isn't described as cursed anywhere the
+        // player can read (see ItemInspectManager) - only its effects reveal it.
+        if (weaponLocked) damage = Mathf.RoundToInt(damage * 1.5f);
+
         Vector2 origin = (Vector2)transform.position + aimDirection * offset;
         Collider2D[] hits = Physics2D.OverlapCircleAll(origin, range);
+        bool connected = false;
         foreach (Collider2D hit in hits)
         {
             if (hit.gameObject == gameObject) continue;
             Health targetHealth = hit.GetComponent<Health>();
-            if (targetHealth != null) targetHealth.TakeDamage(damage);
+            if (targetHealth != null) { targetHealth.TakeDamage(damage); connected = true; }
 
             DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
-            if (destructible != null) destructible.TryDamage(damage, stats.force);
+            if (destructible != null) { destructible.TryDamage(damage, stats.force); connected = true; }
         }
+
+        if (weaponLocked && !connected && health != null)
+            health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
 
         SpawnAttackVisual(visualSprite, origin, range);
     }
