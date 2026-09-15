@@ -664,6 +664,7 @@ public static class DungeonGenerator
 
         Sprite shopMarker = CreateMaskedSprite("Assets/Art/Markers/Shop.png", ChestMask, new Color(0.75f, 0.55f, 0.15f));
         Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
+        Sprite chestSprite = CreateMaskedSprite("Assets/Art/Items/Chest.png", ChestMask, new Color(0.5f, 0.32f, 0.15f));
         Sprite secretMarker = CreateMaskedSprite("Assets/Art/Markers/Secret.png", QuestionMask, new Color(0.85f, 0.85f, 0.9f));
         Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
         Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
@@ -1142,7 +1143,7 @@ public static class DungeonGenerator
                 GatherGroup(kv.Key, cellGroups, doorsByRoom, out List<Vector2Int> memberCells, out var doors, out Vector2 groupSize);
 
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
-                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker);
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker, chestSprite);
 
                 // The merge pass above can reposition which cell ends up as the group's technical
                 // anchor (bottom-left corner) - the cell GenerateLayout actually assigned a tier to
@@ -1162,7 +1163,7 @@ public static class DungeonGenerator
             else
             {
                 PopulateRoom(kv.Value, originX, originY, root.transform, player.transform,
-                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker);
+                    shopMarker, treasureMarker, secretMarker, gambleMarker, bossMarker, eventMarker, safeMarker, chestSprite);
 
                 if (kv.Value == RoomType.Event)
                 {
@@ -3300,7 +3301,8 @@ public static class DungeonGenerator
     }
 
     static void PopulateRoom(RoomType type, int originX, int originY, Transform parent, Transform player,
-        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker, Sprite safeMarker)
+        Sprite shopMarker, Sprite treasureMarker, Sprite secretMarker, Sprite gambleMarker, Sprite bossMarker, Sprite eventMarker, Sprite safeMarker,
+        Sprite chestSprite)
     {
         Vector2 center = new Vector2(originX + RoomWidth / 2f, originY + RoomHeight / 2f);
 
@@ -3316,6 +3318,12 @@ public static class DungeonGenerator
                 // from the inventory panel instead of the old touch-to-equip WeaponPickup.
                 SpawnItemPickup("SwordPickup", center + new Vector2(-1.5f, 0f), ItemIds.Sword, 1, parent);
                 SpawnItemPickup("StaffPickup", center + new Vector2(1.5f, 0f), ItemIds.Staff, 1, parent);
+                // 2 chests, each an independent rarity-weighted roll from a broad pool (see
+                // ChestLootPool) - explicit request for chests as a new, inspect-before-take way to
+                // find loot, distinct from a plain ground pickup.
+                PlayerInventory chestInventory = player != null ? player.GetComponent<PlayerInventory>() : null;
+                SpawnChest(center + new Vector2(-2.5f, -3f), chestSprite, chestInventory, parent);
+                SpawnChest(center + new Vector2(2.5f, -3f), chestSprite, chestInventory, parent);
                 break;
             case RoomType.Secret:
                 SpawnMarker("SecretMarker", center, secretMarker, parent);
@@ -3385,6 +3393,33 @@ public static class DungeonGenerator
         GameObject pickup = ItemPickup.SpawnAt(position, itemId, amount);
         pickup.name = name;
         pickup.transform.SetParent(parent);
+    }
+
+    // A broad cross-section of the game's real loot (weapons, armor, rings, materials, throwables,
+    // a potion, gold) - rarity-weighted (see LootTable.PickWeighted), so a Chest can hand out
+    // anything from a common Caillou to (rarely) a stat ring. Boss trophies/CursedSword deliberately
+    // excluded - those stay earned from a boss kill or found loose on the floor, not handed out by
+    // a plain Treasure-room container.
+    static readonly string[] ChestLootPool =
+    {
+        ItemIds.Sword, ItemIds.Staff, ItemIds.HealthPotion, ItemIds.Gold,
+        ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Bomb,
+        ItemIds.Wood, ItemIds.Metal, ItemIds.Stone,
+        ItemIds.IronHelmet, ItemIds.LeatherPauldrons, ItemIds.CombatGloves, ItemIds.WalkingBoots,
+        ItemIds.SimpleNecklace, ItemIds.LeatherBelt, ItemIds.LeatherKneepads, ItemIds.SimpleRing,
+        ItemIds.AntiHoleBoots, ItemIds.VisionGlasses,
+        ItemIds.RingForce, ItemIds.RingDexterite, ItemIds.RingIntelligence, ItemIds.RingVitesse,
+        ItemIds.RingConstitution, ItemIds.RingPortee, ItemIds.RingCharisme, ItemIds.RingEndurance,
+    };
+
+    static void SpawnChest(Vector2 position, Sprite sprite, PlayerInventory playerInventory, Transform parent)
+    {
+        string itemId = LootTable.PickWeighted(ChestLootPool);
+        int amount = itemId == ItemIds.Gold ? Random.Range(3, 8)
+            : (itemId == ItemIds.Wood || itemId == ItemIds.Metal || itemId == ItemIds.Stone) ? Random.Range(2, 5)
+            : 1;
+        GameObject chest = Chest.SpawnAt(position, itemId, amount, sprite, playerInventory);
+        chest.transform.SetParent(parent);
     }
 
     static void SpawnMarker(string name, Vector2 position, Sprite sprite, Transform parent)
