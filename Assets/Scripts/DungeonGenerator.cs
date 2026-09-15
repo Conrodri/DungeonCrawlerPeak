@@ -713,6 +713,19 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
             "Restaure un peu de vie.", healAmount: 3);
 
+        // Restaurant dishes (see SpawnCookNpc) - bigger heals than the Potion de Soin, priced in
+        // gold to match, sold only at the second Safe room of a floor (the Restaurant, distinct
+        // from the Tavern's first Safe room - see restaurantCell in GenerateLayout).
+        Sprite soupSprite = CreateCircleSprite("Assets/Art/Items/Soup.png", new Color(0.85f, 0.55f, 0.2f));
+        RegisterItem(itemEntries, ItemIds.Soup, "Soupe du Jour", ItemCategory.Misc, 5, soupSprite,
+            "Chaude et simple. Restaure un peu de vie.", healAmount: 4);
+        Sprite stewSprite = CreateCircleSprite("Assets/Art/Items/Stew.png", new Color(0.6f, 0.35f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.Stew, "Ragout Costaud", ItemCategory.Misc, 5, stewSprite,
+            "Un plat roboratif. Restaure une bonne quantite de vie.", healAmount: 10);
+        Sprite feastSprite = CreateCircleSprite("Assets/Art/Items/Feast.png", new Color(0.9f, 0.7f, 0.25f));
+        RegisterItem(itemEntries, ItemIds.Feast, "Festin du Chef", ItemCategory.Misc, 5, feastSprite,
+            "La meilleure table du donjon. Restaure une grande quantite de vie.", healAmount: 20);
+
         Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
@@ -899,7 +912,7 @@ public static class DungeonGenerator
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers);
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell);
 
         // Carve the room geometry and cut door openings for every adjacent pair.
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
@@ -1148,10 +1161,19 @@ public static class DungeonGenerator
                     Vector2 roomOrigin = new Vector2(originX, originY);
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
                     Vector2 npcPos = center + new Vector2(2f, 0f);
-                    SpawnTavernNpc(npcPos, npcElderSprite, npcBadgeSprite, root.transform);
-                    SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
-                    SpawnTavernFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
-                        playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                    if (kv.Key == restaurantCell)
+                    {
+                        SpawnCookNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
+                        SpawnRestaurantFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
+                            playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                    }
+                    else
+                    {
+                        SpawnTavernNpc(npcPos, npcElderSprite, npcBadgeSprite, root.transform);
+                        SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
+                        SpawnTavernFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
+                            playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                    }
                 }
 
                 if (kv.Value == RoomType.Shop)
@@ -2649,7 +2671,7 @@ public static class DungeonGenerator
         new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
     };
 
-    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers)
+    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell)
     {
         var rooms = new Dictionary<Vector2Int, RoomType>();
         Vector2Int start = Vector2Int.zero;
@@ -2741,9 +2763,15 @@ public static class DungeonGenerator
         // Guaranteed, like Treasure/Shop - a save point must always be reachable. Placed twice
         // (explicit request for an extra Safe room per floor) - the second call lands as far as
         // possible from the first (see FindPlacementCandidate's same-type spacing), not just on a
-        // merely-different cell, so the two never read as sitting side by side.
+        // merely-different cell, so the two never read as sitting side by side. The two Safe rooms
+        // used to be identical taverns; the second one is now a distinct Restaurant (see
+        // SpawnCookNpc/SpawnRestaurantFurniture) - restaurantCell records which cell that is so the
+        // population pass in Build() knows which of the two to furnish differently. If this second
+        // placement fails (rare, no fallback - same as Treasure/Shop/Event/Gamble), PlaceSpecialRoom
+        // sets restaurantCell to default (0,0) - harmless, since every Safe-room check below also
+        // requires kv.Value == RoomType.Safe and Start already owns (0,0).
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
-        PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
+        PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance, out restaurantCell);
 
         // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
         // other room type is already placed) may absorb some cells' free neighbors into a bigger
@@ -3618,6 +3646,51 @@ public static class DungeonGenerator
         bed.playerStamina = playerStamina;
         bed.playerController = playerController;
         bed.playerEquipment = playerEquipment;
+    }
+
+    // The second Safe room's NPC (see restaurantCell in GenerateLayout) - sells food (bigger heals
+    // than the Shop's Potion de Soin, priced in gold), nothing else. Reuses BuyOption, the exact
+    // same purchase flow as the Marchand/Table de Craft.
+    static void SpawnCookNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.9f, 0.6f, 0.3f); // warm, kitchen-like - distinct from the Tavernier's tint
+        renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Le Cuisinier";
+        npc.greeting = "Un bon repas chaud avant de repartir ?";
+        npc.options = new List<DialogueOption>
+        {
+            BuyOption("Acheter une Soupe du Jour (3 or)", ItemIds.Soup, 3),
+            BuyOption("Acheter un Ragout Costaud (8 or)", ItemIds.Stew, 8),
+            BuyOption("Acheter un Festin du Chef (15 or)", ItemIds.Feast, 15),
+        };
+    }
+
+    // Furniture for the Restaurant room - a kitchen counter (stove) behind the Cuisinier instead of
+    // the Tavern's bar, two dining table+chairs clusters, and the same RestBed every Safe room
+    // gets (still a save point/rest spot, just a different NPC/purpose - see SpawnTavernFurniture).
+    static void SpawnRestaurantFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent,
+        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    {
+        SpawnProp("Stove", npcPos + new Vector2(0f, 1.3f), woodSprite, parent, new Vector2(3.2f, 0.7f), 0f, 1, true, new Color(0.55f, 0.25f, 0.15f));
+
+        List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
+        SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
+        SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
+        SpawnRestBed(corners[2], woodSprite, parent, playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
     }
 
     // Furniture for the Shop room - crates and a shelf around the Marchand, a rug underfoot, and

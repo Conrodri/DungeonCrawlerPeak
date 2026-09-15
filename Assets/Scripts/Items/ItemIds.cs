@@ -9,6 +9,11 @@ public static class ItemIds
     public const string CursedSword = "cursed_sword";
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";
+    // Restaurant wares (see DungeonGenerator.SpawnCookNpc) - same HealAmount mechanism as
+    // HealthPotion, bigger heals at a gold price to match, distinct from the Shop's potion.
+    public const string Soup = "soup";
+    public const string Stew = "stew";
+    public const string Feast = "feast";
     public const string CerberusCollar = "cerberus_collar";
     public const string Wood = "wood";
     public const string Metal = "metal";
