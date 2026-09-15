@@ -30,13 +30,15 @@ public class BossController : MonoBehaviour
     public float rageSpeedMultiplier = 1.5f;
     public float rageCooldownMultiplier = 0.6f;
 
+    // Set by DungeonGenerator.SetupBossRoom per biome family (see BossFamilyFor) - Generic keeps
+    // the plain charge+volley pattern above; every other value swaps in that family's own
+    // XxxFixedUpdate below instead. Each bespoke kit still reuses the generic volley (flavor
+    // difference only) and usually the generic charge/StartCharge too, just with a different
+    // payload attached - see each kit's own header for what it actually adds.
+    public enum BossKit { Generic, Cerbere, Anaconda, Ent, Golem, Kraken, Aigle, Arpenteur }
+    public BossKit kit = BossKit.Generic;
+
     [Header("Cerbere Kit")]
-    // Set by DungeonGenerator.SetupBossRoom for the Cave family only - every other family keeps
-    // the generic charge+volley pattern above. An explicit switch rather than a subclass per
-    // family: the Cerbere spec is the only one detailed so far (see the 2026-09-14 request), and
-    // this keeps the door open for a future family's own kit without forcing one on families that
-    // don't have one yet.
-    public bool useCerbereAttacks;
     // 3 short lunges in a row, each one a bite that advances the boss (reuses charging/
     // chargeDirection/chargeEndTime below, just fired chainBiteCount times with a short gap
     // between each instead of once) - "3 morsures en chaine qui le fait avancer".
@@ -46,12 +48,58 @@ public class BossController : MonoBehaviour
     public float chainBiteCooldownMax = 4f;
     // Spits toward the player's current position, dropping a slowing puddle there instead of a
     // damaging projectile - "un crachat de bave pour mettre une flaque au sol ralentissante".
+    // Also reused as-is by Anaconda's poison puddle sprite (see DropPoisonPuddle) - same generic
+    // hazard-puddle sprite, no need for a second field.
     public Sprite slobberPuddleSprite;
     public float slobberCooldown = 5f;
     public float slobberRange = 6f;
     public float slobberSlowMultiplier = 0.5f;
     public float slobberSlowDuration = 3f;
     public float slobberPuddleLifetime = 5f;
+
+    [Header("Anaconda Kit")]
+    // The charge itself is the plain generic lunge (StartCharge below) - landing leaves a poison
+    // puddle where the bite connects instead of a one-off hit, punishing a player who lingers.
+    public int poisonDamagePerTick = 1;
+    public float poisonTickInterval = 1f;
+    public float poisonPuddleLifetime = 4f;
+
+    [Header("Ent Kit")]
+    // Roots erupt where the player is standing right NOW, after a short telegraph delay - moving
+    // away dodges it, standing still doesn't. Replaces the generic charge slot entirely (an Ent
+    // doesn't lunge).
+    public float rootTelegraphDelay = 1f;
+    public float rootDamageRadius = 2f;
+    public int rootDamage = 2;
+    public float rootCooldown = 4f;
+
+    [Header("Golem Kit")]
+    // The charge itself is the plain generic lunge - on landing it also triggers a shockwave pulse
+    // around the impact point, so standing just outside the lunge's own hitbox doesn't fully dodge it.
+    public float shockwaveRadius = 2.5f;
+    public int shockwaveDamage = 2;
+
+    [Header("Kraken Kit")]
+    // Replaces the generic charge slot: a Kraken doesn't dash, it slaps anything already within
+    // tentacle range instead.
+    public float tentacleRange = 2.2f;
+    public int tentacleDamage = 2;
+    public float tentacleCooldown = 2.5f;
+
+    [Header("Aigle Kit")]
+    // Hovers still for a telegraph beat, then dives through the player in a straight line - much
+    // faster/longer than the generic lunge (reuses charging/chargeDirection/chargeEndTime with its
+    // own speed/duration via the StartCharge overload below instead of chargeSpeed/chargeDuration).
+    public float diveTelegraphDelay = 0.6f;
+    public float diveSpeed = 14f;
+    public float diveDuration = 0.8f;
+    public float diveCooldown = 5f;
+
+    [Header("Arpenteur Kit")]
+    // No telegraph at all, unlike every other kit above - the ambush IS the mechanic. Blinks to a
+    // random point at a fixed ring distance around the player then immediately lunges back in.
+    public float teleportDistance = 4f;
+    public float teleportCooldown = 5f;
 
     [Header("Modifiers")]
     // Vampirique (see BossModifier/DungeonGenerator.ApplyBossModifiers) - fraction of contact
@@ -72,16 +120,36 @@ public class BossController : MonoBehaviour
     float lastVolleyTime = -999f;
     bool charging;
     Vector2 chargeDirection;
+    float activeChargeSpeed;
     float chargeEndTime;
+    Action onChargeEnd;
     bool enraged;
 
-    // Cerbere-only state (see useCerbereAttacks) - chainBitesLeft counts the bites still due after
+    // Cerbere-only state (see BossKit.Cerbere) - chainBitesLeft counts the bites still due after
     // the one currently charging/gapping; nextChainBiteCooldown is re-rolled each cycle (3-4s).
     int chainBitesLeft;
     float nextBiteTime;
     float lastChainBiteTime = -999f;
     float nextChainBiteCooldown;
     float lastSlobberTime = -999f;
+
+    // Ent-only state.
+    bool rootTelegraphing;
+    float rootTelegraphEndTime;
+    Vector2 rootTelegraphTarget;
+    float lastRootTime = -999f;
+
+    // Kraken-only state.
+    float lastTentacleTime = -999f;
+
+    // Aigle-only state.
+    bool diveTelegraphing;
+    float diveTelegraphEndTime;
+    Vector2 diveTelegraphDirection;
+    float lastDiveTime = -999f;
+
+    // Arpenteur-only state.
+    float lastTeleportTime = -999f;
 
     void Awake()
     {
@@ -105,13 +173,16 @@ public class BossController : MonoBehaviour
 
         if (charging)
         {
-            rb.linearVelocity = chargeDirection * chargeSpeed;
+            rb.linearVelocity = chargeDirection * activeChargeSpeed;
             if (Time.time >= chargeEndTime)
             {
                 charging = false;
-                // Mid-chain (see useCerbereAttacks) - the gap below fires the next bite instead of
+                // Mid-chain (see BossKit.Cerbere) - the gap below fires the next bite instead of
                 // falling through to a fresh charge/volley decision.
                 if (chainBitesLeft > 0) nextBiteTime = Time.time + chainBiteGap;
+                Action end = onChargeEnd;
+                onChargeEnd = null;
+                end?.Invoke();
             }
             return;
         }
@@ -119,10 +190,15 @@ public class BossController : MonoBehaviour
         Vector2 toTarget = (Vector2)target.position - rb.position;
         Vector2 dir = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : Vector2.zero;
 
-        if (useCerbereAttacks)
+        switch (kit)
         {
-            CerbereFixedUpdate(dir, cooldownScale);
-            return;
+            case BossKit.Cerbere: CerbereFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Anaconda: AnacondaFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Ent: EntFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Golem: GolemFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Kraken: KrakenFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Aigle: AigleFixedUpdate(dir, cooldownScale); return;
+            case BossKit.Arpenteur: ArpenteurFixedUpdate(dir, cooldownScale); return;
         }
 
         rb.linearVelocity = dir * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
@@ -186,6 +262,178 @@ public class BossController : MonoBehaviour
         puddle.transform.SetParent(transform.parent);
     }
 
+    // "Morsure empoisonnee" - the lunge is the plain generic charge (see StartCharge), it just
+    // drops a damaging puddle where it lands via onChargeEnd instead of a one-off hit.
+    void AnacondaFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
+        {
+            lastChargeTime = Time.time;
+            StartCharge(dirToTarget, DropPoisonPuddle);
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    void DropPoisonPuddle()
+    {
+        GameObject puddle = SlowPuddle.SpawnAt(rb.position, slobberPuddleSprite, 1f, 0f, poisonPuddleLifetime, poisonDamagePerTick, poisonTickInterval);
+        puddle.transform.SetParent(transform.parent);
+    }
+
+    // "Racines" - stands still and telegraphs, then erupts under wherever the player was standing
+    // when the telegraph started. Moving away dodges it; the generic charge slot is unused here.
+    void EntFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        if (rootTelegraphing)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= rootTelegraphEndTime)
+            {
+                rootTelegraphing = false;
+                ResolveAoEDamage(rootTelegraphTarget, rootDamageRadius, rootDamage);
+            }
+            return;
+        }
+
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastRootTime >= rootCooldown * cooldownScale)
+        {
+            lastRootTime = Time.time;
+            rootTelegraphing = true;
+            rootTelegraphTarget = target.position;
+            rootTelegraphEndTime = Time.time + rootTelegraphDelay;
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    // "Poing + onde de choc" - the lunge is the plain generic charge, it just also hits anything
+    // within shockwaveRadius of the impact point via onChargeEnd, not just whatever it collided with.
+    void GolemFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
+        {
+            lastChargeTime = Time.time;
+            StartCharge(dirToTarget, () => ResolveAoEDamage(rb.position, shockwaveRadius, shockwaveDamage));
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    // "Gifle de tentacule" - replaces the dash entirely: a Kraken slaps anything already in range
+    // instead of lunging across the room.
+    void KrakenFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        float distToTarget = Vector2.Distance(rb.position, target.position);
+        if (distToTarget <= tentacleRange && Time.time - lastTentacleTime >= tentacleCooldown * cooldownScale)
+        {
+            lastTentacleTime = Time.time;
+            ResolveAoEDamage(rb.position, tentacleRange, tentacleDamage);
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    // "Pique" - hovers for a telegraph beat, then dives through the player far faster/longer than
+    // the generic lunge (StartCharge's speed/duration overload below).
+    void AigleFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        if (diveTelegraphing)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= diveTelegraphEndTime)
+            {
+                diveTelegraphing = false;
+                StartCharge(diveTelegraphDirection, diveSpeed, diveDuration);
+            }
+            return;
+        }
+
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastDiveTime >= diveCooldown * cooldownScale)
+        {
+            lastDiveTime = Time.time;
+            diveTelegraphing = true;
+            diveTelegraphDirection = dirToTarget;
+            diveTelegraphEndTime = Time.time + diveTelegraphDelay;
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    // "Teleportation embusquee" - no telegraph, unlike every kit above: blinks to a random point
+    // at a fixed ring distance around the player then immediately lunges back in.
+    void ArpenteurFixedUpdate(Vector2 dirToTarget, float cooldownScale)
+    {
+        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+
+        if (Time.time - lastTeleportTime >= teleportCooldown * cooldownScale)
+        {
+            lastTeleportTime = Time.time;
+            TeleportAmbush();
+        }
+        else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
+        {
+            lastVolleyTime = Time.time;
+            FireVolley();
+        }
+    }
+
+    void TeleportAmbush()
+    {
+        float angle = UnityEngine.Random.Range(0f, 360f);
+        Vector2 offset = (Vector2)(Quaternion.Euler(0f, 0f, angle) * Vector2.right) * teleportDistance;
+        Vector2 newPos = (Vector2)target.position + offset;
+        if (roomBounds.HasValue)
+        {
+            Rect b = roomBounds.Value;
+            float margin = 1f + bodyCollider.radius;
+            newPos.x = Mathf.Clamp(newPos.x, b.xMin + margin, b.xMax - margin);
+            newPos.y = Mathf.Clamp(newPos.y, b.yMin + margin, b.yMax - margin);
+        }
+        rb.position = newPos;
+
+        Vector2 dirToTarget = (Vector2)target.position - newPos;
+        StartCharge(dirToTarget.sqrMagnitude > 0.0001f ? dirToTarget.normalized : Vector2.zero);
+    }
+
+    // Instant one-shot AoE check used by the ground-slam-style kits (Ent roots, Golem shockwave,
+    // Kraken tentacle slap) instead of a spawned hazard GameObject - the damage window is a single
+    // FixedUpdate tick, not a lingering zone like SlowPuddle. target is always the player
+    // (see SetTarget), so no overlap query is needed, just a distance check.
+    void ResolveAoEDamage(Vector2 center, float radius, int damage)
+    {
+        if (target == null) return;
+        if (Vector2.Distance(center, target.position) > radius) return;
+        Health targetHealth = target.GetComponent<Health>();
+        if (targetHealth == null) return;
+        targetHealth.TakeDamageFromEnemy(damage, AttackSource.Random);
+    }
+
     void LateUpdate()
     {
         if (!roomBounds.HasValue) return;
@@ -198,12 +446,20 @@ public class BossController : MonoBehaviour
         if (clamped != rb.position) rb.position = clamped;
     }
 
-    void StartCharge(Vector2 dir)
+    void StartCharge(Vector2 dir, Action onEnd = null) => StartCharge(dir, chargeSpeed, chargeDuration, onEnd);
+
+    // Speed/duration overload lets a kit's lunge read as something other than the generic
+    // chargeSpeed/chargeDuration (see Aigle's dive) without a second charging state machine, and
+    // onEnd lets a kit attach a one-off payload to the landing (see Anaconda/Golem) without the
+    // shared charging block above needing to know which kit is active.
+    void StartCharge(Vector2 dir, float speed, float duration, Action onEnd = null)
     {
         if (dir == Vector2.zero) return;
         charging = true;
         chargeDirection = dir;
-        chargeEndTime = Time.time + chargeDuration;
+        activeChargeSpeed = speed;
+        chargeEndTime = Time.time + duration;
+        onChargeEnd = onEnd;
     }
 
     void FireVolley()

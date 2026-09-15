@@ -4020,12 +4020,33 @@ public static class DungeonGenerator
         boss.volleyProjectileCount = stats.volleyCount;
         boss.moveSpeed = stats.moveSpeed;
 
-        // Only the Cave family has a bespoke kit so far (see BossController.useCerbereAttacks) -
-        // every other family keeps the generic charge+volley pattern above.
-        if (CurrentBiome == Biome.Cave)
+        // Every family now has its own bespoke kit (see BossController.BossKit) instead of the
+        // plain generic charge+volley pattern.
+        switch (CurrentBiome)
         {
-            boss.useCerbereAttacks = true;
-            boss.slobberPuddleSprite = bossSlobberPuddleSprite;
+            case Biome.Cave:
+                boss.kit = BossController.BossKit.Cerbere;
+                boss.slobberPuddleSprite = bossSlobberPuddleSprite;
+                break;
+            case Biome.Jungle:
+                boss.kit = BossController.BossKit.Anaconda;
+                boss.slobberPuddleSprite = bossSlobberPuddleSprite;
+                break;
+            case Biome.Forest:
+                boss.kit = BossController.BossKit.Ent;
+                break;
+            case Biome.City:
+                boss.kit = BossController.BossKit.Golem;
+                break;
+            case Biome.Beach:
+                boss.kit = BossController.BossKit.Kraken;
+                break;
+            case Biome.SkyCastle:
+                boss.kit = BossController.BossKit.Aigle;
+                break;
+            case Biome.Backrooms:
+                boss.kit = BossController.BossKit.Arpenteur;
+                break;
         }
 
         List<BossModifier> modifiers = RollBossModifiers(tier);
