@@ -313,6 +313,11 @@ public class DialogueManager : MonoBehaviour
             AttributeAllocationUI.Instance.Show();
         }
 
+        if (outcome.opensRepairPanel && RepairUI.Instance != null)
+        {
+            RepairUI.Instance.Show();
+        }
+
         // Destroying it fires NpcInteractable.OnDestroy -> NotifyNpcRemoved, which only clears the
         // reference (see NotifyNpcRemoved) - the already-scheduled CloseAfterDelay still closes the
         // panel on its own timer, so the outcome message above stays readable.

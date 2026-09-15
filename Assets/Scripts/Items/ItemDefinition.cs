@@ -27,4 +27,12 @@ public class ItemDefinition
     // StatType.None = no bonus. Only meaningful on a ring (see PlayerEquipment.ApplyItemEffects) -
     // grants a flat +1 to this stat while equipped, -1 back on unequip.
     public StatType RingBonusStat;
+    // 0 = infinite/untracked (potions, currency, rings, trophies). Otherwise the current-durability
+    // pool lives on PlayerEquipment (armor, see DamageDurability) or PlayerController
+    // (currentWeaponDurability, base Sword/Staff only) - never here, since this is the shared
+    // definition every equipped instance points at.
+    public int MaxDurability;
+    // Drives which crafting material repairs this item (see RepairUI.MaterialItemId) and, for
+    // Tissu, whether it can catch fire while worn (see PlayerEquipment.IgniteFlammable).
+    public MaterialType Material;
 }

@@ -62,6 +62,16 @@ public static class SaveManager
             equippedKnees = equipment != null ? equipment.knees : null,
             equippedRingsLeft = equipment != null ? (string[])equipment.ringsLeft.Clone() : null,
             equippedRingsRight = equipment != null ? (string[])equipment.ringsRight.Clone() : null,
+            durabilityHead = equipment != null ? equipment.headDurability : 0,
+            durabilityShoulders = equipment != null ? equipment.shouldersDurability : 0,
+            durabilityGloves = equipment != null ? equipment.glovesDurability : 0,
+            durabilityBoots = equipment != null ? equipment.bootsDurability : 0,
+            durabilityNeck = equipment != null ? equipment.neckDurability : 0,
+            durabilityBelt = equipment != null ? equipment.beltDurability : 0,
+            durabilityKnees = equipment != null ? equipment.kneesDurability : 0,
+            durabilityRingsLeft = equipment != null ? (int[])equipment.ringsLeftDurability.Clone() : null,
+            durabilityRingsRight = equipment != null ? (int[])equipment.ringsRightDurability.Clone() : null,
+            currentWeaponDurability = controller.CurrentWeaponDurability,
         };
     }
 
@@ -112,6 +122,9 @@ public static class SaveManager
         if (data.weaponLocked) controller.ForceEquipWeapon(data.currentWeapon);
         else controller.EquipWeapon(data.currentWeapon);
         controller.weaponHand = data.weaponHand;
+        // Must run AFTER Equip/ForceEquipWeapon above - both reset currentWeaponDurability to
+        // full, this overwrites it with the actually-saved (possibly worn-down) value.
+        controller.SetCurrentWeaponDurability(data.currentWeaponDurability);
 
         if (limbs != null)
         {
@@ -146,6 +159,20 @@ public static class SaveManager
                 ? (string[])data.equippedRingsLeft.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRight = data.equippedRingsRight != null
                 ? (string[])data.equippedRingsRight.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
+
+            // Plain field restore too, same reasoning as the itemId fields just above - Set() would
+            // reset every slot back to full durability instead of the saved (possibly worn-down) value.
+            equipment.headDurability = data.durabilityHead;
+            equipment.shouldersDurability = data.durabilityShoulders;
+            equipment.glovesDurability = data.durabilityGloves;
+            equipment.bootsDurability = data.durabilityBoots;
+            equipment.neckDurability = data.durabilityNeck;
+            equipment.beltDurability = data.durabilityBelt;
+            equipment.kneesDurability = data.durabilityKnees;
+            equipment.ringsLeftDurability = data.durabilityRingsLeft != null
+                ? (int[])data.durabilityRingsLeft.Clone() : new int[PlayerEquipment.RingSlotsPerHand];
+            equipment.ringsRightDurability = data.durabilityRingsRight != null
+                ? (int[])data.durabilityRingsRight.Clone() : new int[PlayerEquipment.RingSlotsPerHand];
         }
     }
 }

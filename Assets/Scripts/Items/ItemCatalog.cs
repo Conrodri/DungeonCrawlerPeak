@@ -26,6 +26,8 @@ public class ItemCatalog : MonoBehaviour
         public EquipmentSlotType equipmentSlot;
         public StatType ringBonusStat;
         public int armorValue;
+        public int maxDurability;
+        public MaterialType material;
     }
 
     public List<Entry> entries = new List<Entry>();
@@ -52,7 +54,9 @@ public class ItemCatalog : MonoBehaviour
                 IsEquipment = entry.isEquipment,
                 EquipmentSlot = entry.equipmentSlot,
                 RingBonusStat = entry.ringBonusStat,
-                ArmorValue = entry.armorValue
+                ArmorValue = entry.armorValue,
+                MaxDurability = entry.maxDurability,
+                Material = entry.material
             });
         }
     }

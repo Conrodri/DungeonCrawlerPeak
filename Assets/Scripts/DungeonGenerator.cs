@@ -678,6 +678,9 @@ public static class DungeonGenerator
         // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
         // PlayerLimbs.GetArmor) - Torso is covered by Shoulders+Belt+Neck at once, Arms/Legs share
         // a single Gloves/Boots+Knees slot each, matching this project's one-slot-per-type layout.
+        // Head/Boots/Knees are the "heavy" pieces (Metal, sturdier, fire-resistant); Shoulders/
+        // Gloves/Neck/Belt are the "soft" pieces (Tissu - cloth/leather, lower durability, and the
+        // only material that can catch fire, see PlayerEquipment.IgniteFlammable).
         Sprite ironHelmetSprite = CreateMaskedSprite("Assets/Art/Items/IronHelmet.png", HelmetMask, new Color(0.55f, 0.56f, 0.6f));
         Sprite leatherPauldronsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherPauldrons.png", PauldronsMask, new Color(0.45f, 0.32f, 0.18f));
         Sprite combatGlovesSprite = CreateMaskedSprite("Assets/Art/Items/CombatGloves.png", GlovesMask, new Color(0.35f, 0.25f, 0.15f));
@@ -687,19 +690,26 @@ public static class DungeonGenerator
         Sprite leatherKneepadsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherKneepads.png", KneepadsMask, new Color(0.42f, 0.3f, 0.17f));
         Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
         RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
-            "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1);
+            "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1,
+            maxDurability: 40, material: MaterialType.Metal);
         RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu);
         RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
-            "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1);
+            "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu);
         RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
-            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1);
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1,
+            maxDurability: 30, material: MaterialType.Metal);
         RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1,
+            maxDurability: 15, material: MaterialType.Tissu);
         RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1);
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu);
         RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
-            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1);
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1,
+            maxDurability: 30, material: MaterialType.Metal);
         RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
             "Se porte a n'importe quel doigt.", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft);
 
@@ -1974,6 +1984,118 @@ public static class DungeonGenerator
 
         attributeAllocation.root = attrGO;
 
+        // --- Repair panel (opened from the Crafting Table - see RepairUI/DialogueOutcome.
+        // opensRepairPanel) - same fixed-rows-live-refresh pattern as the attribute panel above,
+        // one row per durability-bearing slot (rings never carry durability).
+        GameObject repairGO = new GameObject("RepairPanel", typeof(RectTransform), typeof(Image), typeof(RepairUI));
+        repairGO.transform.SetParent(canvasGO.transform, false);
+        Image repairBg = repairGO.GetComponent<Image>();
+        repairBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        RectTransform repairRect = repairBg.rectTransform;
+        repairRect.anchorMin = Vector2.zero;
+        repairRect.anchorMax = Vector2.one;
+        repairRect.offsetMin = Vector2.zero;
+        repairRect.offsetMax = Vector2.zero;
+
+        GameObject repairTitleGO = new GameObject("Title", typeof(Text));
+        repairTitleGO.transform.SetParent(repairGO.transform, false);
+        Text repairTitle = repairTitleGO.GetComponent<Text>();
+        repairTitle.text = "Reparer / demonter l'equipement";
+        repairTitle.font = uiFont;
+        repairTitle.fontSize = 40;
+        repairTitle.fontStyle = FontStyle.Bold;
+        repairTitle.alignment = TextAnchor.MiddleCenter;
+        repairTitle.color = Color.white;
+        RectTransform repairTitleRect = repairTitle.rectTransform;
+        repairTitleRect.anchorMin = repairTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        repairTitleRect.pivot = new Vector2(0.5f, 1f);
+        repairTitleRect.anchoredPosition = new Vector2(0f, -80f);
+        repairTitleRect.sizeDelta = new Vector2(900f, 70f);
+
+        (EquipmentSlotType slot, string label)[] repairSlotRows =
+        {
+            (EquipmentSlotType.Head, "Tete"), (EquipmentSlotType.Shoulders, "Epaules"), (EquipmentSlotType.Gloves, "Gants"),
+            (EquipmentSlotType.Boots, "Bottes"), (EquipmentSlotType.Neck, "Cou"), (EquipmentSlotType.Belt, "Ceinture"),
+            (EquipmentSlotType.Knees, "Genoux"),
+        };
+
+        RepairUI repairUI = repairGO.GetComponent<RepairUI>();
+        repairUI.equipment = playerEquipment;
+        repairUI.inventory = playerInventory;
+        repairUI.slots = new EquipmentSlotType[repairSlotRows.Length];
+        repairUI.nameLabels = new Text[repairSlotRows.Length];
+        repairUI.durabilityLabels = new Text[repairSlotRows.Length];
+        repairUI.repairButtons = new Button[repairSlotRows.Length];
+        repairUI.dismantleButtons = new Button[repairSlotRows.Length];
+
+        float repairRowY = -170f;
+        for (int i = 0; i < repairSlotRows.Length; i++)
+        {
+            int rowIndex = i; // captured per-iteration for the button lambdas below
+            repairUI.slots[i] = repairSlotRows[i].slot;
+
+            GameObject slotLabelGO = new GameObject(repairSlotRows[i].label + "Label", typeof(Text));
+            slotLabelGO.transform.SetParent(repairGO.transform, false);
+            Text slotLabel = slotLabelGO.GetComponent<Text>();
+            slotLabel.text = repairSlotRows[i].label;
+            slotLabel.font = uiFont;
+            slotLabel.fontSize = 22;
+            slotLabel.alignment = TextAnchor.MiddleRight;
+            slotLabel.color = Color.white;
+            RectTransform slotLabelRect = slotLabel.rectTransform;
+            slotLabelRect.anchorMin = slotLabelRect.anchorMax = new Vector2(0.5f, 1f);
+            slotLabelRect.pivot = new Vector2(1f, 0.5f);
+            slotLabelRect.anchoredPosition = new Vector2(-330f, repairRowY);
+            slotLabelRect.sizeDelta = new Vector2(120f, 44f);
+
+            GameObject nameGO = new GameObject(repairSlotRows[i].label + "Name", typeof(Text));
+            nameGO.transform.SetParent(repairGO.transform, false);
+            Text nameText = nameGO.GetComponent<Text>();
+            nameText.font = uiFont;
+            nameText.fontSize = 20;
+            nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.color = new Color(0.85f, 0.85f, 0.85f);
+            RectTransform nameRect = nameText.rectTransform;
+            nameRect.anchorMin = nameRect.anchorMax = new Vector2(0.5f, 1f);
+            nameRect.pivot = new Vector2(0f, 0.5f);
+            nameRect.anchoredPosition = new Vector2(-190f, repairRowY);
+            nameRect.sizeDelta = new Vector2(280f, 44f);
+            repairUI.nameLabels[i] = nameText;
+
+            GameObject durabilityGO = new GameObject(repairSlotRows[i].label + "Durability", typeof(Text));
+            durabilityGO.transform.SetParent(repairGO.transform, false);
+            Text durabilityText = durabilityGO.GetComponent<Text>();
+            durabilityText.font = uiFont;
+            durabilityText.fontSize = 20;
+            durabilityText.alignment = TextAnchor.MiddleCenter;
+            durabilityText.color = new Color(0.9f, 0.85f, 0.3f);
+            RectTransform durabilityRect = durabilityText.rectTransform;
+            durabilityRect.anchorMin = durabilityRect.anchorMax = new Vector2(0.5f, 1f);
+            durabilityRect.pivot = new Vector2(0.5f, 0.5f);
+            durabilityRect.anchoredPosition = new Vector2(120f, repairRowY);
+            durabilityRect.sizeDelta = new Vector2(120f, 44f);
+            repairUI.durabilityLabels[i] = durabilityText;
+
+            Button repairButton = MainMenuController.CreateButton(repairGO.transform, "Reparer", uiFont, 0f, () => repairUI.Repair(rowIndex));
+            RectTransform repairButtonRect = repairButton.GetComponent<RectTransform>();
+            repairButtonRect.anchoredPosition = new Vector2(280f, repairRowY);
+            repairButtonRect.sizeDelta = new Vector2(150f, 44f);
+            repairUI.repairButtons[i] = repairButton;
+
+            Button dismantleButton = MainMenuController.CreateButton(repairGO.transform, "Demonter", uiFont, 0f, () => repairUI.Dismantle(rowIndex));
+            RectTransform dismantleButtonRect = dismantleButton.GetComponent<RectTransform>();
+            dismantleButtonRect.anchoredPosition = new Vector2(450f, repairRowY);
+            dismantleButtonRect.sizeDelta = new Vector2(150f, 44f);
+            repairUI.dismantleButtons[i] = dismantleButton;
+
+            repairRowY -= 60f;
+        }
+
+        MainMenuController.CreateButton(repairGO.transform, "Fermer", uiFont, repairRowY - 20f, repairUI.Hide);
+
+        repairGO.SetActive(false);
+        repairUI.root = repairGO;
+
         // --- Boss health bar (top-center, hidden until a boss binds to it) ---
         GameObject bossBarGO = new GameObject("BossHealthBar", typeof(RectTransform), typeof(Image), typeof(BossHealthBarUI));
         bossBarGO.transform.SetParent(canvasGO.transform, false);
@@ -2972,21 +3094,24 @@ public static class DungeonGenerator
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
         PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0,
-        bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0)
+        bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0,
+        int maxDurability = 0, MaterialType material = MaterialType.None)
     {
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
             CursedWeaponType = cursedWeaponType, IsTrap = isTrap, HealAmount = healAmount,
-            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue
+            IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue,
+            MaxDurability = maxDurability, Material = material
         });
         entries.Add(new ItemCatalog.Entry
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
             cursedWeaponType = cursedWeaponType, isTrap = isTrap, healAmount = healAmount,
-            isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue
+            isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue,
+            maxDurability = maxDurability, material = material
         });
     }
 
@@ -3225,6 +3350,16 @@ public static class DungeonGenerator
                 purchaseItemId = ItemIds.Bomb,
                 costItemId = ItemIds.Metal,
                 costAmount = 2,
+            },
+            new DialogueOption
+            {
+                text = "Reparer / demonter mon equipement",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Vous etalez votre equipement sur la table.",
+                    opensRepairPanel = true,
+                },
             },
         };
     }

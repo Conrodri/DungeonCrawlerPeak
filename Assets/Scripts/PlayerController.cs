@@ -31,6 +31,14 @@ public class PlayerController : MonoBehaviour
     // PlayerLimbs/LimbState: a broken weaponHand blocks TryAttack entirely until the player either
     // switches to the other arm or gets it repaired (Tavernier "Se reposer").
     public BodyPart weaponHand = BodyPart.ArmRight;
+    // Base Sword/Staff never go through ItemDatabase (see WeaponPickup - equipping one is a flat
+    // capability flip, not an inventory item), so their durability lives here as a plain pair of
+    // maxes instead of ItemDefinition.MaxDurability. 0 = infinite, matching that same convention -
+    // Fist's currentWeaponDurability is always 0, which is also why DamageWeaponDurability needs
+    // no explicit "is this Fist" check.
+    public int maxSwordDurability = 40;
+    public int maxStaffDurability = 40;
+    int currentWeaponDurability;
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;
     public Sprite swordVisualSprite;
@@ -311,10 +319,23 @@ public class PlayerController : MonoBehaviour
     bool weaponLocked;
     public bool WeaponLocked => weaponLocked;
 
+    public int CurrentWeaponDurability => currentWeaponDurability;
+    // SaveManager.Apply only - a plain field restore like weaponHand just below it, not a fresh
+    // equip (EquipWeapon/ForceEquipWeapon would reset this back to full instead of the saved value).
+    public void SetCurrentWeaponDurability(int value) => currentWeaponDurability = value;
+
+    int MaxDurabilityFor(WeaponType weapon) => weapon switch
+    {
+        WeaponType.Sword => maxSwordDurability,
+        WeaponType.Staff => maxStaffDurability,
+        _ => 0,
+    };
+
     public void EquipWeapon(WeaponType weapon)
     {
         if (weaponLocked) return;
         currentWeapon = weapon;
+        currentWeaponDurability = MaxDurabilityFor(weapon);
         Debug.Log("Equipped " + weapon);
     }
 
@@ -323,7 +344,23 @@ public class PlayerController : MonoBehaviour
     {
         currentWeapon = weapon;
         weaponLocked = true;
+        currentWeaponDurability = MaxDurabilityFor(weapon);
         Debug.Log("Cursed weapon forced on: " + weapon);
+    }
+
+    // Called only from TryAttack's Sword/Staff cases below - a no-op on Fist (or any weapon
+    // already-broken back to Fist) since currentWeaponDurability is 0 there, same "0 = infinite/
+    // untracked" convention as ItemDefinition.MaxDurability.
+    void DamageWeaponDurability()
+    {
+        if (currentWeaponDurability <= 0) return;
+        currentWeaponDurability--;
+        if (currentWeaponDurability <= 0)
+        {
+            Debug.Log(currentWeapon + " s'est brise !");
+            currentWeapon = WeaponType.Fist;
+            weaponLocked = false; // nothing left to force - a broken cursed sword releases its lock too
+        }
     }
 
     public void UnlockWeapon()
@@ -363,9 +400,11 @@ public class PlayerController : MonoBehaviour
                 break;
             case WeaponType.Sword:
                 MeleeAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                DamageWeaponDurability();
                 break;
             case WeaponType.Staff:
                 LaunchProjectile(projectileSprite, ScaledMagicDamage(staffDamage), projectileSpeed, StaffMaxRange);
+                DamageWeaponDurability();
                 break;
         }
     }

@@ -18,6 +18,21 @@ public class PlayerEquipment : MonoBehaviour
     public const int RingSlotsPerHand = 5;
     public string[] ringsLeft = new string[RingSlotsPerHand];
     public string[] ringsRight = new string[RingSlotsPerHand];
+
+    // Current durability, parallel to the itemId fields above - flat named fields rather than a
+    // Dictionary, same JsonUtility-friendly convention SaveData already uses (see its own comment).
+    // Only meaningful while the matching slot's ItemDefinition.MaxDurability > 0 - always kept at
+    // that item's max when freshly equipped (see Set), 0 has no other meaning here since an item
+    // that hits 0 unequips itself instead of lingering (see DamageDurability).
+    public int headDurability;
+    public int shouldersDurability;
+    public int glovesDurability;
+    public int bootsDurability;
+    public int neckDurability;
+    public int beltDurability;
+    public int kneesDurability;
+    public int[] ringsLeftDurability = new int[RingSlotsPerHand];
+    public int[] ringsRightDurability = new int[RingSlotsPerHand];
     // Set at generation time alongside the other Player components - needed to apply/revoke a
     // ring's stat bonus (see Set/ApplyItemEffects). Other equipment effects (anti-hole boots,
     // vision glasses) are just plain Get() checks at their point of use instead, since they're not
@@ -25,6 +40,9 @@ public class PlayerEquipment : MonoBehaviour
     public PlayerStats stats;
 
     public event Action OnEquipmentChanged;
+    // Fired when a slot's durability hits 0 and the item is destroyed/unequipped (see
+    // DamageDurability) - carries the broken item's display name for a log/toast.
+    public event Action<string> OnItemBroken;
 
     // A ring slot type accepts an item equipped as EITHER RingLeft or RingRight (a ring doesn't
     // care which hand), so this checks slot COMPATIBILITY rather than exact enum equality.
@@ -68,7 +86,78 @@ public class PlayerEquipment : MonoBehaviour
             case EquipmentSlotType.RingRight: ringsRight[ringIndex] = itemId; break;
         }
 
+        // A freshly worn item always starts at full durability - SaveManager.Apply restores a
+        // worn-down value afterward by writing the durability fields directly, never through Set().
+        ItemDefinition definition = !string.IsNullOrEmpty(itemId) ? ItemDatabase.Get(itemId) : null;
+        SetDurabilityRaw(slot, ringIndex, definition != null ? definition.MaxDurability : 0);
+
         ApplyItemEffects(itemId);
+        OnEquipmentChanged?.Invoke();
+    }
+
+    public int GetDurability(EquipmentSlotType slot, int ringIndex = 0) => slot switch
+    {
+        EquipmentSlotType.Head => headDurability,
+        EquipmentSlotType.Shoulders => shouldersDurability,
+        EquipmentSlotType.Gloves => glovesDurability,
+        EquipmentSlotType.Boots => bootsDurability,
+        EquipmentSlotType.Neck => neckDurability,
+        EquipmentSlotType.Belt => beltDurability,
+        EquipmentSlotType.Knees => kneesDurability,
+        EquipmentSlotType.RingLeft => ringsLeftDurability[ringIndex],
+        EquipmentSlotType.RingRight => ringsRightDurability[ringIndex],
+        _ => 0,
+    };
+
+    public void SetDurabilityRaw(EquipmentSlotType slot, int ringIndex, int value)
+    {
+        switch (slot)
+        {
+            case EquipmentSlotType.Head: headDurability = value; break;
+            case EquipmentSlotType.Shoulders: shouldersDurability = value; break;
+            case EquipmentSlotType.Gloves: glovesDurability = value; break;
+            case EquipmentSlotType.Boots: bootsDurability = value; break;
+            case EquipmentSlotType.Neck: neckDurability = value; break;
+            case EquipmentSlotType.Belt: beltDurability = value; break;
+            case EquipmentSlotType.Knees: kneesDurability = value; break;
+            case EquipmentSlotType.RingLeft: ringsLeftDurability[ringIndex] = value; break;
+            case EquipmentSlotType.RingRight: ringsRightDurability[ringIndex] = value; break;
+        }
+    }
+
+    // Wears down whatever's equipped in this slot by `amount` - a no-op on a slot that's empty or
+    // whose item has no durability (rings, trophies). Breaks and unequips outright at 0 (see
+    // PlayerLimbs.MitigateHit for armor, PlayerController.DamageWeaponDurability for weapons -
+    // though the latter doesn't go through here, base Sword/Staff aren't real ItemDefinitions).
+    public void DamageDurability(EquipmentSlotType slot, int ringIndex, int amount)
+    {
+        string itemId = Get(slot, ringIndex);
+        if (string.IsNullOrEmpty(itemId)) return;
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition == null || definition.MaxDurability <= 0) return;
+
+        int current = Mathf.Max(0, GetDurability(slot, ringIndex) - amount);
+        SetDurabilityRaw(slot, ringIndex, current);
+        OnEquipmentChanged?.Invoke();
+
+        if (current <= 0)
+        {
+            string brokenName = definition.DisplayName;
+            Set(slot, ringIndex, null);
+            OnItemBroken?.Invoke(brokenName);
+        }
+    }
+
+    // Used by RepairUI - restores up to `amount`, clamped to the equipped item's own max (no-op if
+    // empty or the item has no durability to restore).
+    public void Repair(EquipmentSlotType slot, int ringIndex, int amount)
+    {
+        string itemId = Get(slot, ringIndex);
+        if (string.IsNullOrEmpty(itemId)) return;
+        ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition == null || definition.MaxDurability <= 0) return;
+
+        SetDurabilityRaw(slot, ringIndex, Mathf.Min(definition.MaxDurability, GetDurability(slot, ringIndex) + amount));
         OnEquipmentChanged?.Invoke();
     }
 

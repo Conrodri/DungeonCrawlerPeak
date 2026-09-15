@@ -22,6 +22,9 @@ public class DialogueOutcome
     // available-points count and each stat's live value need to update as points are spent, which
     // a static option list (built once at floor generation) can't reflect.
     public bool opensAttributeAllocation;
+    // Opens RepairUI - same reasoning as opensAttributeAllocation above (a dedicated panel instead
+    // of a static option per equipment slot, since which slots are worn/damaged changes live).
+    public bool opensRepairPanel;
 }
 
 [Serializable]

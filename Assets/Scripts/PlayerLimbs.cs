@@ -124,6 +124,10 @@ public class PlayerLimbs : MonoBehaviour
         int armor = broken ? 0 : GetArmor(part);
         int mitigated = Mathf.Max(0, amount - armor);
 
+        // Only the armor that actually stood between the hit and the limb wears down - a broken
+        // part (armor already ignored above) or bare skin has nothing to degrade.
+        if (!broken && armor > 0) DamageArmorDurability(part);
+
         limbHealth[part] = Mathf.Max(0, GetLimbHealth(part) - mitigated);
         OnHit?.Invoke(part, mitigated);
         SyncHealth();
@@ -252,5 +256,32 @@ public class PlayerLimbs : MonoBehaviour
         if (string.IsNullOrEmpty(itemId)) return 0;
         ItemDefinition definition = ItemDatabase.Get(itemId);
         return definition != null ? definition.ArmorValue : 0;
+    }
+
+    // Same body-part -> slot mapping as GetArmor above, 1 point of wear per slot that actually
+    // covers the part hit - a hit to the torso wears all 3 of its slots at once, matching how
+    // their armor already stacks together on that same hit.
+    void DamageArmorDurability(BodyPart part)
+    {
+        switch (part)
+        {
+            case BodyPart.Head:
+                equipment.DamageDurability(EquipmentSlotType.Head, 0, 1);
+                break;
+            case BodyPart.Torso:
+                equipment.DamageDurability(EquipmentSlotType.Shoulders, 0, 1);
+                equipment.DamageDurability(EquipmentSlotType.Belt, 0, 1);
+                equipment.DamageDurability(EquipmentSlotType.Neck, 0, 1);
+                break;
+            case BodyPart.ArmLeft:
+            case BodyPart.ArmRight:
+                equipment.DamageDurability(EquipmentSlotType.Gloves, 0, 1);
+                break;
+            case BodyPart.LegLeft:
+            case BodyPart.LegRight:
+                equipment.DamageDurability(EquipmentSlotType.Boots, 0, 1);
+                equipment.DamageDurability(EquipmentSlotType.Knees, 0, 1);
+                break;
+        }
     }
 }

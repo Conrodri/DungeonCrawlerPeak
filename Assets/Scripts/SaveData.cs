@@ -47,6 +47,23 @@ public class SaveData
     public string[] equippedRingsLeft;
     public string[] equippedRingsRight;
 
+    // Durability parallel to the equipped-item fields above (see PlayerEquipment) - 0 for a save
+    // predating this feature reads as "fully worn out" on whatever's equipped, same tolerated
+    // migration quirk already accepted for limbHealth* below (a prototype still under active
+    // development, not a shipped save format). currentWeaponDurability follows the same
+    // convention as PlayerController.currentWeaponDurability itself: 0 = infinite/untracked, so an
+    // old save defaults to a Sword/Staff that never breaks rather than one already broken.
+    public int durabilityHead;
+    public int durabilityShoulders;
+    public int durabilityGloves;
+    public int durabilityBoots;
+    public int durabilityNeck;
+    public int durabilityBelt;
+    public int durabilityKnees;
+    public int[] durabilityRingsLeft;
+    public int[] durabilityRingsRight;
+    public int currentWeaponDurability;
+
     public int maxHealth;
     public int currentHealth;
     public float maxStamina;
