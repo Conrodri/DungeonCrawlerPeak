@@ -33,6 +33,16 @@ public static class DungeonGenerator
     const int TargetNormalRooms = 16; // includes the Start room
     const float EliteChance = 0.05f;
 
+    // Physics2D layers for the flying-enemy pass-through rule (2026-09-15 request: "les mobs
+    // volants passent au travers de tous les murs et objets bloquants") - arbitrary unused user
+    // layer indices (8-31 exist by default in every Unity project, no Tags-and-Layers asset edit
+    // needed to use them purely from code). Every solid wall/door-blocker/destructible/prop sits
+    // on BlockingLayer; a flying enemy (see RoomController.SpawnEnemies) sits on FlyingLayer
+    // instead of Default. IgnoreLayerCollision is a global physics setting, not per-object - set
+    // once per Build()/BuildTutorial() below (idempotent, repeating it every floor is harmless).
+    public const int BlockingLayer = 9;
+    public const int FlyingLayer = 10;
+
     const int TilePixelSize = 16;
     const int WallExtraHeight = 8;
 
@@ -556,6 +566,7 @@ public static class DungeonGenerator
         CurrentSeed = seed;
         CurrentFloor = floor;
         Random.InitState(seed);
+        Physics2D.IgnoreLayerCollision(BlockingLayer, FlyingLayer, true);
 
         clearedRoomsThisFloor.Clear();
         if (clearedRooms != null) foreach (Vector2Int cell in clearedRooms) clearedRoomsThisFloor.Add(cell);
@@ -634,8 +645,12 @@ public static class DungeonGenerator
         // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
         RoomController.EnemyPresetEntry[] enemyPresets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 1 },
+            // contactDamage rebalanced 2026-09-15 alongside boss damage (see BossTierStatsFor) -
+            // 1 flat point for every species was negligible against the limb-HP rework (Arm/Leg/
+            // Torso/Head, see PlayerLimbs.BaseMaxFor). Zombie hits hardest (tanky bruiser), Larve
+            // stays weakest (its threat is swarm numbers, not per-hit power - see its spawn count).
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 2, isFlying = true, xpReward = 1 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
         };
 
@@ -869,6 +884,7 @@ public static class DungeonGenerator
         // got collision, the rest let the player walk straight through) - individual per-tile
         // colliders from TilemapCollider2D alone are reliable and cheap enough at this scale.
         GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D));
+        wallsGO.layer = BlockingLayer;
         wallsGO.transform.SetParent(gridGO.transform);
         // Individual mode (rather than batched Chunk) lets each wall tile sort against the
         // player sprite by Y position, so tall wall tops correctly draw in front of / behind the player.
@@ -2260,6 +2276,7 @@ public static class DungeonGenerator
     public static void BuildTutorial(int seed)
     {
         Random.InitState(seed);
+        Physics2D.IgnoreLayerCollision(BlockingLayer, FlyingLayer, true);
         CurrentSeed = seed;
         CurrentFloor = 0;
         clearedRoomsThisFloor.Clear();
@@ -2300,6 +2317,7 @@ public static class DungeonGenerator
         floorGO.GetComponent<TilemapRenderer>().sortingOrder = -1;
 
         GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D));
+        wallsGO.layer = BlockingLayer;
         wallsGO.transform.SetParent(gridGO.transform);
         wallsGO.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Individual;
         wallsGO.GetComponent<TilemapRenderer>().sortingOrder = 0;
@@ -2407,7 +2425,7 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] presets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
         };
         RoomController.EnemySpawn[] recipe =
         {
@@ -2501,6 +2519,7 @@ public static class DungeonGenerator
         // its transparent gaps let the staircase icon underneath stay visible while locked, instead
         // of fully hiding it behind a plain colored square.
         GameObject blocker = new GameObject("StaircaseBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D));
+        blocker.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         blocker.transform.SetParent(go.transform, false);
         SpriteRenderer blockerRenderer = blocker.GetComponent<SpriteRenderer>();
         blockerRenderer.sprite = cageSprite;
@@ -3183,6 +3202,7 @@ public static class DungeonGenerator
     static SecretWallBlocker SpawnSecretWallBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
     {
         GameObject go = new GameObject("SecretWallBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(SecretWallBlocker));
+        go.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         go.transform.SetParent(parent);
         go.transform.position = center;
         go.transform.localScale = onVerticalWall ? new Vector3(1f, DoorWidth, 1f) : new Vector3(DoorWidth, 1f, 1f);
@@ -3928,12 +3948,14 @@ public static class DungeonGenerator
             // fixed 1x1 regardless of how comically oversized the sprite scale made it look.
             go.GetComponent<BoxCollider2D>().size = Vector2.one * 0.7f;
             go.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+            go.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         }
     }
 
     static void SpawnDestructible(string name, Vector2 position, Sprite sprite, int maxHealth, int requiredForce, Transform parent, string guaranteedDropItemId = null)
     {
         GameObject go = new GameObject(name, typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(DestructibleObject));
+        go.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         go.transform.SetParent(parent);
         go.transform.position = position;
 
@@ -3955,6 +3977,7 @@ public static class DungeonGenerator
     static void SpawnExplosiveBarrel(Vector2 position, Sprite sprite, Sprite explosionSprite, Transform parent)
     {
         GameObject go = new GameObject("ExplosiveBarrel", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(Rigidbody2D), typeof(ExplosiveBarrel));
+        go.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         go.transform.SetParent(parent);
         go.transform.position = position;
 
@@ -4188,14 +4211,20 @@ public static class DungeonGenerator
     // (a boss is meant to be out-run, not just out-fought, at the easier tiers); Region (0 Vitesse,
     // 5 u/s) ties the player's own base pace exactly, on top of which the Rapide modifier/enrage
     // still layer their existing multipliers unchanged.
+    // contactDamage/volleyDamage rebalanced 2026-09-15 (roughly 3x the old 1/2/3 and 1/1/2) - the
+    // limb-HP rework (Head 35/Torso 70/Arm 20/Leg 30 each, see PlayerLimbs.BaseMaxFor) left every
+    // boss hit chipping a small single-digit fraction of a limb, nowhere near threatening. New
+    // scale: a Zone boss breaks a bare Arm in ~5 contact hits, Region in ~2-3 - see
+    // SetupBossRoom's shockwaveDamage/tentacleDamage/rootDamage/poisonDamagePerTick, all derived
+    // from contactDamage so a family's special attack scales the same way.
     static BossTierStats BossTierStatsFor(BossTier tier, int floor)
     {
         int regionXp = RegionBossXpFor(floor);
         return tier switch
         {
-            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-20), dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
-            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-10), dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
-            _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(0), dropChance = 1f, xpReward = regionXp },
+            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 4, chargeSpeed = 6f, volleyDamage = 2, volleyCount = 3, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-20) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
+            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 6, chargeSpeed = 8f, volleyDamage = 3, volleyCount = 5, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-10) * MonsterLeveling.MonsterSpeedScale, dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
+            _ => new BossTierStats { health = 65, contactDamage = 9, chargeSpeed = 10f, volleyDamage = 5, volleyCount = 7, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(0) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f, xpReward = regionXp },
         };
     }
 
@@ -4339,6 +4368,15 @@ public static class DungeonGenerator
         boss.volleyDamage = stats.volleyDamage;
         boss.volleyProjectileCount = stats.volleyCount;
         boss.moveSpeed = stats.moveSpeed;
+        // Family-specific ability damage (2026-09-15 rebalance) was a flat BossController default
+        // regardless of tier before this - a Zone Golem's shockwave hit exactly as hard as a
+        // Region Golem's. Derived from stats.contactDamage instead so every family's special
+        // attack scales with tier automatically, same as contactDamage/volleyDamage just above.
+        // Harmless to set on every boss even though only one kit ever reads each field.
+        boss.shockwaveDamage = stats.contactDamage + 1;
+        boss.tentacleDamage = stats.contactDamage + 1;
+        boss.rootDamage = stats.contactDamage + 1;
+        boss.poisonDamagePerTick = Mathf.Max(1, stats.contactDamage / 3);
 
         // Every family now has its own bespoke kit (see BossController.BossKit) instead of the
         // plain generic charge+volley pattern.
@@ -4416,6 +4454,7 @@ public static class DungeonGenerator
     static GameObject SpawnDoorBlocker(Vector2 center, bool onVerticalWall, Sprite sprite, Transform parent)
     {
         GameObject blocker = new GameObject("DoorBlocker", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(DoorBlocker));
+        blocker.layer = BlockingLayer; // a flying enemy passes through (see BlockingLayer/FlyingLayer)
         blocker.transform.SetParent(parent);
         blocker.transform.position = center;
         blocker.transform.localScale = onVerticalWall ? new Vector3(1f, DoorWidth, 1f) : new Vector3(DoorWidth, 1f, 1f);

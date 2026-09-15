@@ -30,6 +30,15 @@ public class BossController : MonoBehaviour
     public float rageSpeedMultiplier = 1.5f;
     public float rageCooldownMultiplier = 0.6f;
 
+    [Header("Combat")]
+    // "lorsqu'un monstre lance une attaque, il ne peut plus se deplacer" (2026-09-15 request) -
+    // every INSTANT attack (FireVolley, SpitSlobber, Golem's shockwave, Kraken's tentacle slap,
+    // Ent's root) roots the boss in place for this long via LockMovement/ChaseOrLock below,
+    // instead of sliding toward the player mid-cast. Charges/dives/the teleport-lunge are exempt
+    // on purpose - their movement IS the attack, and a telegraph (Ent/Aigle) already freezes
+    // itself with its own rb.linearVelocity = Vector2.zero.
+    public float attackLockDuration = 0.4f;
+
     // Set by DungeonGenerator.SetupBossRoom per biome family (see BossFamilyFor) - Generic keeps
     // the plain charge+volley pattern above; every other value swaps in that family's own
     // XxxFixedUpdate below instead. Each bespoke kit still reuses the generic volley (flavor
@@ -124,6 +133,7 @@ public class BossController : MonoBehaviour
     float chargeEndTime;
     Action onChargeEnd;
     bool enraged;
+    float attackLockEndTime;
 
     // Cerbere-only state (see BossKit.Cerbere) - chainBitesLeft counts the bites still due after
     // the one currently charging/gapping; nextChainBiteCooldown is re-rolled each cycle (3-4s).
@@ -201,7 +211,7 @@ public class BossController : MonoBehaviour
             case BossKit.Arpenteur: ArpenteurFixedUpdate(dir, cooldownScale); return;
         }
 
-        rb.linearVelocity = dir * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dir);
 
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
@@ -212,6 +222,7 @@ public class BossController : MonoBehaviour
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -233,7 +244,7 @@ public class BossController : MonoBehaviour
             return;
         }
 
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastChainBiteTime >= nextChainBiteCooldown * cooldownScale)
         {
@@ -246,6 +257,7 @@ public class BossController : MonoBehaviour
         {
             lastSlobberTime = Time.time;
             SpitSlobber();
+            LockMovement();
         }
     }
 
@@ -266,7 +278,7 @@ public class BossController : MonoBehaviour
     // drops a damaging puddle where it lands via onChargeEnd instead of a one-off hit.
     void AnacondaFixedUpdate(Vector2 dirToTarget, float cooldownScale)
     {
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
@@ -277,6 +289,7 @@ public class BossController : MonoBehaviour
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -297,11 +310,12 @@ public class BossController : MonoBehaviour
             {
                 rootTelegraphing = false;
                 ResolveAoEDamage(rootTelegraphTarget, rootDamageRadius, rootDamage);
+                LockMovement();
             }
             return;
         }
 
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastRootTime >= rootCooldown * cooldownScale)
         {
@@ -314,6 +328,7 @@ public class BossController : MonoBehaviour
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -321,17 +336,18 @@ public class BossController : MonoBehaviour
     // within shockwaveRadius of the impact point via onChargeEnd, not just whatever it collided with.
     void GolemFixedUpdate(Vector2 dirToTarget, float cooldownScale)
     {
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
             lastChargeTime = Time.time;
-            StartCharge(dirToTarget, () => ResolveAoEDamage(rb.position, shockwaveRadius, shockwaveDamage));
+            StartCharge(dirToTarget, () => { ResolveAoEDamage(rb.position, shockwaveRadius, shockwaveDamage); LockMovement(); });
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -339,18 +355,20 @@ public class BossController : MonoBehaviour
     // instead of lunging across the room.
     void KrakenFixedUpdate(Vector2 dirToTarget, float cooldownScale)
     {
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         float distToTarget = Vector2.Distance(rb.position, target.position);
         if (distToTarget <= tentacleRange && Time.time - lastTentacleTime >= tentacleCooldown * cooldownScale)
         {
             lastTentacleTime = Time.time;
             ResolveAoEDamage(rb.position, tentacleRange, tentacleDamage);
+            LockMovement();
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -369,7 +387,7 @@ public class BossController : MonoBehaviour
             return;
         }
 
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastDiveTime >= diveCooldown * cooldownScale)
         {
@@ -382,6 +400,7 @@ public class BossController : MonoBehaviour
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -389,7 +408,7 @@ public class BossController : MonoBehaviour
     // at a fixed ring distance around the player then immediately lunges back in.
     void ArpenteurFixedUpdate(Vector2 dirToTarget, float cooldownScale)
     {
-        rb.linearVelocity = dirToTarget * moveSpeed * (enraged ? rageSpeedMultiplier : 1f);
+        ChaseOrLock(dirToTarget);
 
         if (Time.time - lastTeleportTime >= teleportCooldown * cooldownScale)
         {
@@ -400,6 +419,7 @@ public class BossController : MonoBehaviour
         {
             lastVolleyTime = Time.time;
             FireVolley();
+            LockMovement();
         }
     }
 
@@ -445,6 +465,16 @@ public class BossController : MonoBehaviour
         clamped.y = Mathf.Clamp(clamped.y, b.yMin + margin, b.yMax - margin);
         if (clamped != rb.position) rb.position = clamped;
     }
+
+    // Shared chase-velocity line every kit's FixedUpdate used to set directly - now routed through
+    // here so an active attackLockEndTime (see LockMovement) roots the boss in place instead.
+    void ChaseOrLock(Vector2 dirToTarget)
+    {
+        if (Time.time < attackLockEndTime) { rb.linearVelocity = Vector2.zero; return; }
+        ChaseOrLock(dirToTarget);
+    }
+
+    void LockMovement() => attackLockEndTime = Time.time + attackLockDuration;
 
     void StartCharge(Vector2 dir, Action onEnd = null) => StartCharge(dir, chargeSpeed, chargeDuration, onEnd);
 

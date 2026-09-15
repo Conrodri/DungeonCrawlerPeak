@@ -11,7 +11,7 @@ public class PlayerController : MonoBehaviour
     public float moveSpeed = 5f;
 
     [Header("Sprint")]
-    public float sprintSpeedMultiplier = 1.6f;
+    public float sprintSpeedMultiplier = 1.5f;
     public float sprintStaminaCostPerSecond = 25f;
 
     [Header("Dodge Roll")]
@@ -50,12 +50,14 @@ public class PlayerController : MonoBehaviour
     public float fistRange = 1.0f;
     public float fistOffset = 0.8f;
     public float fistCooldown = 0.25f;
+    public float fistStaminaCost = 5f;
 
     [Header("Sword")]
     public int swordDamage = 2;
     public float swordRange = 0.7f;
     public float swordOffset = 0.9f;
     public float swordCooldown = 0.4f;
+    public float swordStaminaCost = 8f;
 
     [Header("Staff")]
     public int staffDamage = 1;
@@ -63,6 +65,7 @@ public class PlayerController : MonoBehaviour
     public float projectileSpeed = 8f;
     // The staff isn't hitscan/infinite range: it reaches three sword-lengths out.
     public float staffRangeMultiplier = 3f;
+    public float staffStaminaCost = 10f;
 
     [Header("Throwables")]
     public int throwDamage = 1;
@@ -95,6 +98,7 @@ public class PlayerController : MonoBehaviour
     Vector2 moveInput;
     Vector2 aimDirection = Vector2.down;
     float lastAttackTime = -999f;
+    float attackLockEndTime = -999f;
     float lastThrowTime = -999f;
     // Selected via the hotbar (see UseItem) but not yet thrown - the next direction key press is
     // what actually launches it (see Update's aim-key handling / ThrowArmedItem), instead of the
@@ -254,6 +258,14 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        // Rooted for the attack's own cooldown, whatever movement keys are still held (see
+        // TryAttack) - takes priority over every multiplier below, same as isDead/isRolling above.
+        if (!isDead && Time.time < attackLockEndTime)
+        {
+            rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
         float sprintBonus = skills != null ? skills.SprintSpeedBonus : 0f;
         float speedMultiplier = stats.MoveSpeedMultiplier * (isSprinting ? sprintSpeedMultiplier + sprintBonus : 1f);
         // Applies whether sprinting or just walking - a broken leg slows you down outright, on top
@@ -391,7 +403,20 @@ public class PlayerController : MonoBehaviour
             : staffCooldown;
 
         if (Time.time - lastAttackTime < cooldown) return;
+
+        // "chaque attaque depense de l'endurance... compense par la force" (2026-09-15 request) -
+        // empty stamina blocks the swing outright (same gate Update's sprint check already uses),
+        // rather than letting it go through for free or drain below zero.
+        if (stamina.currentStamina <= 0f) return;
+        float staminaCost = (currentWeapon == WeaponType.Fist ? fistStaminaCost
+            : currentWeapon == WeaponType.Sword ? swordStaminaCost : staffStaminaCost) * stats.AttackStaminaCostMultiplier;
+        stamina.Drain(staminaCost);
+
         lastAttackTime = Time.time;
+        // "pareil pour le joueur" (2026-09-15 request) - committed to the swing/cast for its own
+        // cooldown, same "the attack roots you" rule just added to bosses (see BossController.
+        // LockMovement) - can't slide toward/away from a target mid-attack anymore.
+        attackLockEndTime = Time.time + cooldown;
 
         switch (currentWeapon)
         {

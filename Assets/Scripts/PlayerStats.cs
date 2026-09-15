@@ -48,6 +48,11 @@ public class PlayerStats : MonoBehaviour
     const float StaminaRegenPerEndurance = 1.5f;
 
     public float PhysicalDamageMultiplier => 1f + force * 0.01f;
+    // 2026-09-15 request: every attack now costs stamina (see PlayerController.TryAttack),
+    // "compense par la force, plus on a de force, moins on depense d'endurance" - -2%/point,
+    // floored at 10% of the weapon's base cost so a heavy Force investment makes attacking
+    // cheap but never literally free.
+    public float AttackStaminaCostMultiplier => Mathf.Max(0.1f, 1f - force * 0.02f);
     public float MagicDamageMultiplier => 1f + intelligence * 0.01f;
     public float AttackSpeedMultiplier => 1f + dexterite * 0.01f;
     public float DodgeChance => dexterite * 0.01f;

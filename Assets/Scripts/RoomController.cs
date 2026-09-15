@@ -160,6 +160,10 @@ public class RoomController : MonoBehaviour
 
             GameObject enemy = new GameObject(spawn.type + " Niv." + level,
                 typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(EnemyController));
+            // "les mobs volants passent au travers de tous les murs et objets bloquants" (2026-09-15
+            // request) - see DungeonGenerator.BlockingLayer/FlyingLayer, IgnoreLayerCollision set up
+            // once per Build(). A non-flying enemy stays on Default, unaffected.
+            if (preset.isFlying) enemy.layer = DungeonGenerator.FlyingLayer;
             enemy.transform.SetParent(transform);
             enemy.transform.position = roomOrigin + spawn.localOffset;
 
