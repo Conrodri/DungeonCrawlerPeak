@@ -9,6 +9,10 @@ public class NpcInteractable : MonoBehaviour
     public string npcName;
     public string greeting;
     public List<DialogueOption> options = new List<DialogueOption>();
+    // When true, DialogueManager renders a clickable icon grid (see BuildShopGrid) instead of the
+    // usual numbered text list, and purchases never close the panel - browsing a shop is meant to
+    // support buying several things in a row. Only the Marchand sets this (see SpawnMerchantNpc).
+    public bool useShopUI;
 
     void Awake()
     {

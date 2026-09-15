@@ -1708,6 +1708,19 @@ public static class DungeonGenerator
         optionsRect.offsetMin = new Vector2(20f, 20f);
         optionsRect.offsetMax = new Vector2(-20f, -260f);
 
+        // Same footprint as optionsText above - shown instead of it for a shop NPC (see
+        // NpcInteractable.useShopUI/DialogueManager.BuildShopGrid), an empty container the grid's
+        // icon slots get parented into at runtime.
+        GameObject shopGridGO = new GameObject("ShopGrid", typeof(RectTransform));
+        shopGridGO.transform.SetParent(dialoguePanel.transform, false);
+        RectTransform shopGridRect = shopGridGO.GetComponent<RectTransform>();
+        shopGridRect.anchorMin = new Vector2(0f, 0f);
+        shopGridRect.anchorMax = new Vector2(1f, 1f);
+        shopGridRect.pivot = new Vector2(0.5f, 0f);
+        shopGridRect.offsetMin = new Vector2(20f, 20f);
+        shopGridRect.offsetMax = new Vector2(-20f, -260f);
+        shopGridGO.SetActive(false);
+
         GameObject diceGO = new GameObject("DiceRoll", typeof(Image), typeof(DiceRollUI));
         diceGO.transform.SetParent(dialogueGO.transform, false);
         Image diceBackground = diceGO.GetComponent<Image>();
@@ -1750,6 +1763,7 @@ public static class DungeonGenerator
         dialogueManager.nameText = npcNameText;
         dialogueManager.bodyText = bodyText;
         dialogueManager.optionsText = optionsText;
+        dialogueManager.shopGridRoot = shopGridGO;
 
         // --- Item inspection UI (weight/curse/trap ground items - interact prompt + panel) ---
         GameObject inspectGO = new GameObject("ItemInspectManager", typeof(RectTransform), typeof(ItemInspectManager));
@@ -3938,6 +3952,7 @@ public static class DungeonGenerator
         NpcInteractable npc = go.GetComponent<NpcInteractable>();
         npc.npcName = "Marchand";
         npc.greeting = "Jetez un oeil, tout est a vendre.";
+        npc.useShopUI = true; // visual clickable grid instead of a numbered list - see DialogueManager.BuildShopGrid
         npc.options = new List<DialogueOption>
         {
             BuyOption("Acheter un Shuriken (3 or)", ItemIds.Shuriken, 3),

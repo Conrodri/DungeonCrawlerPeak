@@ -1,12 +1,14 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// Drives the whole NPC conversation flow: proximity prompt, option selection (number keys, no
-// mouse/EventSystem in this project), the dice roll for checked options, and applying outcomes.
-// One instance per scene, created by DungeonBootstrap alongside the rest of the HUD.
-public class DialogueManager : MonoBehaviour
+// Drives the whole NPC conversation flow: proximity prompt, option selection (number keys, or a
+// clickable icon grid for a shop NPC - see BuildShopGrid/NpcInteractable.useShopUI), the dice roll
+// for checked options, and applying outcomes. One instance per scene, created by DungeonBootstrap
+// alongside the rest of the HUD.
+public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
 {
     public static DialogueManager Instance { get; private set; }
     public static bool IsOpen => Instance != null && Instance.isOpen;
@@ -24,6 +26,9 @@ public class DialogueManager : MonoBehaviour
     public Text nameText;
     public Text bodyText;
     public Text optionsText;
+    // Visual, clickable alternative to optionsText - built/shown instead of the numbered text list
+    // when the active NPC is a shop (see NpcInteractable.useShopUI/BuildShopGrid).
+    public GameObject shopGridRoot;
 
     NpcInteractable nearbyNpc;
     NpcInteractable activeNpc;
@@ -49,14 +54,9 @@ public class DialogueManager : MonoBehaviour
             // outcome-resolution flow (which always schedules CloseAfterDelay itself), don't leave
             // the panel stuck open forever.
             if (activeNpc == null && !closing) { Close(); return; }
-            if (!waitingForResolution && !closing)
-            {
-                // Lets the player back out without being forced to pick an option (e.g. a purchase
-                // they can't afford, or just changing their mind) - not allowed mid dice-roll, since
-                // the roll coroutine still expects to resolve against an open dialogue.
-                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) { Close(); return; }
-                HandleOptionInput();
-            }
+            // Escape is handled centrally now (see TryCloseFromStack/UIWindowStack, driven from
+            // PauseMenuUI) - not allowed mid dice-roll or while closing, same guard as before.
+            if (!waitingForResolution && !closing) HandleOptionInput();
             return;
         }
 
@@ -92,11 +92,131 @@ public class DialogueManager : MonoBehaviour
     {
         activeNpc = npc;
         isOpen = true;
+        UIWindowStack.Push(this);
         if (promptGO != null) promptGO.SetActive(false);
         panel.SetActive(true);
         nameText.text = npc.npcName;
         bodyText.text = npc.greeting;
-        RefreshOptionsText();
+
+        if (npc.useShopUI)
+        {
+            optionsText.text = "";
+            if (shopGridRoot != null) shopGridRoot.SetActive(true);
+            BuildShopGrid();
+        }
+        else
+        {
+            if (shopGridRoot != null) shopGridRoot.SetActive(false);
+            RefreshOptionsText();
+        }
+    }
+
+    // Called on Escape when this is the top of UIWindowStack (see PauseMenuUI) - same "can't back
+    // out mid dice-roll" guard the old inline Update() check used.
+    public bool TryCloseFromStack()
+    {
+        if (!isOpen || waitingForResolution || closing) return false;
+        Close();
+        return true;
+    }
+
+    // Pays and grants the item, then refreshes the grid in place (affordability tint, in case the
+    // purchase itself changed what else is affordable) instead of closing the panel - see
+    // ChooseOption. Silently ignores anything that isn't a plain item purchase (the Marchand's
+    // options are always exactly that - see SpawnMerchantNpc/BuyOption).
+    void ResolveShopPurchase(DialogueOption option)
+    {
+        if (!option.isPurchase || string.IsNullOrEmpty(option.purchaseItemId)) return;
+
+        if (!TryPayCost(option, out int cost, out bool isGold))
+        {
+            bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
+            return;
+        }
+
+        playerInventory.Add(option.purchaseItemId, 1);
+        ItemDefinition definition = ItemDatabase.Get(option.purchaseItemId);
+        bodyText.text = "Achete : " + (definition != null ? definition.DisplayName : option.purchaseItemId) + " (" + cost + " or).";
+        BuildShopGrid();
+    }
+
+    const int ShopGridColumns = 8;
+    const float ShopGridCell = 92f;
+    const float ShopGridIconSize = 72f;
+
+    // A grid of clickable item icons instead of a numbered text list (explicit request) - one
+    // slot per isPurchase option with a real purchaseItemId (every option the Marchand offers, see
+    // SpawnMerchantNpc). Rebuilt from scratch on open and after every purchase (cheap - at most a
+    // couple dozen slots, only touched when a shop panel is actually open) rather than tracking
+    // per-slot diffs. No scrolling yet - 8 columns comfortably fits the Marchand's current ~15
+    // items in 2 rows; revisit with a real ScrollRect if the catalog grows past that.
+    void BuildShopGrid()
+    {
+        if (shopGridRoot == null || activeNpc == null) return;
+        foreach (Transform child in shopGridRoot.transform) Destroy(child.gameObject);
+
+        Font font = Font.CreateDynamicFontFromOSFont("Arial", 20);
+        List<DialogueOption> options = activeNpc.options;
+        int slotIndex = 0;
+        for (int i = 0; i < options.Count; i++)
+        {
+            DialogueOption option = options[i];
+            if (!option.isPurchase || string.IsNullOrEmpty(option.purchaseItemId)) continue;
+
+            int col = slotIndex % ShopGridColumns;
+            int row = slotIndex / ShopGridColumns;
+            slotIndex++;
+            Vector2 pos = new Vector2(col * ShopGridCell, -row * ShopGridCell);
+
+            GameObject slotGO = new GameObject("ShopSlot" + i, typeof(Image), typeof(Button), typeof(ShopSlotUI));
+            slotGO.transform.SetParent(shopGridRoot.transform, false);
+
+            Image icon = slotGO.GetComponent<Image>();
+            ItemDefinition definition = ItemDatabase.Get(option.purchaseItemId);
+            icon.sprite = definition != null ? definition.Icon : null;
+            RectTransform rt = icon.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = new Vector2(ShopGridIconSize, ShopGridIconSize);
+
+            bool affordable = TryPeekAfford(option);
+            icon.color = affordable ? Color.white : new Color(0.5f, 0.5f, 0.5f, 0.5f);
+
+            GameObject priceGO = new GameObject("Price", typeof(Text));
+            priceGO.transform.SetParent(slotGO.transform, false);
+            Text priceText = priceGO.GetComponent<Text>();
+            priceText.font = font;
+            priceText.fontSize = 18;
+            priceText.fontStyle = FontStyle.Bold;
+            priceText.alignment = TextAnchor.LowerRight;
+            priceText.color = affordable ? new Color(0.95f, 0.85f, 0.3f) : new Color(0.75f, 0.35f, 0.3f);
+            bool isGold = option.costItemId == ItemIds.Gold;
+            int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+            priceText.text = cost + (isGold ? "o" : "x");
+            RectTransform priceRect = priceText.rectTransform;
+            priceRect.anchorMin = Vector2.zero;
+            priceRect.anchorMax = Vector2.one;
+            priceRect.offsetMin = Vector2.zero;
+            priceRect.offsetMax = Vector2.zero;
+
+            Button button = slotGO.GetComponent<Button>();
+            button.targetGraphic = icon;
+            button.onClick.AddListener(() => ChooseOption(option));
+
+            ShopSlotUI shopSlot = slotGO.GetComponent<ShopSlotUI>();
+            shopSlot.option = option;
+        }
+    }
+
+    // Read-only affordability check for the grid's tint/price color - doesn't spend anything,
+    // unlike TryPayCost (which actually removes the cost and is only ever called once the player
+    // has committed by clicking/pressing the option).
+    bool TryPeekAfford(DialogueOption option)
+    {
+        bool isGold = option.costItemId == ItemIds.Gold;
+        int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+        return playerInventory.GetCount(option.costItemId) >= cost;
     }
 
     void RefreshOptionsText()
@@ -162,15 +282,27 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
+    // Cost/discount math shared by the normal one-shot purchase flow below and ResolveShopPurchase
+    // (the Marchand's visual grid, which pays the exact same way but never closes the panel).
+    bool TryPayCost(DialogueOption option, out int cost, out bool isGold)
+    {
+        isGold = option.costItemId == ItemIds.Gold;
+        cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+        return playerInventory.GetCount(option.costItemId) >= cost && playerInventory.RemoveAmount(option.costItemId, cost);
+    }
+
     void ChooseOption(DialogueOption option)
     {
+        // The Marchand's visual grid (see NpcInteractable.useShopUI/BuildShopGrid) reuses this same
+        // entry point for both a click and a number key - browsing a shop shouldn't close the panel
+        // after every single purchase the way a normal one-off dialogue choice does.
+        if (activeNpc != null && activeNpc.useShopUI) { ResolveShopPurchase(option); return; }
+
         optionsText.text = "";
 
         if (option.isPurchase)
         {
-            bool isGold = option.costItemId == ItemIds.Gold;
-            int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
-            if (playerInventory.GetCount(option.costItemId) < cost || !playerInventory.RemoveAmount(option.costItemId, cost))
+            if (!TryPayCost(option, out int cost, out bool isGold))
             {
                 closing = true;
                 bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
@@ -350,5 +482,7 @@ public class DialogueManager : MonoBehaviour
         closing = false;
         activeNpc = null;
         panel.SetActive(false);
+        if (shopGridRoot != null) shopGridRoot.SetActive(false);
+        UIWindowStack.Remove(this);
     }
 }
