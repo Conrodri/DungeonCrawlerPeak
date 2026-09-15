@@ -74,7 +74,7 @@ public class RestBed : MonoBehaviour
         if (playerHealth != null) playerHealth.Heal(playerHealth.maxHealth);
         if (playerLimbs != null) playerLimbs.RepairAll();
         SaveManager.Save(DungeonGenerator.CurrentSeed, DungeonGenerator.CurrentFloor, playerInventory, playerStats, playerHealth, playerStamina, playerController,
-            playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor, playerLimbs);
+            playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor, playerLimbs, DungeonGenerator.UsedBossBiomesBeforeCurrentFloor);
 
         promptLabel.text = "Vous vous reposez un moment. Votre progression est sauvegardee.";
         messageUntil = Time.time + MessageDuration;

@@ -500,7 +500,58 @@ public static class DungeonGenerator
     public static IEnumerable<Vector2Int> ClearedRoomsThisFloor => clearedRoomsThisFloor;
     public static bool BossDefeatedThisFloor => bossDefeatedThisFloor;
 
-    public static void Build(int seed, int floor = 1, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false)
+    // Which biome each of THIS floor's 3 boss tiers actually got (see PickFloorBiome) - Region's
+    // is always CurrentBiome itself (ties the floor's environment to its strongest/defining boss,
+    // unchanged from before), Ville/Zone each get a DIFFERENT biome so a floor's 3 boss
+    // encounters are 3 distinct families, never the same one 3 times over (2026-09-15 report:
+    // "un boss ne doit pas etre present plusieurs fois au meme etage"). Populated here for Region
+    // and in GenerateLayout for Ville/Zone (wherever each tier's cell gets decided).
+    static Dictionary<BossTier, Biome> bossTierBiomes = new Dictionary<BossTier, Biome>();
+
+    // Every biome a boss tier has used so far THIS RUN (across every floor, not just the current
+    // one) - PickFloorBiome refuses to hand out one already in here, so a boss family never comes
+    // back on a LATER floor either ("empeche le respawn de ce boss aux etages suivants"). Recycles
+    // the whole list once all 7 biomes have been used at least once, rather than getting stuck -
+    // there are only 7 families total and a floor now spends up to 3 of them at once, so exhaustion
+    // is reached fast (explicit 2026-09-15 design call: recycle the whole pool, exclude as soon as
+    // a family APPEARS on a floor, not only once its boss is actually defeated).
+    static readonly List<Biome> usedBossBiomes = new List<Biome>();
+    // Snapshot of usedBossBiomes as it stood at the very START of the CURRENT floor's Build() call
+    // (i.e. NOT including this floor's own 3 picks) - this, not the live list above, is what gets
+    // persisted (see SaveManager.Capture/Save's usedBossBiomesBeforeFloor). Restoring exactly this
+    // snapshot before Build() re-runs is what lets "Continuer" reproduce this floor's exact same 3
+    // boss families instead of rolling a fresh set (same "same seed -> same floor" guarantee the
+    // layout/CurrentBiome already relies on).
+    static List<Biome> preFloorUsedBossBiomes = new List<Biome>();
+    public static IEnumerable<Biome> UsedBossBiomesBeforeCurrentFloor => preFloorUsedBossBiomes;
+
+    static readonly Biome[] AllBiomes = (Biome[])System.Enum.GetValues(typeof(Biome));
+
+    static bool ContainsBiome(IEnumerable<Biome> biomes, Biome target)
+    {
+        foreach (Biome b in biomes) if (b == target) return true;
+        return false;
+    }
+
+    // Picks a biome not already given to another tier on THIS floor (excludeThisFloor) and not
+    // used on any EARLIER floor this run (usedBossBiomes) - recycling the whole run-wide history
+    // once every biome not excluded this floor has already been used, rather than ever finding an
+    // empty pool. Adds the pick to usedBossBiomes before returning it.
+    static Biome PickFloorBiome(IEnumerable<Biome> excludeThisFloor)
+    {
+        List<Biome> pool = new List<Biome>();
+        foreach (Biome b in AllBiomes) if (!ContainsBiome(excludeThisFloor, b) && !usedBossBiomes.Contains(b)) pool.Add(b);
+        if (pool.Count == 0)
+        {
+            usedBossBiomes.Clear();
+            foreach (Biome b in AllBiomes) if (!ContainsBiome(excludeThisFloor, b)) pool.Add(b);
+        }
+        Biome chosen = pool[Random.Range(0, pool.Count)];
+        usedBossBiomes.Add(chosen);
+        return chosen;
+    }
+
+    public static void Build(int seed, int floor = 1, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, IEnumerable<Biome> priorUsedBossBiomes = null)
     {
         CurrentSeed = seed;
         CurrentFloor = floor;
@@ -510,7 +561,21 @@ public static class DungeonGenerator
         if (clearedRooms != null) foreach (Vector2Int cell in clearedRooms) clearedRoomsThisFloor.Add(cell);
         bossDefeatedThisFloor = bossDefeated;
 
-        Biome biome = (Biome)Random.Range(0, 7);
+        // priorUsedBossBiomes is only ever non-null from "Continuer" (see SaveData.
+        // usedBossBiomesBeforeFloor) - restores the run-wide history to exactly what it was BEFORE
+        // this floor originally picked its own 3 biomes, so re-running the picks below (same seed,
+        // same call order) reproduces the identical set instead of rolling a fresh one. A mid-
+        // session Descend() passes null and just keeps accumulating whatever's already here.
+        if (priorUsedBossBiomes != null)
+        {
+            usedBossBiomes.Clear();
+            usedBossBiomes.AddRange(priorUsedBossBiomes);
+        }
+        preFloorUsedBossBiomes = new List<Biome>(usedBossBiomes);
+
+        bossTierBiomes = new Dictionary<BossTier, Biome>();
+        Biome biome = PickFloorBiome(bossTierBiomes.Values);
+        bossTierBiomes[BossTier.Region] = biome;
         CurrentBiome = biome;
         BiomeTheme biomeTheme = BiomeTheme.Get(biome);
 
@@ -1040,7 +1105,11 @@ public static class DungeonGenerator
                 // is still guaranteed to be SOME member of this group, just maybe not kv.Key itself.
                 Vector2Int tieredCell = memberCells.Find(c => bossTiers.ContainsKey(c));
                 BossTier tier = bossTiers.TryGetValue(tieredCell, out BossTier foundTier) ? foundTier : BossTier.Ville;
-                BossFamily family = BossFamilyFor(CurrentBiome);
+                // Each tier got its OWN distinct biome/family (see bossTierBiomes, populated
+                // alongside bossTiers in GenerateLayout/just below) - CurrentBiome only remains the
+                // fallback for the rare tier that failed to place (bossTiers has no entry for it,
+                // see PlaceSpecialRoom's no-fallback tiers).
+                BossFamily family = BossFamilyFor(bossTierBiomes.TryGetValue(tier, out Biome tierBiome) ? tierBiome : CurrentBiome);
                 BossTierStats tierStats = BossTierStatsFor(tier, CurrentFloor);
 
                 SetupBossRoom(kv.Key, memberCells, originX, originY, groupSize, root.transform, player.transform,
@@ -2195,6 +2264,11 @@ public static class DungeonGenerator
         CurrentFloor = 0;
         clearedRoomsThisFloor.Clear();
         bossDefeatedThisFloor = false;
+        // A brand new run's boss-family history starts empty - without this, a leftover
+        // usedBossBiomes from a PREVIOUS run in the same process (e.g. died, back to the main
+        // menu, New Game again) would wrongly exclude families for this fresh run's floor 1.
+        usedBossBiomes.Clear();
+        preFloorUsedBossBiomes.Clear();
 
         Sprite floorSprite = CreateTexturedFloorSprite("Assets/Art/Tiles/Floor.png", new Color(0.24f, 0.22f, 0.20f));
         Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", new Color(0.10f, 0.09f, 0.11f), new Color(0.34f, 0.31f, 0.36f), new Color(0.55f, 0.52f, 0.58f));
@@ -2436,10 +2510,26 @@ public static class DungeonGenerator
         Staircase staircase = go.GetComponent<Staircase>();
         staircase.blocker = blocker;
 
-        StairsLockType lockType = (StairsLockType)Random.Range(0, 4);
-        // Boss is unconditionally placed every floor, but fall back safely rather than risk a
-        // permanent soft-lock if that ever stops being true.
-        if (lockType == StairsLockType.BossKill && bossRoomControllers.Count == 0) lockType = StairsLockType.Open;
+        // Floor 1 always gets the same themed puzzle instead of a random lock - "sans meme avoir
+        // besoin de taper un boss" (2026-09-15 request, Dungeon Crawler Carl-style per-floor
+        // identity): 4 levers scattered across the floor, ALL of them required (see
+        // Staircase.leversRequired/NotifyLeverPulled), never Open/Timed/BossKill. The floor's 3
+        // boss rooms still exist for loot/XP, just never gate progress here. Every other floor
+        // keeps today's uniform random pick, unchanged.
+        StairsLockType lockType;
+        int leverCount = 1;
+        if (CurrentFloor == 1)
+        {
+            lockType = StairsLockType.Lever;
+            leverCount = FirstFloorLeverCount;
+        }
+        else
+        {
+            lockType = (StairsLockType)Random.Range(0, 4);
+            // Boss is unconditionally placed every floor, but fall back safely rather than risk a
+            // permanent soft-lock if that ever stops being true.
+            if (lockType == StairsLockType.BossKill && bossRoomControllers.Count == 0) lockType = StairsLockType.Open;
+        }
         staircase.lockType = lockType;
 
         switch (lockType)
@@ -2459,27 +2549,40 @@ public static class DungeonGenerator
                 }
                 break;
             case StairsLockType.Lever:
-                Vector2Int leverRoom = FindLeverRoom(layout, gridPos);
-                Vector2 leverCenter = new Vector2(leverRoom.x * StepX + RoomWidth / 2f, leverRoom.y * StepY + RoomHeight / 2f);
-                SpawnLever(leverCenter, leverSprite, staircase, parent);
+                staircase.leversRequired = leverCount;
+                List<Vector2Int> excludedLeverRooms = new List<Vector2Int> { gridPos };
+                for (int i = 0; i < leverCount; i++)
+                {
+                    Vector2Int leverRoom = FindLeverRoom(layout, excludedLeverRooms);
+                    excludedLeverRooms.Add(leverRoom);
+                    Vector2 leverCenter = new Vector2(leverRoom.x * StepX + RoomWidth / 2f, leverRoom.y * StepY + RoomHeight / 2f);
+                    SpawnLever(leverCenter, leverSprite, staircase, parent);
+                }
                 break;
         }
     }
 
-    // Picks a plain room elsewhere on the floor to host the lever - prefers an Empty room (no
+    const int FirstFloorLeverCount = 4;
+
+    // Picks a plain room elsewhere on the floor to host a lever - prefers an Empty room (no
     // monsters guarding it) and only falls back to a Monster room if the floor has none.
-    static Vector2Int FindLeverRoom(Dictionary<Vector2Int, RoomType> layout, Vector2Int excludeGridPos)
+    // excludeGridPositions always contains at least the staircase's own room, plus (for a
+    // multi-lever floor) every room a previous lever already claimed, so no two levers - or a
+    // lever and the staircase - ever land in the same room.
+    static Vector2Int FindLeverRoom(Dictionary<Vector2Int, RoomType> layout, List<Vector2Int> excludeGridPositions)
     {
         var emptyCandidates = new List<Vector2Int>();
         var monsterCandidates = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
         {
-            if (kv.Key == excludeGridPos) continue;
+            if (excludeGridPositions.Contains(kv.Key)) continue;
             if (kv.Value == RoomType.Empty) emptyCandidates.Add(kv.Key);
             else if (kv.Value == RoomType.Monster) monsterCandidates.Add(kv.Key);
         }
         List<Vector2Int> candidates = emptyCandidates.Count > 0 ? emptyCandidates : monsterCandidates;
-        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : excludeGridPos;
+        // Last-resort fallback (an extremely cramped floor with nowhere left) - reuse the
+        // staircase's own room rather than crash on an empty candidate list.
+        return candidates.Count > 0 ? candidates[Random.Range(0, candidates.Count)] : excludeGridPositions[0];
     }
 
     static void SpawnLever(Vector2 position, Sprite sprite, Staircase target, Transform parent)
@@ -2582,10 +2685,19 @@ public static class DungeonGenerator
         // are ordinary dead-end placements like every other bonus room, so they land somewhere
         // reachable well before the player is strong enough for the real fight at the end.
         bossTiers = new Dictionary<Vector2Int, BossTier> { [bossCell] = BossTier.Region };
+        // Ville/Zone each get their own biome/family, distinct from Region's and from each other
+        // (see PickFloorBiome/bossTierBiomes, populated for Region back in Build) - a floor's 3
+        // boss encounters are 3 different species, never the same one 3 times over.
         if (PlaceSpecialRoom(rooms, RoomType.Boss, secretCell, start, bossDistance, out Vector2Int villeBossCell))
+        {
             bossTiers[villeBossCell] = BossTier.Ville;
+            bossTierBiomes[BossTier.Ville] = PickFloorBiome(bossTierBiomes.Values);
+        }
         if (PlaceSpecialRoom(rooms, RoomType.Boss, secretCell, start, bossDistance, out Vector2Int zoneBossCell))
+        {
             bossTiers[zoneBossCell] = BossTier.Zone;
+            bossTierBiomes[BossTier.Zone] = PickFloorBiome(bossTierBiomes.Values);
+        }
 
         // Stairs goes FIRST and is the only one of these with a hard fallback: PlaceSpecialRoom's
         // three distance thresholds all draw from the same shrinking pool of "dead end" cells, and

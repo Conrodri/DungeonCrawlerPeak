@@ -14,8 +14,13 @@ public class Staircase : MonoBehaviour
     public float unlockAtElapsedSeconds; // Timed only
     public FloorTimer floorTimer; // Timed only
     public GameObject blocker;
+    // Lever only - how many distinct Lever components must be pulled before this actually
+    // unlocks (see NotifyLeverPulled). Defaults to 1, matching every floor before the 2026-09-15
+    // floor-1 4-lever puzzle (see DungeonGenerator.SetupStaircase's FirstFloorLeverCount).
+    public int leversRequired = 1;
 
     bool unlocked;
+    int leversPulled;
     // Descend() rebuilds the whole DungeonRoot (this object included) - deferred to the next
     // Update() instead of firing straight from OnTriggerEnter2D, which runs mid-physics-step and
     // would otherwise destroy this GameObject's own hierarchy while Unity is still iterating that
@@ -39,6 +44,16 @@ public class Staircase : MonoBehaviour
 
         if (unlocked || lockType != StairsLockType.Timed || floorTimer == null) return;
         if (floorTimer.Elapsed >= unlockAtElapsedSeconds) Unlock();
+    }
+
+    // Called by Lever.cs on every pull instead of Unlock() directly - only the LAST of
+    // leversRequired pulls actually unlocks (a no-op default of 1 makes a single-lever floor
+    // unlock on its one and only pull, exactly like before this existed).
+    public void NotifyLeverPulled()
+    {
+        leversPulled++;
+        Debug.Log("Staircase: lever " + leversPulled + "/" + leversRequired + " pulled.");
+        if (leversPulled >= leversRequired) Unlock();
     }
 
     public void Unlock()

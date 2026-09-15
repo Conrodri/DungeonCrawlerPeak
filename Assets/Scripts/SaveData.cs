@@ -18,6 +18,14 @@ public class SaveData
     public List<Vector2Int> clearedRooms = new List<Vector2Int>();
     public bool bossDefeated;
 
+    // Snapshot of DungeonGenerator.UsedBossBiomesBeforeCurrentFloor at save time - the run-wide
+    // history of boss families already handed out, as it stood BEFORE the currently loaded floor
+    // picked its own 3 (not including them) - see DungeonGenerator.Build's priorUsedBossBiomes
+    // parameter for why the distinction matters (2026-09-15 "no boss family repeats within or
+    // across floors" feature): restoring exactly this pre-floor snapshot is what lets "Continuer"
+    // reproduce this floor's identical 3 boss families instead of rolling a fresh set.
+    public List<Biome> usedBossBiomesBeforeFloor = new List<Biome>();
+
     // World position at the moment of saving - without this, "Continuer" always dropped the
     // player back at the Start room (DungeonGenerator.Build's fixed spawn point) regardless of
     // where they actually saved (2026-09-15 report). Defaults to (0,0), which sits inside/near the

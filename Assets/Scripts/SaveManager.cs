@@ -17,13 +17,15 @@ public static class SaveManager
     // Shared field-mapping between a to-disk Save and an in-memory carry-over across floors
     // (DungeonGenerator.Descend) - avoids duplicating this list twice.
     public static SaveData Capture(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null,
+        IEnumerable<Biome> usedBossBiomesBeforeFloor = null)
     {
         return new SaveData
         {
             seed = seed,
             floor = floor,
             clearedRooms = clearedRooms != null ? new List<Vector2Int>(clearedRooms) : new List<Vector2Int>(),
+            usedBossBiomesBeforeFloor = usedBossBiomesBeforeFloor != null ? new List<Biome>(usedBossBiomesBeforeFloor) : new List<Biome>(),
             bossDefeated = bossDefeated,
             playerPosition = controller.transform.position,
             slots = inventory.GetAllSlots(),
@@ -77,9 +79,10 @@ public static class SaveManager
     }
 
     public static void Save(int seed, int floor, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller,
-        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null)
+        PlayerEquipment equipment, IEnumerable<Vector2Int> clearedRooms = null, bool bossDefeated = false, PlayerLimbs limbs = null,
+        IEnumerable<Biome> usedBossBiomesBeforeFloor = null)
     {
-        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, equipment, clearedRooms, bossDefeated, limbs);
+        SaveData data = Capture(seed, floor, inventory, stats, health, stamina, controller, equipment, clearedRooms, bossDefeated, limbs, usedBossBiomesBeforeFloor);
         File.WriteAllText(SavePath, JsonUtility.ToJson(data));
         Debug.Log("SaveManager: game saved to " + SavePath);
     }

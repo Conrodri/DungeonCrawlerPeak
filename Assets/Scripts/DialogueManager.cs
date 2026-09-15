@@ -302,7 +302,7 @@ public class DialogueManager : MonoBehaviour
             PlayerLimbs playerLimbs = playerHealth != null ? playerHealth.GetComponent<PlayerLimbs>() : null;
             if (playerLimbs != null) playerLimbs.RepairAll();
             SaveManager.Save(DungeonGenerator.CurrentSeed, DungeonGenerator.CurrentFloor, playerInventory, playerStats, playerHealth, playerStamina, playerController,
-                playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor, playerLimbs);
+                playerEquipment, DungeonGenerator.ClearedRoomsThisFloor, DungeonGenerator.BossDefeatedThisFloor, playerLimbs, DungeonGenerator.UsedBossBiomesBeforeCurrentFloor);
         }
 
         // Not closed here directly - Resolve()/ResolveKeepOpen() already schedule the dialogue
