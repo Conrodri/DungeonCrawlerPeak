@@ -1924,10 +1924,15 @@ public static class DungeonGenerator
         pointsLabelRect.anchoredPosition = new Vector2(0f, -150f);
         pointsLabelRect.sizeDelta = new Vector2(500f, 50f);
 
+        // Vitesse deliberately excluded (2026-09-15 design request - a slower, more punishing
+        // Dark Souls-like pace): the player's own move speed is meant to be fixed unless an item
+        // built for it grants Vitesse (see ItemDefinition.RingBonusStat, still fully wired -
+        // PlayerStats.vitesse/MoveSpeedMultiplier are untouched, only free-point investment is
+        // removed), never something raised at will with level-up points.
         (StatType type, string label)[] statRows =
         {
             (StatType.Force, "Force"), (StatType.Dexterite, "Dexterite"), (StatType.Intelligence, "Intelligence"),
-            (StatType.Vitesse, "Vitesse"), (StatType.Constitution, "Constitution"), (StatType.Portee, "Portee"),
+            (StatType.Constitution, "Constitution"), (StatType.Portee, "Portee"),
             (StatType.Charisme, "Charisme"), (StatType.Endurance, "Endurance"),
         };
 
