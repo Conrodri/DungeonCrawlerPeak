@@ -25,6 +25,7 @@ public static class SaveManager
             floor = floor,
             clearedRooms = clearedRooms != null ? new List<Vector2Int>(clearedRooms) : new List<Vector2Int>(),
             bossDefeated = bossDefeated,
+            playerPosition = controller.transform.position,
             slots = inventory.GetAllSlots(),
             hotbarSlots = inventory.hotbarSlots,
             cursedItemId = inventory.CursedItemId,
@@ -96,6 +97,11 @@ public static class SaveManager
 
     public static void Apply(SaveData data, PlayerInventory inventory, PlayerStats stats, Health health, Stamina stamina, PlayerController controller, PlayerEquipment equipment, PlayerLimbs limbs = null)
     {
+        // Must run after DungeonGenerator.Build (the caller's job - Build is what creates this
+        // very player/transform) but overrides Build's own fixed Start-room spawn point, which is
+        // otherwise the only place player.transform.position ever gets set.
+        controller.transform.position = data.playerPosition;
+
         inventory.LoadState(data.slots, data.hotbarSlots, data.cursedItemId);
 
         stats.level = data.level;

@@ -18,6 +18,15 @@ public class SaveData
     public List<Vector2Int> clearedRooms = new List<Vector2Int>();
     public bool bossDefeated;
 
+    // World position at the moment of saving - without this, "Continuer" always dropped the
+    // player back at the Start room (DungeonGenerator.Build's fixed spawn point) regardless of
+    // where they actually saved (2026-09-15 report). Defaults to (0,0), which sits inside/near the
+    // Start room anyway (RoomWidth/RoomHeight center is the real spawn, not exactly the origin) -
+    // a save from before this field existed just resumes at the old default behavior instead of
+    // erroring, same JsonUtility-keeps-the-initializer tolerance already relied on for limbHealth*
+    // below.
+    public Vector2 playerPosition;
+
     public InventorySlot[] slots;
     public string[] hotbarSlots;
     public string cursedItemId;
