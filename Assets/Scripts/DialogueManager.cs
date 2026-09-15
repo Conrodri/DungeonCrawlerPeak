@@ -168,16 +168,47 @@ public class DialogueManager : MonoBehaviour
 
         if (option.isPurchase)
         {
-            ResolvePurchase(option);
-            return;
-        }
+            bool isGold = option.costItemId == ItemIds.Gold;
+            int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+            if (playerInventory.GetCount(option.costItemId) < cost || !playerInventory.RemoveAmount(option.costItemId, cost))
+            {
+                closing = true;
+                bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
+                StartCoroutine(CloseAfterDelay(1.5f));
+                return;
+            }
 
-        if (option.checkStat == StatType.None)
+            if (!string.IsNullOrEmpty(option.purchaseItemId))
+            {
+                closing = true;
+                playerInventory.Add(option.purchaseItemId, 1);
+                bodyText.text = isGold ? "Vous achetez l'objet pour " + cost + " or." : "Vous fabriquez l'objet.";
+                StartCoroutine(CloseAfterDelay(1.5f));
+                return;
+            }
+
+            // No item id - an on-the-spot effect instead of anything entering the inventory. A
+            // plain None check (see EatOption, a Restaurant dish) resolves onSuccess immediately;
+            // a real checkStat (see ArcadeOption, an arcade machine) rolls the dice exactly like
+            // a free option below, just after gold already changed hands - paying doesn't
+            // guarantee winning.
+            if (option.checkStat == StatType.None)
+            {
+                Resolve(option.onSuccess, true);
+                return;
+            }
+        }
+        else if (option.checkStat == StatType.None)
         {
             Resolve(option.onSuccess, true);
             return;
         }
 
+        RollAndResolve(option);
+    }
+
+    void RollAndResolve(DialogueOption option)
+    {
         waitingForResolution = true;
         int statValue = playerStats.GetStat(option.checkStat);
         int proficiency = playerStats.ProficiencyBonus;
@@ -204,37 +235,6 @@ public class DialogueManager : MonoBehaviour
                 Resolve(option.onFailure, apply);
             }
         }));
-    }
-
-    // A purchase never rolls dice - just checks/spends a cost item and hands over the result, or
-    // refuses with a message if the player is short. Gold is discounted by Charisme (a real shop
-    // price); any other cost item (crafting materials) is paid at face value.
-    void ResolvePurchase(DialogueOption option)
-    {
-        closing = true;
-        bool isGold = option.costItemId == ItemIds.Gold;
-        int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
-
-        if (playerInventory.GetCount(option.costItemId) >= cost && playerInventory.RemoveAmount(option.costItemId, cost))
-        {
-            if (!string.IsNullOrEmpty(option.purchaseItemId))
-            {
-                playerInventory.Add(option.purchaseItemId, 1);
-                bodyText.text = isGold ? "Vous achetez l'objet pour " + cost + " or." : "Vous fabriquez l'objet.";
-            }
-            else
-            {
-                // No item id - an on-the-spot consumable (see EatOption) resolves through
-                // onSuccess instead, same as any other outcome, and never touches the inventory.
-                bodyText.text = option.onSuccess != null && !string.IsNullOrEmpty(option.onSuccess.message) ? option.onSuccess.message : "...";
-                if (option.onSuccess != null) ApplyOutcome(option.onSuccess);
-            }
-        }
-        else
-        {
-            bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
-        }
-        StartCoroutine(CloseAfterDelay(1.5f));
     }
 
     // Same outcome handling as Resolve, but re-lists the options instead of closing the panel -

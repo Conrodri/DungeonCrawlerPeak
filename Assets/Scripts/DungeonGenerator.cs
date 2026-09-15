@@ -910,7 +910,7 @@ public static class DungeonGenerator
         // pokes upward into the cell above instead of sinking into the floor below.
         wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
 
-        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell);
+        Dictionary<Vector2Int, RoomType> layout = GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell);
 
         // Carve the room geometry and cut door openings for every adjacent pair.
         foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
@@ -1163,6 +1163,12 @@ public static class DungeonGenerator
                     {
                         SpawnCookNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
                         SpawnRestaurantFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
+                            playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+                    }
+                    else if (kv.Key == arcadeCell)
+                    {
+                        SpawnArcadeNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
+                        SpawnArcadeFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
                             playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
                     }
                     else
@@ -2669,7 +2675,7 @@ public static class DungeonGenerator
         new[] { new Vector2Int(1, 2), new Vector2Int(2, 1) }, // 2 cells
     };
 
-    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell)
+    static Dictionary<Vector2Int, RoomType> GenerateLayout(out Dictionary<Vector2Int, RectInt> cellGroups, out Dictionary<Vector2Int, BossTier> bossTiers, out Vector2Int restaurantCell, out Vector2Int arcadeCell)
     {
         var rooms = new Dictionary<Vector2Int, RoomType>();
         Vector2Int start = Vector2Int.zero;
@@ -2758,18 +2764,19 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Shop, secretCell, start, bossDistance);
         if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
         PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
-        // Guaranteed, like Treasure/Shop - a save point must always be reachable. Placed twice
-        // (explicit request for an extra Safe room per floor) - the second call lands as far as
-        // possible from the first (see FindPlacementCandidate's same-type spacing), not just on a
-        // merely-different cell, so the two never read as sitting side by side. The two Safe rooms
-        // used to be identical taverns; the second one is now a distinct Restaurant (see
-        // SpawnCookNpc/SpawnRestaurantFurniture) - restaurantCell records which cell that is so the
-        // population pass in Build() knows which of the two to furnish differently. If this second
-        // placement fails (rare, no fallback - same as Treasure/Shop/Event/Gamble), PlaceSpecialRoom
-        // sets restaurantCell to default (0,0) - harmless, since every Safe-room check below also
-        // requires kv.Value == RoomType.Safe and Start already owns (0,0).
+        // Guaranteed, like Treasure/Shop - a save point must always be reachable. Placed three times
+        // now (Tavern/Restaurant/Arcade, one extra Safe room per new feature) - each call lands as
+        // far as possible from every already-placed Safe room (see FindPlacementCandidate's
+        // same-type spacing), not just on a merely-different cell, so none of the three ever read as
+        // sitting side by side. restaurantCell/arcadeCell record which cell is which so the
+        // population pass in Build() knows which of the three to furnish differently (the first
+        // stays the Tavern - see SpawnTavernNpc/SpawnCookNpc/SpawnArcadeNpc). If a placement fails
+        // (rare, no fallback - same as Treasure/Shop/Event/Gamble), PlaceSpecialRoom sets its cell to
+        // default (0,0) - harmless, since every Safe-room check below also requires
+        // kv.Value == RoomType.Safe and Start already owns (0,0).
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance);
         PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance, out restaurantCell);
+        PlaceSpecialRoom(rooms, RoomType.Safe, secretCell, start, bossDistance, out arcadeCell);
 
         // Every cell defaults to its own 1x1 group; the merge passes below (run last, once every
         // other room type is already placed) may absorb some cells' free neighbors into a bigger
@@ -3726,6 +3733,61 @@ public static class DungeonGenerator
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
     }
 
+    // The third Safe room's NPC (see arcadeCell in GenerateLayout) - 3 coin-operated "machines",
+    // each a stat check paid for in gold (see ArcadeOption): pay first (gold is gone either way,
+    // win or lose), then roll exactly like any free dialogue check. risk = Safe on all three - a
+    // loss never costs more than the entry fee, only a win ever changes anything.
+    static void SpawnArcadeNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.6f, 0.35f, 0.75f); // neon purple - distinct from the Tavernier/Cuisinier tints
+        renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Bornes d'Arcade";
+        npc.greeting = "Trois machines usees, encore allumees. Tentez votre chance.";
+        npc.options = new List<DialogueOption>
+        {
+            ArcadeOption("Marteau de Force (2 or)", 2, StatType.Force, 12,
+                "Le marteau frappe fort - la machine recrache une recompense !",
+                new[] { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Gold }),
+            ArcadeOption("Jeu d'Adresse (2 or)", 2, StatType.Dexterite, 12,
+                "Un geste precis - vous decrochez le lot !",
+                new[] { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Gold }),
+            ArcadeOption("Machine a Sous (3 or)", 3, StatType.Charisme, 14,
+                "Trois symboles s'alignent - jackpot !",
+                new[] { ItemIds.Gold, ItemIds.HealthPotion }),
+        };
+    }
+
+    // Furniture for the Arcade room - cabinets around the machines instead of the Tavern's bar or
+    // the Restaurant's stove, otherwise the same lived-in treatment (table clusters, RestBed, wall
+    // decor) every Safe room gets.
+    static void SpawnArcadeFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent,
+        Health playerHealth, PlayerLimbs playerLimbs, PlayerInventory playerInventory, PlayerStats playerStats, Stamina playerStamina, PlayerController playerController, PlayerEquipment playerEquipment)
+    {
+        Color cabinetTint = new Color(0.3f, 0.2f, 0.4f);
+        SpawnProp("Cabinet", npcPos + new Vector2(-1.6f, 0.6f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
+        SpawnProp("Cabinet", npcPos + new Vector2(0f, 0.8f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
+        SpawnProp("Cabinet", npcPos + new Vector2(1.6f, 0.6f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
+
+        List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
+        SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
+        SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
+        SpawnRestBed(corners[2], woodSprite, parent, playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
+
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+    }
+
     // Furniture for the Shop room - crates and a shelf around the Marchand, a rug underfoot, and
     // the same wall paintings as the tavern (2026-09-14, same "make it feel lived-in" request).
     static void SpawnShopFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite crateSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
@@ -3819,6 +3881,28 @@ public static class DungeonGenerator
             costItemId = ItemIds.Gold,
             costAmount = goldPrice,
             onSuccess = new DialogueOutcome { message = message, healAmount = healAmount },
+        };
+    }
+
+    // Same isPurchase-with-no-purchaseItemId flow as EatOption, but with a real checkStat/dc set -
+    // DialogueManager.ChooseOption pays the entry fee first, then rolls exactly like a free dialogue
+    // check (see RollAndResolve). risk stays Safe (see SpawnArcadeNpc) so onFailure's content is
+    // never actually shown (apply is always false at 0% malus chance - Resolve prints its own
+    // generic "Rien ne se passe." instead) - it only needs to be non-null so Resolve doesn't
+    // short-circuit to an instant, message-less Close().
+    static DialogueOption ArcadeOption(string text, int goldPrice, StatType stat, int dc, string winMessage, string[] rewardPool)
+    {
+        return new DialogueOption
+        {
+            text = text,
+            isPurchase = true,
+            costItemId = ItemIds.Gold,
+            costAmount = goldPrice,
+            checkStat = stat,
+            dc = dc,
+            risk = RiskTier.Safe,
+            onSuccess = new DialogueOutcome { message = winMessage, itemRewardPool = rewardPool },
+            onFailure = new DialogueOutcome(),
         };
     }
 
