@@ -569,9 +569,9 @@ public static class DungeonGenerator
         // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
         RoomController.EnemyPresetEntry[] enemyPresets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, moveSpeed = 3.2f, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 1 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, moveSpeed = 1.6f, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 1, isFlying = true, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
         };
 
         // A whole floor sometimes commits to a single creature type, so every Monster room draws
@@ -2321,7 +2321,7 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] presets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, moveSpeed = 1.2f, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 1, isFlying = false, xpReward = 2 },
         };
         RoomController.EnemySpawn[] recipe =
         {
@@ -4057,14 +4057,21 @@ public static class DungeonGenerator
     // reward could never keep up with a curve where each floor needs several times the previous
     // floor's total XP. Ville/Zone keep the same 0.625/0.375 ratio to Region the old flat numbers
     // had (10/16, 6/16) - only Region's absolute size changed.
+    // moveSpeed per tier is BaseSpeed * the player's own Vitesse formula (see
+    // MonsterLeveling.BaseSpeed/PlayerStats.MoveSpeedMultiplierFor), same 2026-09-15 fix as regular
+    // monsters - the old flat 1.3/1.5/1.8 put every boss well below the player's unbuffed walk
+    // speed (5 u/s). Zone (-20 Vitesse, 3 u/s) and Ville (-10, 4 u/s) stay slower than the player
+    // (a boss is meant to be out-run, not just out-fought, at the easier tiers); Region (0 Vitesse,
+    // 5 u/s) ties the player's own base pace exactly, on top of which the Rapide modifier/enrage
+    // still layer their existing multipliers unchanged.
     static BossTierStats BossTierStatsFor(BossTier tier, int floor)
     {
         int regionXp = RegionBossXpFor(floor);
         return tier switch
         {
-            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = 1.3f, dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
-            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = 1.5f, dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
-            _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = 1.8f, dropChance = 1f, xpReward = regionXp },
+            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 1, chargeSpeed = 6f, volleyDamage = 1, volleyCount = 3, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-20), dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
+            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 2, chargeSpeed = 8f, volleyDamage = 1, volleyCount = 5, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-10), dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
+            _ => new BossTierStats { health = 65, contactDamage = 3, chargeSpeed = 10f, volleyDamage = 2, volleyCount = 7, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(0), dropChance = 1f, xpReward = regionXp },
         };
     }
 

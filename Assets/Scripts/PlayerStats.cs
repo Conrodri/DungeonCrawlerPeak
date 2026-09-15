@@ -51,7 +51,18 @@ public class PlayerStats : MonoBehaviour
     public float MagicDamageMultiplier => 1f + intelligence * 0.01f;
     public float AttackSpeedMultiplier => 1f + dexterite * 0.01f;
     public float DodgeChance => dexterite * 0.01f;
-    public float MoveSpeedMultiplier => 1f + Mathf.Min(vitesse, VitesseCap) * 0.02f;
+    // Static so EnemyController/BossController can size a monster's own moveSpeed off the exact
+    // same formula (see MonsterLeveling.ApplyLevelStats) - "un monstre avec 1 de vitesse va aussi
+    // vite qu'un crawler avec 1 de vitesse" only holds if both sides run one shared calculation,
+    // not two independently-tuned ones. Deliberately NOT clamped to VitesseCap here - that cap is
+    // a player PROGRESSION limit (stops overinvesting points from trivializing movement forever),
+    // not a physical speed limit, so it's applied below only for the player's own property, one
+    // call site up. A monster's designed Vitesse (see MonsterLeveling.RangeFor) can go well past
+    // it in either direction - a fast species like ChauveSouris is meant to actually outrun the
+    // player, a slow one like Zombie to lag well behind. Floored at 10% of base (rather than a bare
+    // lower bound) so a very negative roll still crawls rather than reversing or stopping outright.
+    public static float MoveSpeedMultiplierFor(int vitesseValue) => Mathf.Max(0.1f, 1f + vitesseValue * 0.02f);
+    public float MoveSpeedMultiplier => MoveSpeedMultiplierFor(Mathf.Min(vitesse, VitesseCap));
     public float RangeMultiplier => 1f + portee * 0.02f;
     // Not consumed yet - no purchase flow exists in Shop rooms (marker-only so far).
     public float ShopPriceMultiplier => Mathf.Max(0f, 1f - charisme * 0.02f);

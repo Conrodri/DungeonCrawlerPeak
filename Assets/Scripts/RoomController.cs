@@ -21,7 +21,9 @@ public class RoomController : MonoBehaviour
     {
         public EnemyType type;
         public Sprite sprite;
-        public float moveSpeed;
+        // No moveSpeed here anymore - MonsterLeveling.ApplyLevelStats now computes it entirely
+        // from the species' Vitesse band (see MonsterLeveling.BaseSpeed), a flat per-preset number
+        // would just be silently overwritten.
         public int maxHealth;
         public int contactDamage;
         public bool isFlying;
@@ -174,7 +176,7 @@ public class RoomController : MonoBehaviour
             // Force/Vitesse scale with this instance's rolled level within its species' band (see
             // MonsterLeveling.ApplyLevelStats); Constitution instead scales with the FLOOR, not the
             // level, so depth always has a real HP floor regardless of how a monster's level rolled.
-            float scaledMoveSpeed = preset.moveSpeed;
+            float scaledMoveSpeed = 0f; // fully computed by ApplyLevelStats below, not read beforehand
             int scaledContactDamage = preset.contactDamage;
             MonsterLeveling.ApplyLevelStats(spawn.type, level, floor, ref scaledMoveSpeed, ref scaledContactDamage);
 
