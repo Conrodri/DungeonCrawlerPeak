@@ -1083,7 +1083,9 @@ public static class DungeonGenerator
         {
             List<DoorTrigger> triggersA = GetExitTriggerList(link.cellA, monsterControllers, bossControllers);
             List<DoorTrigger> triggersB = GetExitTriggerList(link.cellB, monsterControllers, bossControllers);
-            CreateDoorLink(link.posA, link.inwardA, triggersA, link.posB, link.inwardB, triggersB, root.transform);
+            List<GameObject> blockersA = GetDoorBlockerList(link.cellA, monsterControllers, bossControllers);
+            List<GameObject> blockersB = GetDoorBlockerList(link.cellB, monsterControllers, bossControllers);
+            CreateDoorLink(link.posA, link.inwardA, triggersA, blockersA, link.posB, link.inwardB, triggersB, blockersB, root.transform);
         }
 
 
@@ -3497,11 +3499,41 @@ public static class DungeonGenerator
         return null;
     }
 
-    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, List<DoorTrigger> exitTriggersA, Vector2 posB, Vector2 inwardB, List<DoorTrigger> exitTriggersB, Transform parent)
+    // Same lookup as GetExitTriggerList, for the room's doorBlockers instead - lets CreateDoorLink
+    // pair each freshly-created DoorTrigger with the DoorBlocker sitting at the same doorway (see
+    // DoorBlocker's own comment for why that pairing matters).
+    static List<GameObject> GetDoorBlockerList(Vector2Int cell, Dictionary<Vector2Int, RoomController> monsterControllers, Dictionary<Vector2Int, BossRoomController> bossControllers)
+    {
+        if (monsterControllers.TryGetValue(cell, out RoomController rc)) return rc.doorBlockers;
+        if (bossControllers.TryGetValue(cell, out BossRoomController bc)) return bc.doorBlockers;
+        return null;
+    }
+
+    // Matches by position (both a room's DoorBlocker and its own-side DoorTrigger are spawned at
+    // the exact same door.pos, just at different points in Build()) rather than by list index,
+    // since the two lists are populated by separate passes with no guaranteed matching order.
+    static void LinkBlockerToTrigger(List<GameObject> blockers, Vector2 pos, DoorTrigger trigger)
+    {
+        if (blockers == null) return;
+        foreach (GameObject blocker in blockers)
+        {
+            if (blocker == null) continue;
+            if (Vector2.Distance(blocker.transform.position, pos) < 0.05f)
+            {
+                blocker.GetComponent<DoorBlocker>().linkedTriggers.Add(trigger);
+                return;
+            }
+        }
+    }
+
+    static void CreateDoorLink(Vector2 posA, Vector2 inwardA, List<DoorTrigger> exitTriggersA, List<GameObject> blockersA,
+        Vector2 posB, Vector2 inwardB, List<DoorTrigger> exitTriggersB, List<GameObject> blockersB, Transform parent)
     {
         const float landingDepth = 1.5f;
-        SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, exitTriggersA, parent);
-        SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, exitTriggersB, parent);
+        DoorTrigger triggerA = SpawnDoorTrigger(posA, inwardA, posB + inwardB * landingDepth, exitTriggersA, parent);
+        DoorTrigger triggerB = SpawnDoorTrigger(posB, inwardB, posA + inwardA * landingDepth, exitTriggersB, parent);
+        LinkBlockerToTrigger(blockersA, posA, triggerA);
+        LinkBlockerToTrigger(blockersB, posB, triggerB);
     }
 
     // A secret room's single connection: same cross-to-teleport behavior as any door, but both

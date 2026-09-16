@@ -10,6 +10,10 @@ public class DoorTrigger : MonoBehaviour
     public Vector2 destination;
 
     BoxCollider2D boxCollider;
+    // Set once by DoorBlocker.OnDestroy (a bomb blew this specific door open) - from then on
+    // SetLocked is a no-op, so the room re-locking for its OTHER doors (RoomController.UpdateDoors
+    // runs on every remaining enemy death) can never re-seal this one.
+    bool permanentlyOpen;
 
     void Awake()
     {
@@ -18,7 +22,14 @@ public class DoorTrigger : MonoBehaviour
 
     public void SetLocked(bool locked)
     {
+        if (permanentlyOpen) return;
         boxCollider.isTrigger = !locked;
+    }
+
+    public void ForceUnlockPermanently()
+    {
+        permanentlyOpen = true;
+        boxCollider.isTrigger = true;
     }
 
     void OnTriggerEnter2D(Collider2D other)
