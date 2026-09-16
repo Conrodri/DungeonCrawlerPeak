@@ -7,6 +7,7 @@ using UnityEngine;
 // visible (ExperienceBarUI); a dialogue outcome can still change raw stats directly regardless.
 [RequireComponent(typeof(Health))]
 [RequireComponent(typeof(Stamina))]
+[RequireComponent(typeof(Mana))]
 public class PlayerStats : MonoBehaviour
 {
     public int level = 1;
@@ -50,6 +51,12 @@ public class PlayerStats : MonoBehaviour
     const float StaminaPerEndurance = 8f;
     const float BaseStaminaRegen = 15f;
     const float StaminaRegenPerEndurance = 1.5f;
+    // "une nouvelle barre, plus de regen mana et de mana total suivant l'intelligence" (2026-09-16
+    // request) - same shape as Endurance/Stamina just above, Intelligence drives mana instead.
+    const float BaseMana = 40f;
+    const float ManaPerIntelligence = 6f;
+    const float BaseManaRegen = 4f;
+    const float ManaRegenPerIntelligence = 0.6f;
 
     public float PhysicalDamageMultiplier => 1f + force * 0.01f;
     // 2026-09-15 request: every attack now costs stamina (see PlayerController.TryAttack),
@@ -82,6 +89,7 @@ public class PlayerStats : MonoBehaviour
 
     Health health;
     Stamina stamina;
+    Mana mana;
     PlayerLimbs limbs;
 
     void Awake()
@@ -99,6 +107,11 @@ public class PlayerStats : MonoBehaviour
         stamina.maxStamina = BaseStamina + endurance * StaminaPerEndurance;
         stamina.regenPerSecond = BaseStaminaRegen + endurance * StaminaRegenPerEndurance;
         stamina.currentStamina = stamina.maxStamina;
+
+        mana = GetComponent<Mana>();
+        mana.maxMana = BaseMana + intelligence * ManaPerIntelligence;
+        mana.regenPerSecond = BaseManaRegen + intelligence * ManaRegenPerIntelligence;
+        mana.currentMana = mana.maxMana;
     }
 
     void Update()
@@ -131,7 +144,13 @@ public class PlayerStats : MonoBehaviour
         {
             case StatType.Force: force = Mathf.Max(0, force - amount); break;
             case StatType.Dexterite: dexterite = Mathf.Max(0, dexterite - amount); break;
-            case StatType.Intelligence: intelligence = Mathf.Max(0, intelligence - amount); break;
+            case StatType.Intelligence:
+                int intelligenceLoss = Mathf.Min(intelligence, amount);
+                intelligence -= intelligenceLoss;
+                mana.maxMana = Mathf.Max(10f, mana.maxMana - intelligenceLoss * ManaPerIntelligence);
+                mana.regenPerSecond = Mathf.Max(1f, mana.regenPerSecond - intelligenceLoss * ManaRegenPerIntelligence);
+                mana.currentMana = Mathf.Min(mana.currentMana, mana.maxMana);
+                break;
             case StatType.Vitesse: vitesse = Mathf.Max(0, vitesse - amount); break;
             case StatType.Constitution:
                 int actualLoss = Mathf.Min(constitution, amount);
@@ -161,7 +180,12 @@ public class PlayerStats : MonoBehaviour
         {
             case StatType.Force: force += amount; break;
             case StatType.Dexterite: dexterite += amount; break;
-            case StatType.Intelligence: intelligence += amount; break;
+            case StatType.Intelligence:
+                intelligence += amount;
+                mana.maxMana += amount * ManaPerIntelligence;
+                mana.regenPerSecond += amount * ManaRegenPerIntelligence;
+                mana.currentMana += amount * ManaPerIntelligence;
+                break;
             case StatType.Vitesse: vitesse += amount; break;
             case StatType.Constitution:
                 constitution += amount;

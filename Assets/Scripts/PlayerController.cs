@@ -97,6 +97,23 @@ public class PlayerController : MonoBehaviour
     public float bombFuseTime = 1.2f;
     public float bombSpeed = 6f;
 
+    // 2026-09-16 request: "rajoutes des competences, type orb de foudre, qui consommera du mana...
+    // une orbe qui se lance comme un projectile normal, qui rebondit entre tous les enemis a moins
+    // de 2 unites de l'impact de l'orbe". First entry in what's meant to grow into a real spell
+    // list later - bound to its own key (R) rather than a WeaponType, so it's available regardless
+    // of whatever's currently equipped in the weapon hand.
+    [Header("Lightning Orb")]
+    public int lightningOrbManaCost = 20;
+    public int lightningOrbDamage = 3;
+    public float lightningOrbSpeed = 9f;
+    public float lightningOrbRange = 10f;
+    public float lightningOrbCooldown = 1f;
+    // "rebondit entre tous les ennemis a moins de 2 unites de l'impact" - see
+    // Projectile.chainRadius/ChainToNearbyEnemies.
+    public float lightningOrbChainRadius = 2f;
+    public Sprite lightningOrbSprite;
+    public Sprite lightningBoltSprite;
+
     // A weapon's total reach: how far from the player its hit area extends.
     float SwordReach => (swordOffset + swordRange) * stats.RangeMultiplier;
     float StaffMaxRange => SwordReach * staffRangeMultiplier;
@@ -105,6 +122,7 @@ public class PlayerController : MonoBehaviour
     Rigidbody2D rb;
     Health health;
     Stamina stamina;
+    Mana mana;
     PlayerInventory inventory;
     PlayerEquipment equipment;
     PlayerStats stats;
@@ -117,6 +135,7 @@ public class PlayerController : MonoBehaviour
     float lastAttackTime = -999f;
     float attackLockEndTime = -999f;
     float lastThrowTime = -999f;
+    float lastLightningOrbTime = -999f;
     // Small forward "step" on a melee swing (Fist/Sword, see MeleeAttack) - a plain root (velocity
     // zero for the whole attackLockEndTime window) read as the character just standing still while
     // punching, this gives the first sliver of that window a forward nudge instead so it reads as
@@ -168,6 +187,7 @@ public class PlayerController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         health = GetComponent<Health>();
         stamina = GetComponent<Stamina>();
+        mana = GetComponent<Mana>();
         inventory = GetComponent<PlayerInventory>();
         equipment = GetComponent<PlayerEquipment>();
         stats = GetComponent<PlayerStats>();
@@ -285,6 +305,11 @@ public class PlayerController : MonoBehaviour
         {
             TryAttack();
         }
+
+        // Orbe de Foudre - its own key (R) rather than piggybacking on the aim/attack keys, so it
+        // fires immediately toward the player's current aimDirection instead of needing a fresh
+        // direction press like a hotbar throwable does.
+        if (kb.rKey.wasPressedThisFrame) TryCastLightningOrb();
 
         // Hotbar: reads whatever the player actually assigned to each slot (drag & drop, feature
         // 2) instead of assuming the starting loadout.
@@ -891,6 +916,63 @@ public class PlayerController : MonoBehaviour
         // it always resets back to the default ("Player", never hit yourself) rather than trusting
         // whatever the projectile happened to be configured for last time.
         projectile.ignoreTag = "Player";
+        // Same pool-hygiene reasoning as ignoreTag above - a pooled instance previously fired as a
+        // lightning orb must not silently keep chaining on its next, completely unrelated shot.
+        projectile.chainRadius = 0f;
+        projectile.chainBoltSprite = null;
+        projectile.Launch(direction);
+    }
+
+    void TryCastLightningOrb()
+    {
+        // Casting still needs a working arm, same gate every other weapon action uses.
+        if (limbs != null && limbs.IsBroken(weaponHand)) return;
+        if (Time.time - lastLightningOrbTime < lightningOrbCooldown) return;
+        if (mana == null || mana.currentMana < lightningOrbManaCost) return;
+
+        mana.Drain(lightningOrbManaCost);
+        lastLightningOrbTime = Time.time;
+        LaunchLightningOrb();
+    }
+
+    void LaunchLightningOrb()
+    {
+        int damage = ScaledMagicDamage(lightningOrbDamage);
+        float speed = lightningOrbSpeed;
+        float maxDistance = lightningOrbRange;
+        if (skills != null)
+        {
+            damage = Mathf.RoundToInt(damage * (1f + skills.RangedDamageBonus));
+            speed *= skills.RangedSpeedMultiplier;
+            maxDistance *= skills.RangedRangeMultiplier;
+            skills.AddUsage(SkillType.Ranged, 1f); // thrown like any other ranged attack
+        }
+
+        Vector2 direction = AimWithInertia();
+        Vector2 spawnPos = (Vector2)transform.position + aimDirection * 0.6f;
+
+        GameObject go = ProjectilePool.Get();
+        go.transform.position = spawnPos;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = lightningOrbSprite;
+        renderer.sortingOrder = 0;
+
+        Rigidbody2D projectileBody = go.GetComponent<Rigidbody2D>();
+        projectileBody.gravityScale = 0f;
+
+        CircleCollider2D projectileCollider = go.GetComponent<CircleCollider2D>();
+        projectileCollider.radius = 0.15f;
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        projectile.IgnoreCollisionWith(bodyCollider);
+        projectile.damage = damage;
+        projectile.speed = speed;
+        projectile.maxDistance = maxDistance;
+        projectile.attackerForce = stats.force;
+        projectile.ignoreTag = "Player";
+        projectile.chainRadius = lightningOrbChainRadius;
+        projectile.chainBoltSprite = lightningBoltSprite;
         projectile.Launch(direction);
     }
 

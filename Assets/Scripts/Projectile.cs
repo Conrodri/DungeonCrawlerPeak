@@ -14,6 +14,13 @@ public class Projectile : MonoBehaviour
     // Player-thrown projectiles ignore "Player" (default); a boss projectile sets this empty so
     // it actually hits the player.
     public string ignoreTag = "Player";
+    // Orbe de Foudre support (2026-09-16 request) - 0 by default (no-op), so every other caster of
+    // this same pooled Projectile (Staff, throwables, boss volleys) is unaffected. When set by
+    // PlayerController.LaunchLightningOrb, OnCollisionEnter2D also damages every OTHER enemy within
+    // chainRadius of the impact point, not just whatever this projectile directly hit - "rebondit
+    // entre tous les ennemis a moins de 2 unites de l'impact".
+    public float chainRadius = 0f;
+    public Sprite chainBoltSprite;
 
     Rigidbody2D rb;
     Collider2D ownCollider;
@@ -73,6 +80,44 @@ public class Projectile : MonoBehaviour
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);
 
+        if (chainRadius > 0f) ChainToNearbyEnemies(collision.collider);
+
         ProjectilePool.Release(gameObject);
+    }
+
+    // Only jumps to ENEMIES (EnemyController/BossController) - never the player, props or walls,
+    // even though they can also sit inside chainRadius. The direct hit above already applied its
+    // own damage/effects, so this only covers everyone ELSE in range.
+    void ChainToNearbyEnemies(Collider2D directHit)
+    {
+        Vector2 impact = transform.position;
+        Collider2D[] hits = Physics2D.OverlapCircleAll(impact, chainRadius);
+        foreach (Collider2D hit in hits)
+        {
+            if (hit == directHit) continue;
+            if (hit.GetComponent<EnemyController>() == null && hit.GetComponent<BossController>() == null) continue;
+
+            Health targetHealth = hit.GetComponent<Health>();
+            if (targetHealth == null) continue;
+            targetHealth.TakeDamageFromEnemy(damage, AttackSource.Random, impact);
+            SpawnBolt(impact, hit.transform.position);
+        }
+    }
+
+    void SpawnBolt(Vector2 from, Vector2 to)
+    {
+        if (chainBoltSprite == null) return;
+
+        GameObject fx = new GameObject("LightningBolt", typeof(SpriteRenderer), typeof(AttackVisual));
+        fx.transform.position = (from + to) / 2f;
+        float distance = Vector2.Distance(from, to);
+        float angle = Mathf.Atan2(to.y - from.y, to.x - from.x) * Mathf.Rad2Deg;
+        fx.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        fx.transform.localScale = new Vector3(Mathf.Max(distance, 0.01f), 0.15f, 1f);
+
+        SpriteRenderer sr = fx.GetComponent<SpriteRenderer>();
+        sr.sprite = chainBoltSprite;
+        sr.sortingOrder = 1;
+        fx.GetComponent<AttackVisual>().lifetime = 0.15f;
     }
 }

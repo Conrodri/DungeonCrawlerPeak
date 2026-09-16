@@ -676,6 +676,8 @@ public static class DungeonGenerator
         Sprite fistVisualSprite = assets.fistVisualSprite;
         Sprite swordVisualSprite = assets.swordVisualSprite;
         Sprite explosionSprite = assets.explosionSprite;
+        Sprite lightningOrbSprite = assets.lightningOrbSprite;
+        Sprite lightningBoltSprite = assets.lightningBoltSprite;
         Sprite doorBarrierSprite = assets.doorBarrierSprite;
         Sprite secretWallSprite = assets.secretWallSprite;
         Sprite outlineRingSprite = assets.outlineRingSprite;
@@ -892,7 +894,7 @@ public static class DungeonGenerator
         Vector2Int startCell = Vector2Int.zero;
         Vector2 startWorld = new Vector2(startCell.x * StepX + RoomWidth / 2f, startCell.y * StepY + RoomHeight / 2f);
 
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerLimbs), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(Mana), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerLimbs), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -911,6 +913,8 @@ public static class DungeonGenerator
         playerController.fistVisualSprite = fistVisualSprite;
         playerController.swordVisualSprite = swordVisualSprite;
         playerController.explosionSprite = explosionSprite;
+        playerController.lightningOrbSprite = lightningOrbSprite;
+        playerController.lightningBoltSprite = lightningBoltSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
@@ -926,6 +930,7 @@ public static class DungeonGenerator
         playerEquipment.fireIcon = CreateCircleSprite("Assets/Art/Fx/Fire.png", new Color(0.95f, 0.35f, 0.1f));
         Health playerHealth = player.GetComponent<Health>();
         Stamina playerStamina = player.GetComponent<Stamina>();
+        Mana playerMana = player.GetComponent<Mana>();
         // No explicit maxHealth/currentHealth assignment here anymore - PlayerStats.Awake()
         // already set both correctly via PlayerLimbs (see PlayerLimbs.BaseMaxFor/
         // SetConstitutionBonus) by the time this line runs (Awake fires per-AddComponent, and
@@ -1237,6 +1242,50 @@ public static class DungeonGenerator
         staminaBar.fill = staminaFill;
         staminaBar.label = staminaLabel;
 
+        // --- Mana bar (directly under the stamina bar, always visible) - drains when casting a
+        // spell (see PlayerController.TryCastLightningOrb), fed by Intelligence via PlayerStats. ---
+        GameObject manaBarGO = new GameObject("ManaBar", typeof(RectTransform), typeof(Image), typeof(ManaBarUI));
+        manaBarGO.transform.SetParent(canvasGO.transform, false);
+        Image manaBarBackground = manaBarGO.GetComponent<Image>();
+        manaBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform manaBarRect = manaBarBackground.rectTransform;
+        manaBarRect.anchorMin = manaBarRect.anchorMax = new Vector2(0f, 1f);
+        manaBarRect.pivot = new Vector2(0f, 1f);
+        manaBarRect.anchoredPosition = new Vector2(20f, -84f);
+        manaBarRect.sizeDelta = new Vector2(160f, 24f);
+
+        GameObject manaFillGO = new GameObject("Fill", typeof(Image));
+        manaFillGO.transform.SetParent(manaBarGO.transform, false);
+        Image manaFill = manaFillGO.GetComponent<Image>();
+        manaFill.sprite = uiFillSprite;
+        manaFill.color = new Color(0.3f, 0.5f, 0.9f);
+        manaFill.type = Image.Type.Filled;
+        manaFill.fillMethod = Image.FillMethod.Horizontal;
+        manaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform manaFillRect = manaFill.rectTransform;
+        manaFillRect.anchorMin = Vector2.zero;
+        manaFillRect.anchorMax = Vector2.one;
+        manaFillRect.offsetMin = new Vector2(1f, 1f);
+        manaFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject manaLabelGO = new GameObject("ManaLabel", typeof(Text));
+        manaLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text manaLabel = manaLabelGO.GetComponent<Text>();
+        manaLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        manaLabel.fontSize = 18;
+        manaLabel.alignment = TextAnchor.MiddleLeft;
+        manaLabel.color = Color.white;
+        RectTransform manaLabelRect = manaLabel.rectTransform;
+        manaLabelRect.anchorMin = manaLabelRect.anchorMax = new Vector2(0f, 1f);
+        manaLabelRect.pivot = new Vector2(0f, 1f);
+        manaLabelRect.anchoredPosition = new Vector2(188f, -84f);
+        manaLabelRect.sizeDelta = new Vector2(80f, 24f);
+
+        ManaBarUI manaBar = manaBarGO.GetComponent<ManaBarUI>();
+        manaBar.target = playerMana;
+        manaBar.fill = manaFill;
+        manaBar.label = manaLabel;
+
         // --- Gold counter (below the hearts) ---
         GameObject goldGO = new GameObject("GoldCounter", typeof(RectTransform), typeof(GoldCounterUI));
         goldGO.transform.SetParent(canvasGO.transform, false);
@@ -1248,7 +1297,7 @@ public static class DungeonGenerator
 
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
-        goldCounter.yOffset = -84f; // leaves room for the (now taller) stamina bar above
+        goldCounter.yOffset = -116f; // leaves room for the stamina AND mana bars above
 
         // --- Experience bar (below the gold counter, which is 48px tall) - no XP/level visual
         // existed at all before ---
@@ -1259,7 +1308,7 @@ public static class DungeonGenerator
         RectTransform xpBarRect = xpBarBackground.rectTransform;
         xpBarRect.anchorMin = xpBarRect.anchorMax = new Vector2(0f, 1f);
         xpBarRect.pivot = new Vector2(0f, 1f);
-        xpBarRect.anchoredPosition = new Vector2(20f, -140f);
+        xpBarRect.anchoredPosition = new Vector2(20f, -172f);
         xpBarRect.sizeDelta = new Vector2(160f, 24f);
 
         GameObject xpFillGO = new GameObject("Fill", typeof(Image));
@@ -1286,7 +1335,7 @@ public static class DungeonGenerator
         RectTransform xpLabelRect = xpLabel.rectTransform;
         xpLabelRect.anchorMin = xpLabelRect.anchorMax = new Vector2(0f, 1f);
         xpLabelRect.pivot = new Vector2(0f, 1f);
-        xpLabelRect.anchoredPosition = new Vector2(188f, -140f);
+        xpLabelRect.anchoredPosition = new Vector2(188f, -172f);
         xpLabelRect.sizeDelta = new Vector2(100f, 24f);
 
         ExperienceBarUI xpBar = xpBarGO.GetComponent<ExperienceBarUI>();
@@ -2197,6 +2246,10 @@ public static class DungeonGenerator
 
         assets.fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         assets.swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
+        // Electric cyan/violet, deliberately unlike the plain Projectile tint above so the orb
+        // reads as a distinct spell rather than another staff bolt.
+        assets.lightningOrbSprite = CreateCircleSprite("Assets/Art/Fx/LightningOrb.png", new Color(0.55f, 0.85f, 1f));
+        assets.lightningBoltSprite = CreateRectSprite("Assets/Art/Fx/LightningBolt.png", new Color(0.75f, 0.9f, 1f));
 
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         assets.explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
@@ -2454,6 +2507,8 @@ public static class DungeonGenerator
         Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+        Sprite lightningOrbSprite = CreateCircleSprite("Assets/Art/Fx/LightningOrb.png", new Color(0.55f, 0.85f, 1f));
+        Sprite lightningBoltSprite = CreateRectSprite("Assets/Art/Fx/LightningBolt.png", new Color(0.75f, 0.9f, 1f));
         Sprite npcSprite = LoadIconPackSprite("NpcGuide") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
@@ -2487,7 +2542,7 @@ public static class DungeonGenerator
         Vector2 startWorld = roomOrigin + new Vector2(3f, TutorialRoomHeight / 2f);
 
         // --- Player ---
-        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(Mana), typeof(PlayerInventory), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
         player.transform.SetParent(root.transform);
         player.transform.position = startWorld;
         player.tag = "Player";
@@ -2503,6 +2558,8 @@ public static class DungeonGenerator
         playerController.fistVisualSprite = fistVisualSprite;
         playerController.swordVisualSprite = swordVisualSprite;
         playerController.explosionSprite = explosionSprite;
+        playerController.lightningOrbSprite = lightningOrbSprite;
+        playerController.lightningBoltSprite = lightningBoltSprite;
 
         Health playerHealth = player.GetComponent<Health>();
         playerHealth.maxHealth = 6;
@@ -4491,6 +4548,8 @@ public static class DungeonGenerator
         public Sprite fistVisualSprite;
         public Sprite swordVisualSprite;
         public Sprite explosionSprite;
+        public Sprite lightningOrbSprite;
+        public Sprite lightningBoltSprite;
         public Sprite doorBarrierSprite;
         public Sprite secretWallSprite;
         public Sprite outlineRingSprite;
