@@ -56,7 +56,7 @@ public class PlayerController : MonoBehaviour
     public int fistDamage = 1;
     public float fistRange = 1.0f;
     public float fistOffset = 0.8f;
-    public float fistCooldown = 0.25f;
+    public float fistCooldown = 0.33f;
     public float fistStaminaCost = 5f;
 
     [Header("Sword")]
@@ -253,6 +253,13 @@ public class PlayerController : MonoBehaviour
         else if (kb.rightArrowKey.isPressed) { aim = Vector2.right; directionPressedThisFrame = kb.rightArrowKey.wasPressedThisFrame; }
 
         if (aim != Vector2.zero) aimDirection = aim;
+        // The combo (see AdvanceMeleeCombo) only continues while a direction key stays held -
+        // letting go for even one frame breaks it back to hit 1, regardless of how little time has
+        // passed (2026-09-16 request: "uniquement si la touche d'attaque reste enfoncee, sinon pas
+        // de combo"). Checked every frame here rather than only when an attack actually fires, so a
+        // release mid-cooldown breaks the chain immediately instead of waiting for the next swing
+        // to notice.
+        else comboCount = 0;
 
         // Level 10 Sprint (see PlayerSkills.CanAttackWhileSprinting) lifts this - everyone else
         // still can't fight with their weapon out while running.
