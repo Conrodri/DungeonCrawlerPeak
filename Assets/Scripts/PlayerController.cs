@@ -63,7 +63,17 @@ public class PlayerController : MonoBehaviour
     public int swordDamage = 2;
     public float swordRange = 0.7f;
     public float swordOffset = 0.9f;
-    public float swordCooldown = 0.4f;
+    // Recharge before the NEXT swing can start (2026-09-16 request) - deliberately shorter than
+    // swordSwingDuration below, same "attack again before the previous visual finishes" feel as a
+    // lot of action games; the hit itself already resolved instantly when the swing started (see
+    // SwordSlash), so an overlapping visual never means overlapping damage.
+    public float swordCooldown = 0.25f;
+    // How long the semi-circular swing's visual sweep takes to play out (see SwordSwingVisual) -
+    // purely cosmetic, not tied to swordCooldown or attackLockEndTime.
+    public float swordSwingDuration = 0.5f;
+    // Half-angle of the swing arc on EACH side of aimDirection - 90 = a full semi-circle in front
+    // of the player, matching the "semi circulaire" request exactly.
+    public float swordArcHalfDegrees = 90f;
     public float swordStaminaCost = 8f;
 
     [Header("Staff")]
@@ -521,7 +531,7 @@ public class PlayerController : MonoBehaviour
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
                 else
-                    MeleeAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                    SwordSlash((swordOffset + swordRange) * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
                 DamageWeaponDurability();
                 break;
             case WeaponType.Staff:
@@ -723,6 +733,60 @@ public class PlayerController : MonoBehaviour
             health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
 
         SpawnAttackVisual(visualSprite, origin, range);
+    }
+
+    // Semi-circular sword swing (2026-09-16 request: "un systeme de coup d'epee, semi circulaire,
+    // qui prend 0.5 seconde d'animation, avec 0.25 de temps de recharge") - unlike MeleeAttack's
+    // single small hit-circle offset in front of the player, this hits everything within `radius`
+    // of the player that also falls inside the forward-facing swordArcHalfDegrees*2 arc, so it
+    // actually reads as a wide sweep rather than a poke. Hit detection still resolves instantly (same
+    // convention as every other attack in this file) - swordSwingDuration only controls the cosmetic
+    // sweep (see SpawnSwordSwingVisual), independently of swordCooldown.
+    void SwordSlash(float radius, int damage, Sprite visualSprite)
+    {
+        damage = PrepareMeleeDamage(damage);
+
+        attackLungeVelocity = aimDirection * AttackLungeSpeed;
+        attackLungeEndTime = Time.time + AttackLungeDuration;
+
+        Vector2 origin = rb.position;
+        Collider2D[] hits = Physics2D.OverlapCircleAll(origin, radius);
+        bool connected = false;
+        foreach (Collider2D hit in hits)
+        {
+            if (hit.gameObject == gameObject) continue;
+
+            Vector2 toHit = (hit.attachedRigidbody != null ? hit.attachedRigidbody.position : (Vector2)hit.bounds.center) - origin;
+            if (toHit.sqrMagnitude > 0.0001f && Vector2.Angle(aimDirection, toHit) > swordArcHalfDegrees) continue;
+
+            Health targetHealth = hit.GetComponent<Health>();
+            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: origin); connected = true; }
+
+            DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
+            if (destructible != null) { destructible.TryDamage(damage, stats.force); connected = true; }
+        }
+
+        if (weaponLocked && !connected && health != null)
+            health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
+
+        SpawnSwordSwingVisual(visualSprite, radius);
+    }
+
+    void SpawnSwordSwingVisual(Sprite sprite, float radius)
+    {
+        if (sprite == null) return;
+
+        GameObject go = new GameObject("SwordSwingVisual", typeof(SpriteRenderer), typeof(SwordSwingVisual));
+        SwordSwingVisual swing = go.GetComponent<SwordSwingVisual>();
+        swing.anchor = transform;
+        swing.aimDirection = aimDirection;
+        swing.radius = radius;
+        swing.halfArcDegrees = swordArcHalfDegrees;
+        swing.duration = swordSwingDuration;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 1;
     }
 
     // 3rd chained melee hit (see AdvanceMeleeCombo) - dashes the player forward along the aim
