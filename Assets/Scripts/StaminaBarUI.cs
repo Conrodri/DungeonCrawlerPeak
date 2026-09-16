@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // to fully regenerate before it's noticed), so the exact numbers make any change unambiguous.
 //
 // Polls every frame instead of subscribing to Stamina.OnStaminaChanged (same reasoning as
-// StatsUI) - a Play Mode domain reload (e.g. a script recompile while already playing) silently
+// CharacterSheetUI) - a Play Mode domain reload (e.g. a script recompile while already playing) silently
 // drops C# event subscriptions without Start() ever re-running to resubscribe, which left this
 // bar frozen. Two floats read every frame is free enough that there's no reason to risk that.
 public class StaminaBarUI : MonoBehaviour

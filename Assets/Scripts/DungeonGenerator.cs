@@ -646,14 +646,6 @@ public static class DungeonGenerator
         Sprite npcElderSprite = assets.npcElderSprite;
         Sprite npcMerchantSprite = assets.npcMerchantSprite;
         Sprite npcBadgeSprite = assets.npcBadgeSprite;
-        Sprite fullHeart = assets.fullHeart;
-        Sprite forceIcon = assets.forceIcon;
-        Sprite agiliteIcon = assets.agiliteIcon;
-        Sprite intelligenceIcon = assets.intelligenceIcon;
-        Sprite vitesseIcon = assets.vitesseIcon;
-        Sprite porteeIcon = assets.porteeIcon;
-        Sprite charismeIcon = assets.charismeIcon;
-        Sprite enduranceIcon = assets.enduranceIcon;
         Tile floorTile = assets.floorTile;
         Tile wallTile = assets.wallTile;
 
@@ -1277,28 +1269,9 @@ public static class DungeonGenerator
                 floorTimer, bossRoomControllers, root.transform);
         }
 
-        // --- Stats column (below the gold counter) ---
-        GameObject statsGO = new GameObject("StatsUI", typeof(RectTransform), typeof(StatsUI));
-        statsGO.transform.SetParent(canvasGO.transform, false);
-        RectTransform statsRect = statsGO.GetComponent<RectTransform>();
-        statsRect.anchorMin = Vector2.zero;
-        statsRect.anchorMax = Vector2.one;
-        statsRect.offsetMin = Vector2.zero;
-        statsRect.offsetMax = Vector2.zero;
-
-        StatsUI statsUI = statsGO.GetComponent<StatsUI>();
-        statsUI.yOffset = -176f; // clears the taller health/stamina/XP bars + gold counter above it
-        statsUI.stats = playerStats;
-        statsUI.constitutionIcon = fullHeart;
-        statsUI.forceIcon = forceIcon;
-        statsUI.agiliteIcon = agiliteIcon;
-        statsUI.intelligenceIcon = intelligenceIcon;
-        statsUI.vitesseIcon = vitesseIcon;
-        statsUI.porteeIcon = porteeIcon;
-        statsUI.charismeIcon = charismeIcon;
-        statsUI.enduranceIcon = enduranceIcon;
-
-        // --- Character sheet (full recap of all 8 stats, toggled with C) ---
+        // --- Character sheet (full recap of all 8 stats + 4 skill levels, toggled with C) - the
+        // ONLY place either is shown (2026-09-16 request: no more always-on HUD columns for them,
+        // see the now-deleted StatsUI/SkillsUI) ---
         GameObject characterSheetGO = new GameObject("CharacterSheetUI", typeof(RectTransform), typeof(CharacterSheetUI));
         characterSheetGO.transform.SetParent(canvasGO.transform, false);
         RectTransform characterSheetRect = characterSheetGO.GetComponent<RectTransform>();
@@ -1306,7 +1279,9 @@ public static class DungeonGenerator
         characterSheetRect.anchorMax = Vector2.one;
         characterSheetRect.offsetMin = Vector2.zero;
         characterSheetRect.offsetMax = Vector2.zero;
-        characterSheetGO.GetComponent<CharacterSheetUI>().stats = playerStats;
+        CharacterSheetUI characterSheet = characterSheetGO.GetComponent<CharacterSheetUI>();
+        characterSheet.stats = playerStats;
+        characterSheet.skills = playerSkills;
 
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
@@ -1397,16 +1372,6 @@ public static class DungeonGenerator
         minimap.cellSize = 22f;
         minimap.spacing = 5f;
         minimap.maxPanelSize = 320f;
-
-        // --- Skills panel (top-right, below the minimap) - see PlayerSkills/SkillsUI ---
-        GameObject skillsGO = new GameObject("SkillsUI", typeof(RectTransform), typeof(SkillsUI));
-        skillsGO.transform.SetParent(canvasGO.transform, false);
-        RectTransform skillsRect = skillsGO.GetComponent<RectTransform>();
-        skillsRect.anchorMin = Vector2.zero;
-        skillsRect.anchorMax = Vector2.one;
-        skillsRect.offsetMin = Vector2.zero;
-        skillsRect.offsetMax = Vector2.zero;
-        skillsGO.GetComponent<SkillsUI>().skills = playerSkills;
 
         // --- Dialogue UI (bottom panel + interact prompt + dice roll popup) ---
         // Text sizes doubled (or more) across this whole block for readability, per user request -
@@ -2341,18 +2306,6 @@ public static class DungeonGenerator
         // A floating "!" above the head (same convention as EnemyController's elite badges) fixes
         // that at a glance without needing new art.
         assets.npcBadgeSprite = LoadIconPackSprite("Quest01_Bright");
-
-        // Still used by StatsUI's Constitution icon below - HeartHUD itself no longer needs a
-        // heart sprite at all (see HeartHUD.cs, now a plain fill bar).
-        assets.fullHeart = LoadIconPackSprite("Heart02_Bright");
-
-        assets.forceIcon = LoadIconPackSprite("Sword_Bright");
-        assets.agiliteIcon = LoadIconPackSprite("Bow_Bright");
-        assets.intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
-        assets.vitesseIcon = LoadIconPackSprite("Thunder_Bright");
-        assets.porteeIcon = LoadIconPackSprite("Compass_Bright");
-        assets.charismeIcon = LoadIconPackSprite("Star01_Bright");
-        assets.enduranceIcon = LoadIconPackSprite("Watch_Bright");
 
         assets.floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", assets.floorSprite, Tile.ColliderType.None);
         assets.wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", assets.wallSprite, Tile.ColliderType.Grid);
@@ -4336,14 +4289,6 @@ public static class DungeonGenerator
         public Sprite npcElderSprite;
         public Sprite npcMerchantSprite;
         public Sprite npcBadgeSprite;
-        public Sprite fullHeart;
-        public Sprite forceIcon;
-        public Sprite agiliteIcon;
-        public Sprite intelligenceIcon;
-        public Sprite vitesseIcon;
-        public Sprite porteeIcon;
-        public Sprite charismeIcon;
-        public Sprite enduranceIcon;
         public Tile floorTile;
         public Tile wallTile;
     }

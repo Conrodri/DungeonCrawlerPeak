@@ -2,15 +2,18 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// Read-only recap of all 8 raw stats + level/XP, toggled with C (2026-09-16 request) - distinct
-// from StatsUI (a permanent, near-invisible watermark column showing only 7 of 8 stats with no
-// explanation of what they DO) and from AttributeAllocationUI (lets you SPEND points, also only
-// 7 of 8 - Vitesse is deliberately unspendable, see its own comment). This is the one place that
-// shows the complete picture, each stat next to the exact live gameplay effect it drives, reusing
-// PlayerStats' own multiplier properties rather than re-deriving the formulas here.
+// Read-only recap of all 8 raw stats + level/XP + the 4 skill levels, toggled with C. Originally
+// paired with StatsUI/SkillsUI (two always-on HUD columns) but those are gone now (2026-09-16
+// request: "caches les stats du joueur, ils ne doivent etres accessible que depuis le menu de
+// caracteristiques... pareil pour les competences") - this is the ONLY place any of it is shown.
+// Distinct from AttributeAllocationUI (lets you SPEND points, only 7 of 8 stats - Vitesse is
+// deliberately unspendable, see its own comment) - this shows the complete picture, each stat next
+// to the exact live gameplay effect it drives, reusing PlayerStats' own multiplier properties
+// rather than re-deriving the formulas here.
 public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
 {
     public PlayerStats stats;
+    public PlayerSkills skills;
 
     GameObject panel;
     Text bodyText;
@@ -71,7 +74,7 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
         bodyRect.anchorMin = bodyRect.anchorMax = new Vector2(0.5f, 1f);
         bodyRect.pivot = new Vector2(0.5f, 1f);
         bodyRect.anchoredPosition = new Vector2(0f, -160f);
-        bodyRect.sizeDelta = new Vector2(760f, 620f);
+        bodyRect.sizeDelta = new Vector2(760f, 720f);
 
         GameObject closeGO = new GameObject("CloseHint", typeof(Text));
         closeGO.transform.SetParent(panel.transform, false);
@@ -112,6 +115,9 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
         return true;
     }
 
+    static readonly SkillType[] SkillTypes = { SkillType.Sprint, SkillType.Melee, SkillType.Ranged, SkillType.Roll };
+    static readonly string[] SkillLabels = { "Sprint", "Melee", "Tir", "Roulade" };
+
     void Refresh()
     {
         if (stats == null || bodyText == null) return;
@@ -120,7 +126,7 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
             ? stats.unspentAttributePoints + " point(s) non depense(s) - voir le Tavernier\n\n"
             : "\n";
 
-        bodyText.text =
+        string text =
             "Niveau " + stats.level + "   (XP " + stats.experience + "/" + stats.experienceToNextLevel + ")\n" +
             pointsLine +
             Row("Force", stats.force, PercentDelta(stats.PhysicalDamageMultiplier) + " degats physiques, " + PercentDelta(stats.AttackStaminaCostMultiplier) + " cout endurance attaque") +
@@ -131,6 +137,18 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
             Row("Portee", stats.portee, "portee x" + stats.RangeMultiplier.ToString("0.00")) +
             Row("Charisme", stats.charisme, PercentDelta(stats.ShopPriceMultiplier) + " prix boutique") +
             Row("Endurance", stats.endurance, "+" + Mathf.RoundToInt(stats.endurance * 8f) + " endurance max");
+
+        if (skills != null)
+        {
+            text += "\nCompetences\n";
+            for (int i = 0; i < SkillTypes.Length; i++)
+            {
+                int level = skills.GetLevel(SkillTypes[i]);
+                text += SkillLabels[i] + " : Nv." + level + (level >= PlayerSkills.MaxLevel ? " (max)" : "") + "\n";
+            }
+        }
+
+        bodyText.text = text;
     }
 
     static string Row(string label, int value, string effect) => label + " : " + value + "  (" + effect + ")\n";
