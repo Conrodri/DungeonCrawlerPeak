@@ -63,11 +63,11 @@ public class PlayerController : MonoBehaviour
     public int swordDamage = 2;
     public float swordRange = 0.7f;
     public float swordOffset = 0.9f;
-    // Recharge before the NEXT swing can start (2026-09-16 request) - deliberately shorter than
-    // swordSwingDuration below, same "attack again before the previous visual finishes" feel as a
-    // lot of action games; the hit itself already resolved instantly when the swing started (see
-    // SwordSlash), so an overlapping visual never means overlapping damage.
-    public float swordCooldown = 0.25f;
+    // Recharge before the NEXT swing can start (2026-09-16 request: originally 0.25, shorter than
+    // swordSwingDuration below, so a new swing could start before the previous one's visual
+    // finished - corrected same day to 0.75, longer than swordSwingDuration, so each swing's sweep
+    // always plays out fully before the next one can begin).
+    public float swordCooldown = 0.75f;
     // How long the semi-circular swing's visual sweep takes to play out (see SwordSwingVisual) -
     // purely cosmetic, not tied to swordCooldown or attackLockEndTime.
     public float swordSwingDuration = 0.5f;
