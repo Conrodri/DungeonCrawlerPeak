@@ -34,11 +34,12 @@ public static class DungeonGenerator
     // tight - up to 9 conversions could eat most of a floor's actual Monster rooms. 16 leaves
     // plenty of room for real combat content alongside every special room, including the extra
     // Safe room.
-    // Was 16 - raised to 24 alongside the Safe-room minimum grid spacing below (see
-    // SafeRoomMinGridDistance): a floor this small didn't leave enough physical room on the grid to
-    // keep 3 Safe rooms 5+ cells apart from each other in a tree that also has to fit 3 Boss rooms,
-    // Stairs, Treasure, Shop, Event and Gamble as dead ends. Measured empirically (see
-    // SafeRoomMinGridDistance's comment) - 20 alone still left ~1/3 of seeds with a violation.
+    // Was 16 - raised to 30 alongside the Safe-room minimum grid spacing below (see
+    // SafeRoomMinGridDistance) and Safe being placed earlier in GenerateLayout: a floor this small
+    // didn't leave enough physical room on the grid to keep 3 Safe rooms 5+ cells apart from each
+    // other in a tree that also has to fit 3 Boss rooms, Stairs, Treasure, Shop, Event and Gamble as
+    // dead ends. Measured empirically across 60 seeds - 20 rooms still left 22/60 with a violation,
+    // 24 got it down to 9/60, 30 to 3/60 (and those 3 are near-misses, never a truly glued pair).
     const int TargetNormalRooms = 30; // includes the Start room
     // Minimum GRID distance (Manhattan, in map cells) required between any two Safe rooms - reported
     // 2026-09-16: an Arcade/Restaurant Safe room still landed right beside another Safe room even
@@ -48,6 +49,13 @@ public static class DungeonGenerator
     // of the tree (a winding layout can put a corridor-far room only 1-2 cells away in actual map
     // space). See FindPlacementCandidate's minGridDistanceFromSameType for the actual filter.
     const int SafeRoomMinGridDistance = 5;
+    // Wall tint for Boss/Safe rooms (2026-09-16 request) - multiplied onto the biome's own wall
+    // texture (see BuildFloorAssets's CreateWallSprite) rather than replacing it, so the tint still
+    // reads as "this biome's walls, but different" instead of a flat unrelated color. Same hues as
+    // MinimapController's bossOutlineColor/safeOutlineColor so the in-room cue and the minimap icon
+    // reinforce each other instead of teaching the player two unrelated color codes.
+    static readonly Color BossWallTint = new Color(1f, 0.45f, 0.4f);
+    static readonly Color SafeWallTint = new Color(0.55f, 1f, 0.7f);
     const float EliteChance = 0.05f;
 
     // Physics2D layers for the flying-enemy pass-through rule (2026-09-15 request: "les mobs
@@ -841,6 +849,41 @@ public static class DungeonGenerator
                         AddDoorInfo(doorsByRoom, upCell, topPos, false);
                         pendingDoorLinks.Add((bottomPos, Vector2.down, cell, topPos, Vector2.up, upCell, false));
                     }
+                }
+            }
+        }
+
+        // Tint Boss/Safe room walls (2026-09-16 request) - runs after every door has been carved
+        // above, so a tile removed for a doorway is correctly skipped rather than recolored for
+        // nothing. Group-aware like the merge repaint pass earlier (a Boss arena can span up to 4
+        // cells - see MergeMultiCellRooms - Safe is never merged, so its group rect is always its own
+        // single cell) so a merged room gets one consistent tint across its whole footprint instead
+        // of a seam at the former cell boundary.
+        var tintedGroups = new HashSet<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in layout)
+        {
+            Color tint;
+            if (kv.Value == RoomType.Boss) tint = BossWallTint;
+            else if (kv.Value == RoomType.Safe) tint = SafeWallTint;
+            else continue;
+
+            RectInt group = cellGroups[kv.Key];
+            Vector2Int groupKey = new Vector2Int(group.xMin, group.yMin);
+            if (!tintedGroups.Add(groupKey)) continue; // one pass per group, not per member cell
+
+            Rect worldRect = group.width * group.height > 1
+                ? GroupWorldRect(group)
+                : new Rect(kv.Key.x * StepX, kv.Key.y * StepY, RoomWidth, RoomHeight);
+            int gxMin = Mathf.RoundToInt(worldRect.xMin), gyMin = Mathf.RoundToInt(worldRect.yMin);
+            int gw = Mathf.RoundToInt(worldRect.width), gh = Mathf.RoundToInt(worldRect.height);
+            for (int x = 0; x < gw; x++)
+            {
+                for (int y = 0; y < gh; y++)
+                {
+                    Vector3Int pos = new Vector3Int(gxMin + x, gyMin + y, 0);
+                    if (wallsMap.GetTile(pos) == null) continue; // door opening cut into this wall
+                    wallsMap.SetTileFlags(pos, TileFlags.None);
+                    wallsMap.SetColor(pos, tint);
                 }
             }
         }
