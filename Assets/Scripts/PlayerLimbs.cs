@@ -38,11 +38,29 @@ public class PlayerLimbs : MonoBehaviour
     static readonly BodyPart[] AllParts = (BodyPart[])Enum.GetValues(typeof(BodyPart));
 
     PlayerEquipment equipment;
-    readonly Dictionary<BodyPart, int> limbHealth = new Dictionary<BodyPart, int>();
+    // Populated via a field initializer, NOT Awake (real bug, found 2026-09-16 from an actual
+    // "Player died." log firing straight out of PlayerStats.Awake -> SetConstitutionBonus ->
+    // SyncHealth on a freshly spawned character): DungeonGenerator's Player GameObject constructor
+    // lists PlayerLimbs before PlayerStats specifically so PlayerLimbs.Awake() runs first, but
+    // Unity's multi-type `new GameObject(name, params Type[])` overload does NOT actually guarantee
+    // Awake() fires in that listed order - PlayerStats.Awake() could still call
+    // limbs.SetConstitutionBonus() while these dictionaries were still empty, syncing 0/0 into
+    // Health and killing the character before its first frame. A field initializer runs as part of
+    // the instance's construction (guaranteed by C#, independent of Unity's Awake scheduling), so
+    // by the time ANY component's Awake can even call GetComponent<PlayerLimbs>() on this object,
+    // these are already correctly populated - no ordering assumption left to break.
+    readonly Dictionary<BodyPart, int> limbHealth = InitialLimbMap();
     // Base + constitutionBonus, same bonus added to every part - never a per-species/per-part
     // scaling, Constitution is flat across the whole body.
-    readonly Dictionary<BodyPart, int> limbMaxHealth = new Dictionary<BodyPart, int>();
+    readonly Dictionary<BodyPart, int> limbMaxHealth = InitialLimbMap();
     int constitutionBonus;
+
+    static Dictionary<BodyPart, int> InitialLimbMap()
+    {
+        var map = new Dictionary<BodyPart, int>();
+        foreach (BodyPart part in AllParts) map[part] = BaseMaxFor(part);
+        return map;
+    }
 
     // (part hit, damage actually applied after armor) - for a future hit-location UI/log hookup.
     public event Action<BodyPart, int> OnHit;
@@ -53,11 +71,6 @@ public class PlayerLimbs : MonoBehaviour
     void Awake()
     {
         equipment = GetComponent<PlayerEquipment>();
-        foreach (BodyPart part in AllParts)
-        {
-            limbMaxHealth[part] = BaseMaxFor(part);
-            limbHealth[part] = limbMaxHealth[part];
-        }
     }
 
     public int GetMaxLimbHealth(BodyPart part) => limbMaxHealth.TryGetValue(part, out int max) ? max : BaseMaxFor(part);
