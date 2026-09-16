@@ -3025,7 +3025,11 @@ public static class DungeonGenerator
         PlaceSpecialRoom(rooms, RoomType.Treasure, secretCell, start, bossDistance);
         PlaceSpecialRoom(rooms, RoomType.Shop, secretCell, start, bossDistance);
         if (Random.value < 0.5f) PlaceSpecialRoom(rooms, RoomType.Event, secretCell, start, bossDistance); // 1-in-2 chance per floor
-        PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance);
+        // Also kept clear of the Safe trio (reported 2026-09-16: a Gamble room landing glued to a
+        // Tavern/Restaurant/Arcade "town" cluster) - all 3 Safe rooms already exist by this point
+        // (placed right after Stairs, above), so this is one-directional: Gamble moves away from
+        // them, same SafeRoomMinGridDistance threshold as Safe-vs-Safe.
+        PlaceSpecialRoom(rooms, RoomType.Gamble, secretCell, start, bossDistance, SafeRoomMinGridDistance, avoidTypes: new[] { RoomType.Gamble, RoomType.Safe });
         // Which content that third Safe room actually gets (2026-09-16: Arcade is no longer the
         // only option - see SafeRoomVariant/SpawnFlowerGardenContent/SpawnMaterialStorageContent).
         arcadeVariant = (SafeRoomVariant)Random.Range(0, 3);
@@ -3264,18 +3268,18 @@ public static class DungeonGenerator
     // Returns whether a spot was actually found - callers for whom the room is truly mandatory
     // (currently only Stairs) need to know so they can fall back to ForcePlaceStairs instead of
     // silently generating a floor without one.
-    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, int minGridDistanceFromSameType = 0)
-        => PlaceSpecialRoom(rooms, type, protectedAnchor, start, maxDistanceFromStart, out _, minGridDistanceFromSameType);
+    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, int minGridDistanceFromSameType = 0, RoomType[] avoidTypes = null)
+        => PlaceSpecialRoom(rooms, type, protectedAnchor, start, maxDistanceFromStart, out _, minGridDistanceFromSameType, avoidTypes);
 
     // Out-param overload - lets a caller that places several rooms of the SAME type (the two extra
     // Boss encounters, see bossTiers below) know exactly which cell each individual call landed on,
     // instead of having to guess from a shared RoomType afterward.
-    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, out Vector2Int chosenCell, int minGridDistanceFromSameType = 0)
+    static bool PlaceSpecialRoom(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Vector2Int start, int maxDistanceFromStart, out Vector2Int chosenCell, int minGridDistanceFromSameType = 0, RoomType[] avoidTypes = null)
     {
         Dictionary<Vector2Int, int> dist = ComputeDistances(rooms, start);
-        Vector2Int? chosen = FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart, minGridDistanceFromSameType)
-            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart + 1, minGridDistanceFromSameType)
-            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, int.MaxValue, minGridDistanceFromSameType);
+        Vector2Int? chosen = FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart, minGridDistanceFromSameType, avoidTypes)
+            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, maxDistanceFromStart + 1, minGridDistanceFromSameType, avoidTypes)
+            ?? FindPlacementCandidate(rooms, type, protectedAnchor, dist, int.MaxValue, minGridDistanceFromSameType, avoidTypes);
         if (!chosen.HasValue) { chosenCell = default; return false; }
         rooms[chosen.Value] = type;
         chosenCell = chosen.Value;
@@ -3299,8 +3303,13 @@ public static class DungeonGenerator
         rooms[candidates[Random.Range(0, candidates.Count)]] = RoomType.Stairs;
     }
 
-    static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart, int minGridDistanceFromSameType = 0)
+    static Vector2Int? FindPlacementCandidate(Dictionary<Vector2Int, RoomType> rooms, RoomType type, Vector2Int? protectedAnchor, Dictionary<Vector2Int, int> dist, int maxDistanceFromStart, int minGridDistanceFromSameType = 0, RoomType[] avoidTypes = null)
     {
+        // Defaults to "just this type" (the original behavior) - a caller placing a type that
+        // shouldn't cluster with OTHER special rooms either (see Gamble below, reported 2026-09-16:
+        // a Gamble room landing glued to the Safe-room trio) passes a wider set instead.
+        avoidTypes ??= new[] { type };
+
         Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
         var candidates = new List<Vector2Int>();
         var anchors = new List<Vector2Int>(); // parallel to candidates - the existing cell each one would branch off of
@@ -3309,16 +3318,17 @@ public static class DungeonGenerator
         {
             if (cell == protectedAnchor) continue;
             if (dist.TryGetValue(cell, out int cellDist) && cellDist + 1 >= maxDistanceFromStart) continue;
-            // Never branch a new room directly off an EXISTING room of the same type - a valid dead
-            // end can only ever touch exactly ONE existing room (see neighborCount below), so if
-            // that one room is already the same type, this candidate would glue two same-type rooms
-            // together. The "farthest from same type" scoring further down only DEPRIORITIZES that
-            // (it still wins if it's the only option left in a cramped layout) - this is what
-            // actually forbids it, closing the gap that let it happen anyway (reported 2026-09-16:
-            // an Arcade/Restaurant Safe-room variant placed directly against another Safe room -
-            // both RoomType.Safe, so the softer distance heuristic already in place, see below,
-            // wasn't enough on its own once a floor started placing 3 Safe rooms instead of 2).
-            if (rooms.TryGetValue(cell, out RoomType existingType) && existingType == type) continue;
+            // Never branch a new room directly off an EXISTING room of the same type (or, if
+            // avoidTypes was widened, any of those types) - a valid dead end can only ever touch
+            // exactly ONE existing room (see neighborCount below), so if that one room already
+            // matches, this candidate would glue the two together. The "farthest" scoring further
+            // down only DEPRIORITIZES that (it still wins if it's the only option left in a cramped
+            // layout) - this is what actually forbids it, closing the gap that let it happen anyway
+            // (reported 2026-09-16: an Arcade/Restaurant Safe-room variant placed directly against
+            // another Safe room - both RoomType.Safe, so the softer distance heuristic already in
+            // place, see below, wasn't enough on its own once a floor started placing 3 Safe rooms
+            // instead of 2).
+            if (rooms.TryGetValue(cell, out RoomType existingType) && System.Array.IndexOf(avoidTypes, existingType) >= 0) continue;
             foreach (Vector2Int d in dirs)
             {
                 Vector2Int next = cell + d;
@@ -3340,7 +3350,7 @@ public static class DungeonGenerator
         // Event/Gamble/the farthest Boss) never has an existing same-type cell yet, so sameTypeCells
         // is empty and this is a no-op for them.
         List<Vector2Int> sameTypeCells = new List<Vector2Int>();
-        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == type) sameTypeCells.Add(kv.Key);
+        foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (System.Array.IndexOf(avoidTypes, kv.Value) >= 0) sameTypeCells.Add(kv.Key);
         if (sameTypeCells.Count == 0) return candidates[Random.Range(0, candidates.Count)];
 
         // Spatial spacing, in GRID cells rather than corridor hops (see SafeRoomMinGridDistance) - a
