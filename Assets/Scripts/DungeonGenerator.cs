@@ -2573,7 +2573,61 @@ public static class DungeonGenerator
         // Without this, Escape never calls UIWindowStack.CloseTop() on this floor, so the Guide's
         // panel (TutorialNpc, see SpawnTutorialNpc) could only ever be closed with E.
         Font tutorialUiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
-        BuildPauseMenu(canvasGO.transform, tutorialUiFont, Object.FindFirstObjectByType<MainMenuController>());
+        MainMenuController tutorialMainMenu = Object.FindFirstObjectByType<MainMenuController>();
+        BuildPauseMenu(canvasGO.transform, tutorialUiFont, tutorialMainMenu);
+
+        // --- Death screen (2026-09-16 fix: the tutorial never had one at all - dying here just set
+        // isDead and froze the character with nothing on screen, no path back to the main menu short
+        // of forcing Play Mode itself to restart, which - with this project's Enter Play Mode
+        // Options set to skip domain reload - doesn't even reliably land back at the menu either.
+        // Same setup as Build()'s own death screen below, just reusing this floor's own canvas/font.
+        GameObject tutorialDeathGO = new GameObject("DeathScreen", typeof(RectTransform), typeof(Image), typeof(DeathScreenUI));
+        tutorialDeathGO.transform.SetParent(canvasGO.transform, false);
+        Image tutorialDeathBg = tutorialDeathGO.GetComponent<Image>();
+        tutorialDeathBg.color = new Color(0.03f, 0.02f, 0.02f, 0.92f);
+        RectTransform tutorialDeathRect = tutorialDeathBg.rectTransform;
+        tutorialDeathRect.anchorMin = Vector2.zero;
+        tutorialDeathRect.anchorMax = Vector2.one;
+        tutorialDeathRect.offsetMin = Vector2.zero;
+        tutorialDeathRect.offsetMax = Vector2.zero;
+
+        GameObject tutorialDeathTitleGO = new GameObject("Title", typeof(Text));
+        tutorialDeathTitleGO.transform.SetParent(tutorialDeathGO.transform, false);
+        Text tutorialDeathTitle = tutorialDeathTitleGO.GetComponent<Text>();
+        tutorialDeathTitle.text = "VOUS ETES MORT";
+        tutorialDeathTitle.font = tutorialUiFont;
+        tutorialDeathTitle.fontSize = 64;
+        tutorialDeathTitle.fontStyle = FontStyle.Bold;
+        tutorialDeathTitle.alignment = TextAnchor.MiddleCenter;
+        tutorialDeathTitle.color = new Color(0.8f, 0.15f, 0.15f);
+        RectTransform tutorialDeathTitleRect = tutorialDeathTitle.rectTransform;
+        tutorialDeathTitleRect.anchorMin = new Vector2(0.5f, 0.5f);
+        tutorialDeathTitleRect.anchorMax = new Vector2(0.5f, 0.5f);
+        tutorialDeathTitleRect.pivot = new Vector2(0.5f, 0.5f);
+        tutorialDeathTitleRect.anchoredPosition = new Vector2(0f, 30f);
+        tutorialDeathTitleRect.sizeDelta = new Vector2(1200f, 120f);
+
+        GameObject tutorialDeathPromptGO = new GameObject("Prompt", typeof(Text));
+        tutorialDeathPromptGO.transform.SetParent(tutorialDeathGO.transform, false);
+        Text tutorialDeathPrompt = tutorialDeathPromptGO.GetComponent<Text>();
+        tutorialDeathPrompt.text = "Appuyez sur ESPACE pour retourner au menu";
+        tutorialDeathPrompt.font = tutorialUiFont;
+        tutorialDeathPrompt.fontSize = 26;
+        tutorialDeathPrompt.alignment = TextAnchor.MiddleCenter;
+        tutorialDeathPrompt.color = new Color(0.85f, 0.85f, 0.85f);
+        RectTransform tutorialDeathPromptRect = tutorialDeathPrompt.rectTransform;
+        tutorialDeathPromptRect.anchorMin = new Vector2(0.5f, 0.5f);
+        tutorialDeathPromptRect.anchorMax = new Vector2(0.5f, 0.5f);
+        tutorialDeathPromptRect.pivot = new Vector2(0.5f, 0.5f);
+        tutorialDeathPromptRect.anchoredPosition = new Vector2(0f, -40f);
+        tutorialDeathPromptRect.sizeDelta = new Vector2(900f, 60f);
+
+        tutorialDeathGO.SetActive(false);
+
+        DeathScreenUI tutorialDeathScreen = tutorialDeathGO.GetComponent<DeathScreenUI>();
+        tutorialDeathScreen.root = tutorialDeathGO;
+        tutorialDeathScreen.mainMenu = tutorialMainMenu;
+        playerHealth.OnDeath += tutorialDeathScreen.Show;
 
         // --- Character sheet (full recap of all 8 stats, toggled with C) - available here too so
         // C works consistently from floor 0 onward, same as every other HUD key ---
