@@ -821,7 +821,8 @@ public static class DungeonGenerator
             "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1,
             maxDurability: 30, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
-            "Se porte a n'importe quel doigt.", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft, rarity: 2);
+            "Se porte a n'importe quel doigt (+1 Endurance).", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft,
+            ringBonusStat: StatType.Endurance, rarity: 2);
 
         // Real shop wares (see SpawnMerchantNpc) - 8 stat rings (one random one sold per floor),
         // anti-hole boots (immune to the Hole debuff - see PlayerController.ApplyMovementDebuff),
@@ -1319,7 +1320,7 @@ public static class DungeonGenerator
         heartBarRect.anchorMin = heartBarRect.anchorMax = new Vector2(0f, 1f);
         heartBarRect.pivot = new Vector2(0f, 1f);
         heartBarRect.anchoredPosition = new Vector2(20f, -20f);
-        heartBarRect.sizeDelta = new Vector2(160f, 16f);
+        heartBarRect.sizeDelta = new Vector2(160f, 24f);
 
         GameObject heartFillGO = new GameObject("Fill", typeof(Image));
         heartFillGO.transform.SetParent(heartBarGO.transform, false);
@@ -1346,7 +1347,7 @@ public static class DungeonGenerator
         heartLabelRect.anchorMin = heartLabelRect.anchorMax = new Vector2(0f, 1f);
         heartLabelRect.pivot = new Vector2(0f, 1f);
         heartLabelRect.anchoredPosition = new Vector2(188f, -20f);
-        heartLabelRect.sizeDelta = new Vector2(100f, 16f);
+        heartLabelRect.sizeDelta = new Vector2(100f, 24f);
 
         HeartHUD hud = heartBarGO.GetComponent<HeartHUD>();
         hud.target = playerHealth;
@@ -1361,8 +1362,8 @@ public static class DungeonGenerator
         RectTransform staminaBarRect = staminaBarBackground.rectTransform;
         staminaBarRect.anchorMin = staminaBarRect.anchorMax = new Vector2(0f, 1f);
         staminaBarRect.pivot = new Vector2(0f, 1f);
-        staminaBarRect.anchoredPosition = new Vector2(20f, -58f);
-        staminaBarRect.sizeDelta = new Vector2(160f, 16f);
+        staminaBarRect.anchoredPosition = new Vector2(20f, -52f);
+        staminaBarRect.sizeDelta = new Vector2(160f, 24f);
 
         GameObject staminaFillGO = new GameObject("Fill", typeof(Image));
         staminaFillGO.transform.SetParent(staminaBarGO.transform, false);
@@ -1391,8 +1392,8 @@ public static class DungeonGenerator
         RectTransform staminaLabelRect = staminaLabel.rectTransform;
         staminaLabelRect.anchorMin = staminaLabelRect.anchorMax = new Vector2(0f, 1f);
         staminaLabelRect.pivot = new Vector2(0f, 1f);
-        staminaLabelRect.anchoredPosition = new Vector2(188f, -58f);
-        staminaLabelRect.sizeDelta = new Vector2(80f, 16f);
+        staminaLabelRect.anchoredPosition = new Vector2(188f, -52f);
+        staminaLabelRect.sizeDelta = new Vector2(80f, 24f);
 
         StaminaBarUI staminaBar = staminaBarGO.GetComponent<StaminaBarUI>();
         staminaBar.target = playerStamina;
@@ -1410,9 +1411,10 @@ public static class DungeonGenerator
 
         GoldCounterUI goldCounter = goldGO.GetComponent<GoldCounterUI>();
         goldCounter.inventory = playerInventory;
-        goldCounter.yOffset = -82f; // leaves room for the stamina bar sitting just under the hearts
+        goldCounter.yOffset = -84f; // leaves room for the (now taller) stamina bar above
 
-        // --- Experience bar (below the gold counter) - no XP/level visual existed at all before ---
+        // --- Experience bar (below the gold counter, which is 48px tall) - no XP/level visual
+        // existed at all before ---
         GameObject xpBarGO = new GameObject("ExperienceBar", typeof(RectTransform), typeof(Image), typeof(ExperienceBarUI));
         xpBarGO.transform.SetParent(canvasGO.transform, false);
         Image xpBarBackground = xpBarGO.GetComponent<Image>();
@@ -1420,8 +1422,8 @@ public static class DungeonGenerator
         RectTransform xpBarRect = xpBarBackground.rectTransform;
         xpBarRect.anchorMin = xpBarRect.anchorMax = new Vector2(0f, 1f);
         xpBarRect.pivot = new Vector2(0f, 1f);
-        xpBarRect.anchoredPosition = new Vector2(20f, -106f);
-        xpBarRect.sizeDelta = new Vector2(160f, 16f);
+        xpBarRect.anchoredPosition = new Vector2(20f, -140f);
+        xpBarRect.sizeDelta = new Vector2(160f, 24f);
 
         GameObject xpFillGO = new GameObject("Fill", typeof(Image));
         xpFillGO.transform.SetParent(xpBarGO.transform, false);
@@ -1447,8 +1449,8 @@ public static class DungeonGenerator
         RectTransform xpLabelRect = xpLabel.rectTransform;
         xpLabelRect.anchorMin = xpLabelRect.anchorMax = new Vector2(0f, 1f);
         xpLabelRect.pivot = new Vector2(0f, 1f);
-        xpLabelRect.anchoredPosition = new Vector2(188f, -106f);
-        xpLabelRect.sizeDelta = new Vector2(100f, 16f);
+        xpLabelRect.anchoredPosition = new Vector2(188f, -140f);
+        xpLabelRect.sizeDelta = new Vector2(100f, 24f);
 
         ExperienceBarUI xpBar = xpBarGO.GetComponent<ExperienceBarUI>();
         xpBar.target = playerStats;
@@ -1514,6 +1516,7 @@ public static class DungeonGenerator
         statsRect.offsetMax = Vector2.zero;
 
         StatsUI statsUI = statsGO.GetComponent<StatsUI>();
+        statsUI.yOffset = -176f; // clears the taller health/stamina/XP bars + gold counter above it
         statsUI.stats = playerStats;
         statsUI.constitutionIcon = fullHeart;
         statsUI.forceIcon = forceIcon;
@@ -1992,50 +1995,7 @@ public static class DungeonGenerator
         playerHealth.OnDeath += deathScreen.Show;
 
         // --- Pause menu (Echap, hidden by default) - Reprendre/Parametres/Quitter au menu ---
-        // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it
-        // toggles: a MonoBehaviour's Update() never runs while its own GameObject is inactive, so
-        // putting the Escape-listening component directly on the panel it hides by default meant
-        // Escape could never be detected in the first place - the pause menu was unreachable no
-        // matter what.
-        GameObject pauseControllerGO = new GameObject("PauseMenuController", typeof(PauseMenuUI));
-        pauseControllerGO.transform.SetParent(canvasGO.transform, false);
-        PauseMenuUI pauseMenu = pauseControllerGO.GetComponent<PauseMenuUI>();
-
-        GameObject pauseGO = new GameObject("PauseMenu", typeof(RectTransform), typeof(Image));
-        pauseGO.transform.SetParent(canvasGO.transform, false);
-        Image pauseBg = pauseGO.GetComponent<Image>();
-        pauseBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
-        RectTransform pauseRect = pauseBg.rectTransform;
-        pauseRect.anchorMin = Vector2.zero;
-        pauseRect.anchorMax = Vector2.one;
-        pauseRect.offsetMin = Vector2.zero;
-        pauseRect.offsetMax = Vector2.zero;
-
-        GameObject pauseTitleGO = new GameObject("Title", typeof(Text));
-        pauseTitleGO.transform.SetParent(pauseGO.transform, false);
-        Text pauseTitle = pauseTitleGO.GetComponent<Text>();
-        pauseTitle.text = "Pause";
-        pauseTitle.font = uiFont;
-        pauseTitle.fontSize = 48;
-        pauseTitle.fontStyle = FontStyle.Bold;
-        pauseTitle.alignment = TextAnchor.MiddleCenter;
-        pauseTitle.color = Color.white;
-        RectTransform pauseTitleRect = pauseTitle.rectTransform;
-        pauseTitleRect.anchorMin = pauseTitleRect.anchorMax = new Vector2(0.5f, 1f);
-        pauseTitleRect.pivot = new Vector2(0.5f, 1f);
-        pauseTitleRect.anchoredPosition = new Vector2(0f, -100f);
-        pauseTitleRect.sizeDelta = new Vector2(800f, 100f);
-
-        MainMenuController.CreateButton(pauseGO.transform, "Reprendre", uiFont, -260f, pauseMenu.Resume);
-        MainMenuController.CreateButton(pauseGO.transform, "Parametres", uiFont, -340f, pauseMenu.ToggleSettings);
-        MainMenuController.CreateButton(pauseGO.transform, "Quitter au menu principal", uiFont, -420f, pauseMenu.QuitToMenu);
-        GameObject pauseSettingsPanel = MainMenuController.BuildSettingsPanel(pauseGO.transform, uiFont);
-
-        pauseGO.SetActive(false);
-
-        pauseMenu.root = pauseGO;
-        pauseMenu.settingsPanel = pauseSettingsPanel;
-        pauseMenu.mainMenu = deathScreen.mainMenu;
+        PauseMenuUI pauseMenu = BuildPauseMenu(canvasGO.transform, uiFont, deathScreen.mainMenu);
 
         // --- Attribute allocation panel (opened from the Tavernier - see AttributeAllocationUI) ---
         GameObject attrGO = new GameObject("AttributeAllocation", typeof(RectTransform), typeof(Image), typeof(AttributeAllocationUI));
@@ -2486,6 +2446,11 @@ public static class DungeonGenerator
         hud.fill = heartFill;
         hud.label = heartLabel;
 
+        // Without this, Escape never calls UIWindowStack.CloseTop() on this floor, so the Guide's
+        // panel (TutorialNpc, see SpawnTutorialNpc) could only ever be closed with E.
+        Font tutorialUiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
+        BuildPauseMenu(canvasGO.transform, tutorialUiFont, Object.FindFirstObjectByType<MainMenuController>());
+
         // --- The one Zombie standing between the player and the portal ---
         GameObject roomGO = new GameObject("TutorialRoom", typeof(RoomController));
         roomGO.transform.SetParent(root.transform);
@@ -2535,6 +2500,57 @@ public static class DungeonGenerator
         // --- The Guide: appears only once the Zombie is dead ---
         Vector2 npcPos = roomOrigin + new Vector2(TutorialRoomWidth - 7f, TutorialRoomHeight / 2f + 2.5f);
         controller.OnRoomCleared += _ => SpawnTutorialNpc(npcPos, npcSprite, root.transform);
+    }
+
+    // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it
+    // toggles: a MonoBehaviour's Update() never runs while its own GameObject is inactive, so
+    // putting the Escape-listening component directly on the panel it hides by default meant
+    // Escape could never be detected in the first place - the pause menu was unreachable no
+    // matter what. Shared by Build() and BuildTutorial() - the tutorial floor used to have no
+    // PauseMenuUI at all, which meant UIWindowStack.CloseTop() was never called there, so nothing
+    // (e.g. the Guide's TutorialNpc panel) could ever be closed with Escape on that floor.
+    static PauseMenuUI BuildPauseMenu(Transform canvasParent, Font uiFont, MainMenuController mainMenu)
+    {
+        GameObject pauseControllerGO = new GameObject("PauseMenuController", typeof(PauseMenuUI));
+        pauseControllerGO.transform.SetParent(canvasParent, false);
+        PauseMenuUI pauseMenu = pauseControllerGO.GetComponent<PauseMenuUI>();
+
+        GameObject pauseGO = new GameObject("PauseMenu", typeof(RectTransform), typeof(Image));
+        pauseGO.transform.SetParent(canvasParent, false);
+        Image pauseBg = pauseGO.GetComponent<Image>();
+        pauseBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        RectTransform pauseRect = pauseBg.rectTransform;
+        pauseRect.anchorMin = Vector2.zero;
+        pauseRect.anchorMax = Vector2.one;
+        pauseRect.offsetMin = Vector2.zero;
+        pauseRect.offsetMax = Vector2.zero;
+
+        GameObject pauseTitleGO = new GameObject("Title", typeof(Text));
+        pauseTitleGO.transform.SetParent(pauseGO.transform, false);
+        Text pauseTitle = pauseTitleGO.GetComponent<Text>();
+        pauseTitle.text = "Pause";
+        pauseTitle.font = uiFont;
+        pauseTitle.fontSize = 48;
+        pauseTitle.fontStyle = FontStyle.Bold;
+        pauseTitle.alignment = TextAnchor.MiddleCenter;
+        pauseTitle.color = Color.white;
+        RectTransform pauseTitleRect = pauseTitle.rectTransform;
+        pauseTitleRect.anchorMin = pauseTitleRect.anchorMax = new Vector2(0.5f, 1f);
+        pauseTitleRect.pivot = new Vector2(0.5f, 1f);
+        pauseTitleRect.anchoredPosition = new Vector2(0f, -100f);
+        pauseTitleRect.sizeDelta = new Vector2(800f, 100f);
+
+        MainMenuController.CreateButton(pauseGO.transform, "Reprendre", uiFont, -260f, pauseMenu.Resume);
+        MainMenuController.CreateButton(pauseGO.transform, "Parametres", uiFont, -340f, pauseMenu.ToggleSettings);
+        MainMenuController.CreateButton(pauseGO.transform, "Quitter au menu principal", uiFont, -420f, pauseMenu.QuitToMenu);
+        GameObject pauseSettingsPanel = MainMenuController.BuildSettingsPanel(pauseGO.transform, uiFont);
+
+        pauseGO.SetActive(false);
+
+        pauseMenu.root = pauseGO;
+        pauseMenu.settingsPanel = pauseSettingsPanel;
+        pauseMenu.mainMenu = mainMenu;
+        return pauseMenu;
     }
 
     static void SpawnTutorialNpc(Vector2 position, Sprite sprite, Transform parent)
