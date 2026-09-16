@@ -48,12 +48,16 @@ public class Staircase : MonoBehaviour
 
     // Called by Lever.cs on every pull instead of Unlock() directly - only the LAST of
     // leversRequired pulls actually unlocks (a no-op default of 1 makes a single-lever floor
-    // unlock on its one and only pull, exactly like before this existed).
-    public void NotifyLeverPulled()
+    // unlock on its one and only pull, exactly like before this existed). Returns the new
+    // pulled/required tally so the calling Lever can show the player an on-screen count - pulling
+    // one used to be entirely silent (a console-only Debug.Log), which was part of why levers were
+    // so easy to miss/not understand (2026-09-16 report).
+    public (int pulled, int required) NotifyLeverPulled()
     {
         leversPulled++;
         Debug.Log("Staircase: lever " + leversPulled + "/" + leversRequired + " pulled.");
         if (leversPulled >= leversRequired) Unlock();
+        return (leversPulled, leversRequired);
     }
 
     public void Unlock()

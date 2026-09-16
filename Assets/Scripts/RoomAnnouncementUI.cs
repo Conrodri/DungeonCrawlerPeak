@@ -8,9 +8,24 @@ using UnityEngine.UI;
 // crossed) never re-triggers it.
 public class RoomAnnouncementUI : MonoBehaviour
 {
+    // Same static-instance convention as TooltipUI - lets a gameplay object with no direct wiring
+    // to this (see Lever.cs) show a message without DungeonGenerator having to thread a reference
+    // all the way through the Staircase/Lever spawn calls just for this.
+    public static RoomAnnouncementUI Instance { get; private set; }
+
     public GameObject root;
     public Text label;
     public float displayDuration = 2.5f;
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
 
     public void Show(string message)
     {

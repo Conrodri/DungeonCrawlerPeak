@@ -341,6 +341,22 @@ public static class DungeonGenerator
         "       XXX",
         "        XX",
     };
+    // A simple diagonal handle on a wide base plate - reads as "lever/switch" at a glance instead
+    // of a plain square indistinguishable from room decor (StoneBlock/WoodDebris/MetalDebris all
+    // use CreateSolidSprite, no masked shape - see 2026-09-16 lever visibility rework).
+    static readonly string[] LeverMask =
+    {
+        "     XX   ",
+        "    XXX   ",
+        "   XXX    ",
+        "  XXX     ",
+        " XXX      ",
+        " XXX      ",
+        " XXX      ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+    };
     static readonly string[] AnvilMask =
     {
         " XXXXXXXX ",
@@ -2107,7 +2123,10 @@ public static class DungeonGenerator
         assets.safeMarker = LoadIconPackSprite("Shield_Bright");
         assets.stairsMarker = LoadIconPackSprite("Exit_Bright");
         assets.stairsCageSprite = CreateMaskedSprite("Assets/Art/Fx/StairsCage.png", CageMask, new Color(0.16f, 0.15f, 0.18f));
-        assets.leverSprite = CreateSolidSprite("Assets/Art/Decor/Lever.png", new Color(0.4f, 0.35f, 0.3f));
+        // Bright saturated gold - deliberately unlike every decor tint on this floor (stone/wood/
+        // metal/barrel are all muted earth tones, see DecorSprites) so it never blends in with
+        // ordinary scenery, on top of the distinct LeverMask shape above.
+        assets.leverSprite = CreateMaskedSprite("Assets/Art/Decor/Lever.png", LeverMask, new Color(0.85f, 0.7f, 0.15f));
         assets.craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
 
         assets.projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
@@ -2756,8 +2775,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = 0;
-
-        go.GetComponent<CircleCollider2D>().isTrigger = true;
+        go.AddComponent<SpriteOutline>(); // same visibility treatment as mobs, see RoomController.SpawnEnemies
 
         go.GetComponent<Lever>().target = target;
     }
