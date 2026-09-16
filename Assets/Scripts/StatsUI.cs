@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Left-side column, below the gold counter: an icon + live value per stat. Refreshes every frame -
-// cheap for six short strings, and keeps this correct even when a dialogue outcome changes a stat
-// mid-run without needing a change-notification event on PlayerStats.
+// Left-side column, below the gold counter: an icon + live value per stat, all 8. Refreshes every
+// frame - cheap for eight short strings, and keeps this correct even when a dialogue outcome
+// changes a stat mid-run without needing a change-notification event on PlayerStats.
 public class StatsUI : MonoBehaviour
 {
     public PlayerStats stats;
@@ -12,6 +12,7 @@ public class StatsUI : MonoBehaviour
     public Sprite agiliteIcon;
     public Sprite intelligenceIcon;
     public Sprite vitesseIcon;
+    public Sprite porteeIcon;
     public Sprite charismeIcon;
     public Sprite enduranceIcon;
 
@@ -21,7 +22,13 @@ public class StatsUI : MonoBehaviour
     public int fontSize = 32;
     [Range(0f, 1f)] public float alpha = 0.3f;
 
-    static readonly string[] Labels = { "Constitution", "Force", "Agilite", "Intelligence", "Vitesse", "Charisme", "Endurance" };
+    // Label/StatType kept as two parallel arrays instead of hand-written per-stat lines in
+    // Refresh() (was: valueTexts[2].text = Labels[2] + ": " + stats.dexterite, where Labels[2]
+    // actually read "Agilite" and Portee wasn't listed at all - a real display bug, found
+    // 2026-09-16, that this shape can't reproduce since the label and the value now come from the
+    // same index into the same PlayerStats.GetStat(StatType) lookup every other stat consumer uses).
+    static readonly string[] Labels = { "Constitution", "Force", "Dexterite", "Intelligence", "Vitesse", "Portee", "Charisme", "Endurance" };
+    static readonly StatType[] Types = { StatType.Constitution, StatType.Force, StatType.Dexterite, StatType.Intelligence, StatType.Vitesse, StatType.Portee, StatType.Charisme, StatType.Endurance };
 
     Text[] valueTexts;
 
@@ -38,7 +45,7 @@ public class StatsUI : MonoBehaviour
 
     void BuildUI()
     {
-        Sprite[] icons = { constitutionIcon, forceIcon, agiliteIcon, intelligenceIcon, vitesseIcon, charismeIcon, enduranceIcon };
+        Sprite[] icons = { constitutionIcon, forceIcon, agiliteIcon, intelligenceIcon, vitesseIcon, porteeIcon, charismeIcon, enduranceIcon };
         valueTexts = new Text[Labels.Length];
         Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize);
         Color tint = new Color(1f, 1f, 1f, alpha);
@@ -79,12 +86,7 @@ public class StatsUI : MonoBehaviour
     void Refresh()
     {
         if (stats == null || valueTexts == null) return;
-        valueTexts[0].text = Labels[0] + ": " + stats.constitution;
-        valueTexts[1].text = Labels[1] + ": " + stats.force;
-        valueTexts[2].text = Labels[2] + ": " + stats.dexterite;
-        valueTexts[3].text = Labels[3] + ": " + stats.intelligence;
-        valueTexts[4].text = Labels[4] + ": " + stats.vitesse;
-        valueTexts[5].text = Labels[5] + ": " + stats.charisme;
-        valueTexts[6].text = Labels[6] + ": " + stats.endurance;
+        for (int i = 0; i < Labels.Length; i++)
+            valueTexts[i].text = Labels[i] + ": " + stats.GetStat(Types[i]);
     }
 }

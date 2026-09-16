@@ -880,6 +880,7 @@ public static class DungeonGenerator
         Sprite agiliteIcon = LoadIconPackSprite("Bow_Bright");
         Sprite intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
         Sprite vitesseIcon = LoadIconPackSprite("Thunder_Bright");
+        Sprite porteeIcon = LoadIconPackSprite("Compass_Bright");
         Sprite charismeIcon = LoadIconPackSprite("Star01_Bright");
         Sprite enduranceIcon = LoadIconPackSprite("Watch_Bright");
 
@@ -1523,6 +1524,7 @@ public static class DungeonGenerator
         statsUI.agiliteIcon = agiliteIcon;
         statsUI.intelligenceIcon = intelligenceIcon;
         statsUI.vitesseIcon = vitesseIcon;
+        statsUI.porteeIcon = porteeIcon;
         statsUI.charismeIcon = charismeIcon;
         statsUI.enduranceIcon = enduranceIcon;
 

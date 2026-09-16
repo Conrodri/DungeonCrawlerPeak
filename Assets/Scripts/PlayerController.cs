@@ -533,7 +533,6 @@ public class PlayerController : MonoBehaviour
     const float ComboWindow = 1f;
     const float ComboFinisherDashDistance = 3f;
     const float ComboFinisherDashSpeed = 16f;
-    const float ComboFinisherDashDuration = ComboFinisherDashDistance / ComboFinisherDashSpeed;
     int comboCount;
     float lastMeleeComboTime = -999f;
 
@@ -757,9 +756,14 @@ public class PlayerController : MonoBehaviour
 
         // Reuses the same attack-lunge velocity override a normal swing's small step already drives
         // in FixedUpdate - just bigger/longer - and extends attackLockEndTime (Mathf.Max, never
-        // shrinks it) so ordinary movement input can't cut the dash short partway through.
+        // shrinks it) so ordinary movement input can't cut the dash short partway through. Duration
+        // is derived from the ALREADY-scaled dashDistance (not the flat ComboFinisherDashDistance
+        // constant) so the physical dash always travels exactly as far as the hit-detection line
+        // above - with Portee investment scaling one but not the other, the finisher used to deal
+        // damage well past where the player's sprite actually stopped moving (real bug, found
+        // 2026-09-16).
         attackLungeVelocity = aimDirection * ComboFinisherDashSpeed;
-        attackLungeEndTime = Time.time + ComboFinisherDashDuration;
+        attackLungeEndTime = Time.time + dashDistance / ComboFinisherDashSpeed;
         attackLockEndTime = Mathf.Max(attackLockEndTime, attackLungeEndTime);
 
         SpawnAttackVisual(visualSprite, endPos, range * 1.5f);

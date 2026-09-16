@@ -123,6 +123,12 @@ public class RoomController : MonoBehaviour
             return;
         }
 
+        // Captured BEFORE the assignment below: a merged multi-cell room (see memberCells) fires
+        // OnRoomEntered again just from walking between two of its OWN cells, with isMine true
+        // both times and the player never actually having left - without this, that internal seam
+        // crossing fell through to the "returning after leaving" branch below and wiped/respawned
+        // a full-health roster on top of a fight already in progress (real bug, found 2026-09-16).
+        bool wasAlreadyPresent = playerPresent;
         playerPresent = true;
         if (IsCleared) return; // a cleared room's monsters never come back
 
@@ -132,6 +138,8 @@ public class RoomController : MonoBehaviour
             ArmEnemies(); // first arrival - roster already spawned untargeted, arm it now
             return;
         }
+
+        if (wasAlreadyPresent) return; // still in this same room, just crossed an internal seam
 
         foreach (EnemyController enemy in liveEnemies)
         {
