@@ -9,33 +9,24 @@ using UnityEngine;
 // inventory's own count.
 public class PlayerEquipment : MonoBehaviour
 {
-    public string head;
-    public string shoulders;
-    public string gloves;
-    public string boots;
-    public string neck;
-    public string belt;
-    public string knees;
-    // A real weapon item, worn like any other slot (see EquipmentSlotType.Weapon) - a cursed
-    // weapon's forced equip never touches this field, see ForceEquipWeapon/ApplyItemEffects below.
-    public string weapon;
+    // Every slot except the two ring columns shares one Dictionary-backed store instead of a
+    // named field per slot - Get/Set/GetDurability/SetDurabilityRaw used to each hand-write the
+    // same 8-case switch (head/shoulders/gloves/boots/neck/belt/knees/weapon), so adding, removing
+    // or renaming a slot meant editing all four in lockstep, PLUS SaveManager.Capture/Apply's own
+    // matching field-per-slot lists (2026-09-16 cleanup, found by a full-codebase review). A
+    // Dictionary can't be serialized by JsonUtility, but nothing here needs it to be - SaveData is
+    // the real on-disk shape (see SaveManager), and it now round-trips through Get/SetRaw/
+    // GetDurability/SetDurabilityRaw below instead of mirroring this class's field layout 1:1.
+    readonly Dictionary<EquipmentSlotType, string> equipped = new Dictionary<EquipmentSlotType, string>();
+    readonly Dictionary<EquipmentSlotType, int> durability = new Dictionary<EquipmentSlotType, int>();
+
     public const int RingSlotsPerHand = 5;
     public string[] ringsLeft = new string[RingSlotsPerHand];
     public string[] ringsRight = new string[RingSlotsPerHand];
-
-    // Current durability, parallel to the itemId fields above - flat named fields rather than a
-    // Dictionary, same JsonUtility-friendly convention SaveData already uses (see its own comment).
-    // Only meaningful while the matching slot's ItemDefinition.MaxDurability > 0 - always kept at
-    // that item's max when freshly equipped (see Set), 0 has no other meaning here since an item
-    // that hits 0 unequips itself instead of lingering (see DamageDurability).
-    public int headDurability;
-    public int shouldersDurability;
-    public int glovesDurability;
-    public int bootsDurability;
-    public int neckDurability;
-    public int beltDurability;
-    public int kneesDurability;
-    public int weaponDurability;
+    // Current durability, parallel to ringsLeft/ringsRight above. Only meaningful while the
+    // matching slot's ItemDefinition.MaxDurability > 0 - always kept at that item's max when
+    // freshly equipped (see Set), 0 has no other meaning here since an item that hits 0 unequips
+    // itself instead of lingering (see DamageDurability).
     public int[] ringsLeftDurability = new int[RingSlotsPerHand];
     public int[] ringsRightDurability = new int[RingSlotsPerHand];
     // Set at generation time alongside the other Player components - needed to apply/revoke a
@@ -60,17 +51,9 @@ public class PlayerEquipment : MonoBehaviour
 
     public string Get(EquipmentSlotType slot, int ringIndex = 0) => slot switch
     {
-        EquipmentSlotType.Head => head,
-        EquipmentSlotType.Shoulders => shoulders,
-        EquipmentSlotType.Gloves => gloves,
-        EquipmentSlotType.Boots => boots,
-        EquipmentSlotType.Neck => neck,
-        EquipmentSlotType.Belt => belt,
-        EquipmentSlotType.Knees => knees,
         EquipmentSlotType.RingLeft => ringsLeft[ringIndex],
         EquipmentSlotType.RingRight => ringsRight[ringIndex],
-        EquipmentSlotType.Weapon => weapon,
-        _ => null,
+        _ => equipped.TryGetValue(slot, out string itemId) ? itemId : null,
     };
 
     public void Set(EquipmentSlotType slot, int ringIndex, string itemId)
@@ -80,19 +63,7 @@ public class PlayerEquipment : MonoBehaviour
         RemoveItemEffects(old);
         Extinguish(slot); // whatever WAS burning here (see TryIgnite) is leaving the body either way
 
-        switch (slot)
-        {
-            case EquipmentSlotType.Head: head = itemId; break;
-            case EquipmentSlotType.Shoulders: shoulders = itemId; break;
-            case EquipmentSlotType.Gloves: gloves = itemId; break;
-            case EquipmentSlotType.Boots: boots = itemId; break;
-            case EquipmentSlotType.Neck: neck = itemId; break;
-            case EquipmentSlotType.Belt: belt = itemId; break;
-            case EquipmentSlotType.Knees: knees = itemId; break;
-            case EquipmentSlotType.RingLeft: ringsLeft[ringIndex] = itemId; break;
-            case EquipmentSlotType.RingRight: ringsRight[ringIndex] = itemId; break;
-            case EquipmentSlotType.Weapon: weapon = itemId; break;
-        }
+        SetRaw(slot, ringIndex, itemId);
 
         // A freshly worn item always starts at full durability - SaveManager.Apply restores a
         // worn-down value afterward by writing the durability fields directly, never through Set().
@@ -103,36 +74,29 @@ public class PlayerEquipment : MonoBehaviour
         OnEquipmentChanged?.Invoke();
     }
 
+    // Bypasses RemoveItemEffects/Extinguish/durability-reset/ApplyItemEffects/OnEquipmentChanged -
+    // SaveManager.Apply is the only caller, restoring exactly what was captured (a possibly
+    // worn-down durability, stat bonuses already baked into the restored PlayerStats) rather than
+    // performing a fresh equip. Everything else should go through Set() above.
+    public void SetRaw(EquipmentSlotType slot, int ringIndex, string itemId)
+    {
+        if (slot == EquipmentSlotType.RingLeft) ringsLeft[ringIndex] = itemId;
+        else if (slot == EquipmentSlotType.RingRight) ringsRight[ringIndex] = itemId;
+        else equipped[slot] = itemId;
+    }
+
     public int GetDurability(EquipmentSlotType slot, int ringIndex = 0) => slot switch
     {
-        EquipmentSlotType.Head => headDurability,
-        EquipmentSlotType.Shoulders => shouldersDurability,
-        EquipmentSlotType.Gloves => glovesDurability,
-        EquipmentSlotType.Boots => bootsDurability,
-        EquipmentSlotType.Neck => neckDurability,
-        EquipmentSlotType.Belt => beltDurability,
-        EquipmentSlotType.Knees => kneesDurability,
         EquipmentSlotType.RingLeft => ringsLeftDurability[ringIndex],
         EquipmentSlotType.RingRight => ringsRightDurability[ringIndex],
-        EquipmentSlotType.Weapon => weaponDurability,
-        _ => 0,
+        _ => durability.TryGetValue(slot, out int value) ? value : 0,
     };
 
     public void SetDurabilityRaw(EquipmentSlotType slot, int ringIndex, int value)
     {
-        switch (slot)
-        {
-            case EquipmentSlotType.Head: headDurability = value; break;
-            case EquipmentSlotType.Shoulders: shouldersDurability = value; break;
-            case EquipmentSlotType.Gloves: glovesDurability = value; break;
-            case EquipmentSlotType.Boots: bootsDurability = value; break;
-            case EquipmentSlotType.Neck: neckDurability = value; break;
-            case EquipmentSlotType.Belt: beltDurability = value; break;
-            case EquipmentSlotType.Knees: kneesDurability = value; break;
-            case EquipmentSlotType.RingLeft: ringsLeftDurability[ringIndex] = value; break;
-            case EquipmentSlotType.RingRight: ringsRightDurability[ringIndex] = value; break;
-            case EquipmentSlotType.Weapon: weaponDurability = value; break;
-        }
+        if (slot == EquipmentSlotType.RingLeft) ringsLeftDurability[ringIndex] = value;
+        else if (slot == EquipmentSlotType.RingRight) ringsRightDurability[ringIndex] = value;
+        else durability[slot] = value;
     }
 
     // Wears down whatever's equipped in this slot by `amount` - a no-op on a slot that's empty or

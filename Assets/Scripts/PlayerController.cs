@@ -43,8 +43,8 @@ public class PlayerController : MonoBehaviour
     // Which inventory item is currently worn in the PlayerEquipment.Weapon slot (see
     // EquipWeaponItem/UnequipToFistIfCurrent) - null for Fist or a curse-forced weapon (see
     // ForceEquipWeapon, which never goes through the equipment slot at all). Durability for THIS
-    // case lives on equipment.weaponDurability instead of currentWeaponDurability above - see
-    // DamageWeaponDurability.
+    // case lives on equipment.GetDurability(EquipmentSlotType.Weapon) instead of
+    // currentWeaponDurability above - see DamageWeaponDurability.
     string currentWeaponItemId;
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;

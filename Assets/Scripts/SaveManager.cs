@@ -55,24 +55,24 @@ public static class SaveManager
             limbHealthArmRight = limbs != null ? limbs.GetLimbHealth(BodyPart.ArmRight) : PlayerLimbs.BaseMaxFor(BodyPart.ArmRight),
             limbHealthLegLeft = limbs != null ? limbs.GetLimbHealth(BodyPart.LegLeft) : PlayerLimbs.BaseMaxFor(BodyPart.LegLeft),
             limbHealthLegRight = limbs != null ? limbs.GetLimbHealth(BodyPart.LegRight) : PlayerLimbs.BaseMaxFor(BodyPart.LegRight),
-            equippedHead = equipment != null ? equipment.head : null,
-            equippedShoulders = equipment != null ? equipment.shoulders : null,
-            equippedGloves = equipment != null ? equipment.gloves : null,
-            equippedBoots = equipment != null ? equipment.boots : null,
-            equippedNeck = equipment != null ? equipment.neck : null,
-            equippedBelt = equipment != null ? equipment.belt : null,
-            equippedKnees = equipment != null ? equipment.knees : null,
-            equippedWeapon = equipment != null ? equipment.weapon : null,
+            equippedHead = equipment != null ? equipment.Get(EquipmentSlotType.Head) : null,
+            equippedShoulders = equipment != null ? equipment.Get(EquipmentSlotType.Shoulders) : null,
+            equippedGloves = equipment != null ? equipment.Get(EquipmentSlotType.Gloves) : null,
+            equippedBoots = equipment != null ? equipment.Get(EquipmentSlotType.Boots) : null,
+            equippedNeck = equipment != null ? equipment.Get(EquipmentSlotType.Neck) : null,
+            equippedBelt = equipment != null ? equipment.Get(EquipmentSlotType.Belt) : null,
+            equippedKnees = equipment != null ? equipment.Get(EquipmentSlotType.Knees) : null,
+            equippedWeapon = equipment != null ? equipment.Get(EquipmentSlotType.Weapon) : null,
             equippedRingsLeft = equipment != null ? (string[])equipment.ringsLeft.Clone() : null,
             equippedRingsRight = equipment != null ? (string[])equipment.ringsRight.Clone() : null,
-            durabilityHead = equipment != null ? equipment.headDurability : 0,
-            durabilityShoulders = equipment != null ? equipment.shouldersDurability : 0,
-            durabilityGloves = equipment != null ? equipment.glovesDurability : 0,
-            durabilityBoots = equipment != null ? equipment.bootsDurability : 0,
-            durabilityNeck = equipment != null ? equipment.neckDurability : 0,
-            durabilityBelt = equipment != null ? equipment.beltDurability : 0,
-            durabilityKnees = equipment != null ? equipment.kneesDurability : 0,
-            durabilityWeapon = equipment != null ? equipment.weaponDurability : 0,
+            durabilityHead = equipment != null ? equipment.GetDurability(EquipmentSlotType.Head) : 0,
+            durabilityShoulders = equipment != null ? equipment.GetDurability(EquipmentSlotType.Shoulders) : 0,
+            durabilityGloves = equipment != null ? equipment.GetDurability(EquipmentSlotType.Gloves) : 0,
+            durabilityBoots = equipment != null ? equipment.GetDurability(EquipmentSlotType.Boots) : 0,
+            durabilityNeck = equipment != null ? equipment.GetDurability(EquipmentSlotType.Neck) : 0,
+            durabilityBelt = equipment != null ? equipment.GetDurability(EquipmentSlotType.Belt) : 0,
+            durabilityKnees = equipment != null ? equipment.GetDurability(EquipmentSlotType.Knees) : 0,
+            durabilityWeapon = equipment != null ? equipment.GetDurability(EquipmentSlotType.Weapon) : 0,
             durabilityRingsLeft = equipment != null ? (int[])equipment.ringsLeftDurability.Clone() : null,
             durabilityRingsRight = equipment != null ? (int[])equipment.ringsRightDurability.Clone() : null,
             currentWeaponDurability = controller.CurrentWeaponDurability,
@@ -138,8 +138,8 @@ public static class SaveManager
         else
         {
             // Plain restore, not EquipWeaponItem - durability for this item lives on the equipment
-            // side (equipment.weaponDurability, restored as a plain field just below alongside the
-            // 7 armor slots), not reset to full like a fresh equip would.
+            // side (SetDurabilityRaw just below, alongside the 7 armor slots), not reset to full
+            // like a fresh equip would.
             controller.SetCurrentWeaponItem(data.equippedWeapon, data.currentWeapon);
         }
         controller.weaponHand = data.weaponHand;
@@ -166,14 +166,14 @@ public static class SaveManager
         // worn", not "these were just put on".
         if (equipment != null)
         {
-            equipment.head = data.equippedHead;
-            equipment.shoulders = data.equippedShoulders;
-            equipment.gloves = data.equippedGloves;
-            equipment.boots = data.equippedBoots;
-            equipment.neck = data.equippedNeck;
-            equipment.belt = data.equippedBelt;
-            equipment.knees = data.equippedKnees;
-            equipment.weapon = data.equippedWeapon;
+            equipment.SetRaw(EquipmentSlotType.Head, 0, data.equippedHead);
+            equipment.SetRaw(EquipmentSlotType.Shoulders, 0, data.equippedShoulders);
+            equipment.SetRaw(EquipmentSlotType.Gloves, 0, data.equippedGloves);
+            equipment.SetRaw(EquipmentSlotType.Boots, 0, data.equippedBoots);
+            equipment.SetRaw(EquipmentSlotType.Neck, 0, data.equippedNeck);
+            equipment.SetRaw(EquipmentSlotType.Belt, 0, data.equippedBelt);
+            equipment.SetRaw(EquipmentSlotType.Knees, 0, data.equippedKnees);
+            equipment.SetRaw(EquipmentSlotType.Weapon, 0, data.equippedWeapon);
             equipment.ringsLeft = data.equippedRingsLeft != null
                 ? (string[])data.equippedRingsLeft.Clone() : new string[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRight = data.equippedRingsRight != null
@@ -181,14 +181,14 @@ public static class SaveManager
 
             // Plain field restore too, same reasoning as the itemId fields just above - Set() would
             // reset every slot back to full durability instead of the saved (possibly worn-down) value.
-            equipment.headDurability = data.durabilityHead;
-            equipment.shouldersDurability = data.durabilityShoulders;
-            equipment.glovesDurability = data.durabilityGloves;
-            equipment.bootsDurability = data.durabilityBoots;
-            equipment.neckDurability = data.durabilityNeck;
-            equipment.beltDurability = data.durabilityBelt;
-            equipment.kneesDurability = data.durabilityKnees;
-            equipment.weaponDurability = data.durabilityWeapon;
+            equipment.SetDurabilityRaw(EquipmentSlotType.Head, 0, data.durabilityHead);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Shoulders, 0, data.durabilityShoulders);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Gloves, 0, data.durabilityGloves);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Boots, 0, data.durabilityBoots);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Neck, 0, data.durabilityNeck);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Belt, 0, data.durabilityBelt);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Knees, 0, data.durabilityKnees);
+            equipment.SetDurabilityRaw(EquipmentSlotType.Weapon, 0, data.durabilityWeapon);
             equipment.ringsLeftDurability = data.durabilityRingsLeft != null
                 ? (int[])data.durabilityRingsLeft.Clone() : new int[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRightDurability = data.durabilityRingsRight != null
