@@ -1526,6 +1526,16 @@ public static class DungeonGenerator
         statsUI.charismeIcon = charismeIcon;
         statsUI.enduranceIcon = enduranceIcon;
 
+        // --- Character sheet (full recap of all 8 stats, toggled with C) ---
+        GameObject characterSheetGO = new GameObject("CharacterSheetUI", typeof(RectTransform), typeof(CharacterSheetUI));
+        characterSheetGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform characterSheetRect = characterSheetGO.GetComponent<RectTransform>();
+        characterSheetRect.anchorMin = Vector2.zero;
+        characterSheetRect.anchorMax = Vector2.one;
+        characterSheetRect.offsetMin = Vector2.zero;
+        characterSheetRect.offsetMax = Vector2.zero;
+        characterSheetGO.GetComponent<CharacterSheetUI>().stats = playerStats;
+
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
         hotbarGO.transform.SetParent(canvasGO.transform, false);
@@ -2450,6 +2460,17 @@ public static class DungeonGenerator
         // panel (TutorialNpc, see SpawnTutorialNpc) could only ever be closed with E.
         Font tutorialUiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
         BuildPauseMenu(canvasGO.transform, tutorialUiFont, Object.FindFirstObjectByType<MainMenuController>());
+
+        // --- Character sheet (full recap of all 8 stats, toggled with C) - available here too so
+        // C works consistently from floor 0 onward, same as every other HUD key ---
+        GameObject characterSheetGO = new GameObject("CharacterSheetUI", typeof(RectTransform), typeof(CharacterSheetUI));
+        characterSheetGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform characterSheetRect = characterSheetGO.GetComponent<RectTransform>();
+        characterSheetRect.anchorMin = Vector2.zero;
+        characterSheetRect.anchorMax = Vector2.one;
+        characterSheetRect.offsetMin = Vector2.zero;
+        characterSheetRect.offsetMax = Vector2.zero;
+        characterSheetGO.GetComponent<CharacterSheetUI>().stats = player.GetComponent<PlayerStats>();
 
         // --- The one Zombie standing between the player and the portal ---
         GameObject roomGO = new GameObject("TutorialRoom", typeof(RoomController));
