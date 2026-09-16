@@ -796,7 +796,7 @@ public class PlayerController : MonoBehaviour
         Vector2 direction = AimWithInertia();
         Vector2 spawnPos = (Vector2)transform.position + aimDirection * 0.6f;
 
-        GameObject go = new GameObject("Projectile", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Projectile));
+        GameObject go = ProjectilePool.Get();
         go.transform.position = spawnPos;
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
@@ -808,13 +808,18 @@ public class PlayerController : MonoBehaviour
 
         CircleCollider2D projectileCollider = go.GetComponent<CircleCollider2D>();
         projectileCollider.radius = 0.15f;
-        if (bodyCollider != null) Physics2D.IgnoreCollision(projectileCollider, bodyCollider);
 
         Projectile projectile = go.GetComponent<Projectile>();
+        projectile.IgnoreCollisionWith(bodyCollider);
         projectile.damage = damage;
         projectile.speed = speed;
         projectile.maxDistance = maxDistance;
         projectile.attackerForce = stats.force;
+        // A pooled instance may still carry the ignoreTag a PREVIOUS user set (e.g. a boss volley
+        // clears it to hit the player) - this spawn path is always the player's own shot/throw, so
+        // it always resets back to the default ("Player", never hit yourself) rather than trusting
+        // whatever the projectile happened to be configured for last time.
+        projectile.ignoreTag = "Player";
         projectile.Launch(direction);
     }
 

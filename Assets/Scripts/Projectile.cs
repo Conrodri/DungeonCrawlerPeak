@@ -16,11 +16,32 @@ public class Projectile : MonoBehaviour
     public string ignoreTag = "Player";
 
     Rigidbody2D rb;
+    Collider2D ownCollider;
     Vector2 startPos;
+    // Replaces the old Destroy(gameObject, lifetime) delayed-destroy call - a pooled instance
+    // (see ProjectilePool) is deactivated and requeued instead of destroyed, so its own expiry
+    // has to be polled here rather than scheduled through Unity's Destroy timer.
+    float spawnTime;
+    // Whichever caster's collider this instance is CURRENTLY ignore-paired against (see
+    // IgnoreCollisionWith) - Physics2D.IgnoreCollision pairs survive a GameObject being
+    // deactivated/reactivated (only destroying either collider clears them), so a pooled instance
+    // reused by a different caster must explicitly un-ignore its previous pairing first or it
+    // could keep silently passing through that old caster's body forever.
+    Collider2D ignoredCaster;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        ownCollider = GetComponent<Collider2D>();
+    }
+
+    // Every caster (PlayerController/BossController) should call this instead of
+    // Physics2D.IgnoreCollision directly - see ignoredCaster above for why.
+    public void IgnoreCollisionWith(Collider2D casterCollider)
+    {
+        if (ignoredCaster != null) Physics2D.IgnoreCollision(ownCollider, ignoredCaster, false);
+        if (casterCollider != null) Physics2D.IgnoreCollision(ownCollider, casterCollider, true);
+        ignoredCaster = casterCollider;
     }
 
     // Fires in a fixed straight line: no homing or curving. Later items that bend trajectories
@@ -28,13 +49,14 @@ public class Projectile : MonoBehaviour
     public void Launch(Vector2 direction)
     {
         startPos = transform.position;
+        spawnTime = Time.time;
         rb.linearVelocity = direction.normalized * speed;
-        Destroy(gameObject, lifetime);
     }
 
     void Update()
     {
-        if (Vector2.Distance(startPos, transform.position) >= maxDistance) Destroy(gameObject);
+        if (Vector2.Distance(startPos, transform.position) >= maxDistance || Time.time - spawnTime >= lifetime)
+            ProjectilePool.Release(gameObject);
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -51,6 +73,6 @@ public class Projectile : MonoBehaviour
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);
 
-        Destroy(gameObject);
+        ProjectilePool.Release(gameObject);
     }
 }

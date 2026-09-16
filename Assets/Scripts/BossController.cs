@@ -508,7 +508,8 @@ public class BossController : MonoBehaviour
 
     void LaunchProjectile(Vector2 direction)
     {
-        GameObject go = new GameObject("BossProjectile", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Projectile));
+        GameObject go = ProjectilePool.Get();
+        go.name = "BossProjectile";
         go.transform.position = (Vector2)transform.position + direction * 0.6f;
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
@@ -520,9 +521,9 @@ public class BossController : MonoBehaviour
 
         CircleCollider2D collider = go.GetComponent<CircleCollider2D>();
         collider.radius = 0.15f;
-        if (bodyCollider != null) Physics2D.IgnoreCollision(collider, bodyCollider);
 
         Projectile projectile = go.GetComponent<Projectile>();
+        projectile.IgnoreCollisionWith(bodyCollider);
         projectile.damage = volleyDamage;
         projectile.speed = volleyProjectileSpeed;
         projectile.maxDistance = 20f;
