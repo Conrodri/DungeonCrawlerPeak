@@ -15,9 +15,8 @@ public class ShopSlotUI : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         ItemDefinition definition = ItemDatabase.Get(option.purchaseItemId);
         if (definition == null) return;
 
-        string body = definition.Description;
-        body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(definition.Rarity);
-        string coloredName = "<color=#" + ItemRarity.HexColor(definition.Rarity) + ">" + definition.DisplayName + "</color>";
+        string body = ItemRarity.DescriptionWithRarity(definition.Description, definition.Rarity);
+        string coloredName = ItemRarity.ColoredName(definition.DisplayName, definition.Rarity);
         TooltipUI.Instance.Show(coloredName, body, eventData.position);
     }
 

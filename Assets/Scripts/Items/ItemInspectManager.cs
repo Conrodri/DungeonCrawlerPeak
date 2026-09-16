@@ -66,11 +66,11 @@ public class ItemInspectManager : MonoBehaviour, UIWindowStack.IWindow
 
         ItemDefinition definition = ItemDatabase.Get(nearbyItem.ItemId);
         nameText.text = definition != null
-            ? "<color=#" + ItemRarity.HexColor(definition.Rarity) + ">" + definition.DisplayName + "</color>"
+            ? ItemRarity.ColoredName(definition.DisplayName, definition.Rarity)
             : nearbyItem.ItemId;
 
         string body = definition != null ? definition.Description : "";
-        if (definition != null) body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(definition.Rarity);
+        if (definition != null) body = ItemRarity.DescriptionWithRarity(body, definition.Rarity);
         if (definition != null && definition.Weight > 0) body += "\nNecessite Force " + definition.Weight + ".";
         body += "\n\n[E] Ramasser   [ECHAP] Laisser";
         bodyText.text = body;

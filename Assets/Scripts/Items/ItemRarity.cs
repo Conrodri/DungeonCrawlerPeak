@@ -38,4 +38,14 @@ public static class ItemRarity
     // Common drops more, rare drops less - shared by LootTable/CorpseLoot/Chest instead of each
     // hand-tuning its own weights per item.
     public static int Weight(int rarity) => Mathf.Max(1, (Max + 1) - Mathf.Clamp(rarity, Min, Max));
+
+    // The rarity-tinted item name every tooltip/inspect panel shows (InventorySlotUI, ShopSlotUI,
+    // ItemInspectManager, Chest) - was hand-assembled identically in all four (2026-09-16 cleanup).
+    public static string ColoredName(string displayName, int rarity) =>
+        "<color=#" + HexColor(rarity) + ">" + displayName + "</color>";
+
+    // Description text with the rarity name appended as its own line - skips the leading blank
+    // line when there's no description at all. Same four call sites as ColoredName above.
+    public static string DescriptionWithRarity(string description, int rarity) =>
+        (string.IsNullOrEmpty(description) ? "" : description + "\n") + Name(rarity);
 }

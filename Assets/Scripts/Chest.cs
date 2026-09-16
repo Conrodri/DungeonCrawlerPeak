@@ -36,21 +36,7 @@ public class Chest : MonoBehaviour, UIWindowStack.IWindow
         if (canvasGO == null) return;
 
         Font font = Font.CreateDynamicFontFromOSFont("Arial", 28);
-
-        promptGO = new GameObject("ChestPrompt", typeof(Text));
-        promptGO.transform.SetParent(canvasGO.transform, false);
-        Text prompt = promptGO.GetComponent<Text>();
-        prompt.font = font;
-        prompt.fontSize = 28;
-        prompt.alignment = TextAnchor.MiddleCenter;
-        prompt.color = Color.white;
-        prompt.text = ExaminePrompt;
-        RectTransform promptRect = prompt.rectTransform;
-        promptRect.anchorMin = promptRect.anchorMax = new Vector2(0.5f, 0f);
-        promptRect.pivot = new Vector2(0.5f, 0f);
-        promptRect.anchoredPosition = new Vector2(0f, 120f);
-        promptRect.sizeDelta = new Vector2(500f, 40f);
-        promptGO.SetActive(false);
+        promptGO = InteractPromptUI.Build(canvasGO.transform, "ChestPrompt", ExaminePrompt).gameObject;
 
         panel = new GameObject("ChestPanel", typeof(Image));
         panel.transform.SetParent(canvasGO.transform, false);
@@ -148,10 +134,10 @@ public class Chest : MonoBehaviour, UIWindowStack.IWindow
         ItemDefinition definition = ItemDatabase.Get(itemId);
         string displayName = definition != null ? definition.DisplayName : itemId;
         int rarity = definition != null ? definition.Rarity : ItemRarity.Min;
-        nameText.text = "<color=#" + ItemRarity.HexColor(rarity) + ">" + displayName + (amount > 1 ? " x" + amount : "") + "</color>";
+        nameText.text = ItemRarity.ColoredName(displayName + (amount > 1 ? " x" + amount : ""), rarity);
 
         string body = definition != null ? definition.Description : "";
-        body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(rarity);
+        body = ItemRarity.DescriptionWithRarity(body, rarity);
         body += "\n\n[E] Prendre   [ECHAP] Laisser";
         bodyText.text = body;
     }

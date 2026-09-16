@@ -35,21 +35,8 @@ public class RestBed : MonoBehaviour
         GameObject canvasGO = GameObject.Find("Canvas");
         if (canvasGO == null) return;
 
-        Font font = Font.CreateDynamicFontFromOSFont("Arial", 28);
-        promptGO = new GameObject("RestPrompt", typeof(Text));
-        promptGO.transform.SetParent(canvasGO.transform, false);
-        promptLabel = promptGO.GetComponent<Text>();
-        promptLabel.font = font;
-        promptLabel.fontSize = 28;
-        promptLabel.alignment = TextAnchor.MiddleCenter;
-        promptLabel.color = Color.white;
-        promptLabel.text = DefaultPrompt;
-        RectTransform rect = promptLabel.rectTransform;
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(0f, 120f);
-        rect.sizeDelta = new Vector2(500f, 40f);
-        promptGO.SetActive(false);
+        promptLabel = InteractPromptUI.Build(canvasGO.transform, "RestPrompt", DefaultPrompt);
+        promptGO = promptLabel.gameObject;
     }
 
     void Update()

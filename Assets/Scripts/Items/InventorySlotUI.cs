@@ -148,10 +148,9 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         ItemDefinition definition = ItemDatabase.Get(itemId);
         if (definition == null) return;
 
-        string body = definition.Description;
-        body = (string.IsNullOrEmpty(body) ? "" : body + "\n") + ItemRarity.Name(definition.Rarity);
+        string body = ItemRarity.DescriptionWithRarity(definition.Description, definition.Rarity);
         if (definition.Weight > 0) body += "\nNecessite Force " + definition.Weight + ".";
-        string coloredName = "<color=#" + ItemRarity.HexColor(definition.Rarity) + ">" + definition.DisplayName + "</color>";
+        string coloredName = ItemRarity.ColoredName(definition.DisplayName, definition.Rarity);
         TooltipUI.Instance.Show(coloredName, body, eventData.position);
     }
 
