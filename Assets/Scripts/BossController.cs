@@ -471,7 +471,7 @@ public class BossController : MonoBehaviour
     void ChaseOrLock(Vector2 dirToTarget)
     {
         if (Time.time < attackLockEndTime) { rb.linearVelocity = Vector2.zero; return; }
-        ChaseOrLock(dirToTarget);
+        rb.linearVelocity = dirToTarget * moveSpeed;
     }
 
     void LockMovement() => attackLockEndTime = Time.time + attackLockDuration;
