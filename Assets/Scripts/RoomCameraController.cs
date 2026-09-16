@@ -34,14 +34,41 @@ public class RoomCameraController : MonoBehaviour
     // lambda (capturing a UI object already destroyed along with the old Canvas) never lingers.
     public void ClearListeners() => OnRoomEntered = null;
 
+    // Same static-instance convention as TooltipUI/RoomAnnouncementUI - lets a gameplay object
+    // with no direct wiring to the camera (see Lever.cs) trigger a shake without DungeonGenerator
+    // threading a reference through every spawn call that might ever want one.
+    public static RoomCameraController Instance { get; private set; }
+
     Camera cam;
     Rect currentRoomRect;
     bool hasRoom;
     Vector2Int? currentGridPos;
 
+    // Screen shake - a random offset added on top of the normal follow position each frame,
+    // decaying linearly to zero over shakeDuration (2026-09-16 request: lever activation). Lives
+    // here rather than a separate component: this is the only thing that ever sets the camera's
+    // transform.position every frame (see LateUpdate below), so a separate shaker fighting over
+    // the same field would just get overwritten on alternating frames.
+    float shakeEndTime = -999f;
+    float shakeDuration;
+    float shakeMagnitude;
+
     void Awake()
     {
         cam = GetComponent<Camera>();
+        Instance = this;
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    public void Shake(float duration, float magnitude)
+    {
+        shakeDuration = duration;
+        shakeMagnitude = magnitude;
+        shakeEndTime = Time.time + duration;
     }
 
     void LateUpdate()
@@ -80,6 +107,13 @@ public class RoomCameraController : MonoBehaviour
 
         Vector3 desired = new Vector3(x, y, transform.position.z);
         transform.position = Vector3.Lerp(transform.position, desired, followSpeed * Time.deltaTime);
+
+        if (Time.time < shakeEndTime)
+        {
+            float t = shakeDuration > 0f ? (shakeEndTime - Time.time) / shakeDuration : 0f; // 1 -> 0
+            Vector2 offset = UnityEngine.Random.insideUnitCircle * shakeMagnitude * t;
+            transform.position += (Vector3)offset;
+        }
     }
 
     // Keeps the camera center within [min + halfExtent, max - halfExtent] so the view's edge never

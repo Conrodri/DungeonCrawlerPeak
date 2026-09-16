@@ -45,11 +45,15 @@ public class Lever : MonoBehaviour
         if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Pull();
     }
 
+    const float ShakeDuration = 1f;
+    const float ShakeMagnitude = 0.2f;
+
     void Pull()
     {
         pulled = true;
         if (promptGO != null) promptGO.SetActive(false);
         if (spriteRenderer != null) spriteRenderer.color = PulledTint;
+        RoomCameraController.Instance?.Shake(ShakeDuration, ShakeMagnitude);
 
         if (target == null) return;
         (int pulledCount, int required) = target.NotifyLeverPulled();
