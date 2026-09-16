@@ -4873,6 +4873,9 @@ public static class DungeonGenerator
 
         BossController boss = bossGO.GetComponent<BossController>();
         boss.projectileSprite = bossProjectileSprite;
+        // Loaded fresh here rather than threaded through FloorAssets/this method's own parameter
+        // list - LoadIconPackSprite caches by name internally, so this costs nothing extra.
+        boss.stunIconSprite = LoadIconPackSprite("Star01_Bright");
         boss.contactDamage = stats.contactDamage;
         boss.chargeSpeed = stats.chargeSpeed;
         boss.volleyDamage = stats.volleyDamage;

@@ -38,6 +38,9 @@ public class BossController : MonoBehaviour
     // on purpose - their movement IS the attack, and a telegraph (Ent/Aigle) already freezes
     // itself with its own rb.linearVelocity = Vector2.zero.
     public float attackLockDuration = 0.4f;
+    // Shown above the boss's head while stunned (see RegisterAttack/AttacksBeforeStun below) - set
+    // by DungeonGenerator.SetupBossRoom, same convention as projectileSprite/slobberPuddleSprite.
+    public Sprite stunIconSprite;
 
     // Set by DungeonGenerator.SetupBossRoom per biome family (see BossFamilyFor) - Generic keeps
     // the plain charge+volley pattern above; every other value swaps in that family's own
@@ -121,6 +124,7 @@ public class BossController : MonoBehaviour
     Rigidbody2D rb;
     Health health;
     CircleCollider2D bodyCollider;
+    StatusIconDisplay statusIcons;
     Transform target;
     Rect? roomBounds;
 
@@ -166,6 +170,7 @@ public class BossController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         health = GetComponent<Health>();
         bodyCollider = GetComponent<CircleCollider2D>();
+        statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         nextChainBiteCooldown = UnityEngine.Random.Range(chainBiteCooldownMin, chainBiteCooldownMax);
@@ -194,6 +199,15 @@ public class BossController : MonoBehaviour
                 onChargeEnd = null;
                 end?.Invoke();
             }
+            return;
+        }
+
+        // Stunned (see RegisterAttack/AttacksBeforeStun) - frozen, no chase, no new attack of any
+        // kit. Checked AFTER the charging block above so an already-in-progress charge/dive/lunge
+        // always finishes its motion instead of stopping the boss dead mid-air.
+        if (IsStunned)
+        {
+            rb.linearVelocity = Vector2.zero;
             return;
         }
 
@@ -474,7 +488,11 @@ public class BossController : MonoBehaviour
         rb.linearVelocity = dirToTarget * moveSpeed;
     }
 
-    void LockMovement() => attackLockEndTime = Time.time + attackLockDuration;
+    void LockMovement()
+    {
+        attackLockEndTime = Time.time + attackLockDuration;
+        RegisterAttack();
+    }
 
     void StartCharge(Vector2 dir, Action onEnd = null) => StartCharge(dir, chargeSpeed, chargeDuration, onEnd);
 
@@ -490,6 +508,34 @@ public class BossController : MonoBehaviour
         activeChargeSpeed = speed;
         chargeEndTime = Time.time + duration;
         onChargeEnd = onEnd;
+        RegisterAttack();
+    }
+
+    // Fatigue (2026-09-16 request): every boss attack goes through either LockMovement (the
+    // "instant" attacks - volley/slobber/shockwave/tentacle/root, see attackLockDuration's own
+    // comment) or StartCharge (every charge/dive/teleport-lunge, "their movement IS the attack") -
+    // together these two funnels cover every kit's attack, so counting here needs no per-kit
+    // hook. After AttacksBeforeStun of either, the boss is stunned - frozen and unable to act -
+    // for StunDuration, a forced breather that rewards sustained pressure instead of facing an
+    // unbroken assault forever. Golem's shockwave-on-landing (a StartCharge whose onChargeEnd also
+    // calls LockMovement) counts as 2 - a deliberately harmless over-count, it really is 2 distinct
+    // hits (the charge itself, then the AoE burst).
+    const int AttacksBeforeStun = 3;
+    const float StunDuration = 3f;
+    const string StunIconKey = "Stun";
+    int attacksSinceStun;
+    float stunEndTime = -999f;
+    public bool IsStunned => Time.time < stunEndTime;
+
+    void RegisterAttack()
+    {
+        if (IsStunned) return; // already resolving a stun - don't let it re-trigger mid-stun
+        attacksSinceStun++;
+        if (attacksSinceStun < AttacksBeforeStun) return;
+
+        attacksSinceStun = 0;
+        stunEndTime = Time.time + StunDuration;
+        if (statusIcons != null && stunIconSprite != null) statusIcons.ShowIcon(StunIconKey, stunIconSprite, StunDuration);
     }
 
     void FireVolley()
