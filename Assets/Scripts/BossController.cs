@@ -590,8 +590,12 @@ public class BossController : MonoBehaviour
 
         // No AttackSource given for bosses in the 2026-09-14 spec - rolls a fully random body part
         // (see PlayerLimbs.RollTarget).
-        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSource.Random, rb.position);
-        if (lifestealFraction > 0f) health.Heal(Mathf.CeilToInt(contactDamage * lifestealFraction));
+        bool connected = targetHealth.TakeDamageFromEnemy(contactDamage, AttackSource.Random, rb.position);
+        // Only heal off a hit that actually landed - a dodge roll (player invulnerability frames)
+        // used to still trigger Vampirique's lifesteal even though zero damage got through, letting
+        // a player who dodge-rolled through the boss repeatedly heal it for free and making a
+        // Vampirique boss feel unkillable.
+        if (connected && lifestealFraction > 0f) health.Heal(Mathf.CeilToInt(contactDamage * lifestealFraction));
         lastContactTime = Time.time;
     }
 

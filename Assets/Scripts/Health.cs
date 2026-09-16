@@ -84,20 +84,23 @@ public class Health : MonoBehaviour
     // AttackSource bias which BodyPart gets targeted (see PlayerLimbs.RollTarget). A hazard that
     // has its own defined zone (e.g. FloorTrap's BearTrap/CollapsingCeiling) passes it to
     // TakeDamage's own optional parameter instead of using this overload, which is for mob attacks.
-    public void TakeDamageFromEnemy(int amount, AttackSource source, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
+    // Returns whether the hit actually connected (false if dodged/invulnerable/already dead) - see
+    // BossController.TryContactDamage, which must not award Vampirique lifesteal on a hit that
+    // never landed.
+    public bool TakeDamageFromEnemy(int amount, AttackSource source, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
 
-    public void TakeDamage(int amount, AttackSource source = AttackSource.Random, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
+    public bool TakeDamage(int amount, AttackSource source = AttackSource.Random, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
 
-    void ApplyDamage(int amount, AttackSource source, Vector2? fromPosition = null)
+    bool ApplyDamage(int amount, AttackSource source, Vector2? fromPosition = null)
     {
-        if (amount <= 0 || isDead || IsInvulnerable) return;
+        if (amount <= 0 || isDead || IsInvulnerable) return false;
 
         if (flatDamageReduction > 0) amount = Mathf.Max(1, amount - flatDamageReduction);
 
         if (dodgeChance > 0f && UnityEngine.Random.value < dodgeChance)
         {
             OnDodged?.Invoke();
-            return;
+            return false;
         }
 
         if (fromPosition.HasValue) OnDamagedFrom?.Invoke(fromPosition.Value);
@@ -111,7 +114,7 @@ public class Health : MonoBehaviour
             // every other Health instance (enemies/bosses) has no PlayerLimbs and falls through to
             // the plain pool math below exactly as before.
             limbs.MitigateHit(source, amount);
-            return;
+            return true;
         }
 
         currentHealth = Mathf.Max(0, currentHealth - amount);
@@ -123,6 +126,7 @@ public class Health : MonoBehaviour
             isDead = true;
             OnDeath?.Invoke();
         }
+        return true;
     }
 
     // Called by PlayerLimbs after any per-limb HP change (hit, heal, repair, Constitution change) -
