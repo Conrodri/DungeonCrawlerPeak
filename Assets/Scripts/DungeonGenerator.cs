@@ -594,298 +594,68 @@ public static class DungeonGenerator
         CurrentBiome = biome;
         BiomeTheme biomeTheme = BiomeTheme.Get(biome);
 
-        Sprite floorSprite = CreateTexturedFloorSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
-        Sprite wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", biomeTheme.wallFaceColor, biomeTheme.wallTopColor, biomeTheme.wallEdgeColor);
-        // "PlayerHero" is a real Kenney character tile (see KenneyCharacterSlicer.SlicePlayerSprite
-        // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
-        // was never run, so a missing/unbaked asset never means an invisible player.
-        Sprite playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
-        Sprite zombieSprite = CreateMaskedSprite("Assets/Art/Enemies/Zombie.png", ZombieMask, new Color(0.25f, 0.4f, 0.2f));
-        Sprite chauveSourisSprite = CreateMaskedSprite("Assets/Art/Enemies/ChauveSouris.png", ChauveSourisMask, new Color(0.3f, 0.15f, 0.35f));
-        Sprite larveSprite = CreateMaskedSprite("Assets/Art/Enemies/Larve.png", LarveMask, new Color(0.8f, 0.85f, 0.5f));
-        Sprite bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
-        Sprite bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
-        Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
-        Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
-        Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
-        Sprite barrelSprite = CreateSolidSprite("Assets/Art/Decor/Barrel.png", new Color(0.5f, 0.25f, 0.15f));
-        Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
-        Sprite floorTrapSprite = CreateCircleSprite("Assets/Art/Decor/FloorTrap.png", new Color(0.2f, 0.08f, 0.08f));
-        Sprite holeSprite = CreateCircleSprite("Assets/Art/Decor/Hole.png", new Color(0.03f, 0.03f, 0.04f));
-        // Backrooms-only decor (see SpawnBackroomsDecor) - purely decorative, no colliders, so an
-        // absurdly-scaled chair or a door standing in the open floor is just visual "loufoque"
-        // flavor, zero gameplay risk.
-        Sprite backroomsChairSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsChair.png", new Color(0.55f, 0.4f, 0.15f));
-        Sprite backroomsPillarSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsPillar.png", new Color(0.75f, 0.68f, 0.35f));
-        Sprite backroomsDoorSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsDoor.png", new Color(0.45f, 0.32f, 0.12f));
-        Sprite backroomsStainSprite = CreateCircleSprite("Assets/Art/Decor/BackroomsStain.png", new Color(0.35f, 0.3f, 0.08f, 0.6f));
-        // Tavern/shop furniture (see SpawnTavernFurniture/SpawnShopFurniture) - same "one plain
-        // sprite, stretched/rotated/tinted per prop" trick as the Backrooms decor above, so a
-        // handful of squares becomes a bar counter, tables, chairs, crates and shelves.
-        Sprite furnitureWoodSprite = CreateSolidSprite("Assets/Art/Decor/FurnitureWood.png", new Color(0.42f, 0.28f, 0.16f));
-        Sprite rugSprite = CreateSolidSprite("Assets/Art/Decor/Rug.png", new Color(0.55f, 0.15f, 0.15f));
-        Sprite wallDecorSprite = CreateSolidSprite("Assets/Art/Decor/WallDecor.png", new Color(0.35f, 0.3f, 0.55f));
-        Sprite shopCrateSprite = CreateSolidSprite("Assets/Art/Decor/ShopCrate.png", new Color(0.5f, 0.38f, 0.22f));
-        DecorSprites decorSprites = new DecorSprites
-        {
-            stoneBlock = stoneBlockSprite,
-            woodDebris = woodDebrisSprite,
-            metalDebris = metalDebrisSprite,
-            barrel = barrelSprite,
-            fuelPuddle = fuelPuddleSprite,
-            floorTrap = floorTrapSprite,
-            hole = holeSprite,
-            backroomsChair = backroomsChairSprite,
-            backroomsPillar = backroomsPillarSprite,
-            backroomsDoor = backroomsDoorSprite,
-            backroomsStain = backroomsStainSprite,
-        };
-        Sprite enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
-        Sprite speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
-        Sprite hpUpBadge = LoadIconPackSprite("Heart02_Bright");
-
-        // XP rewards halved-ish across the board (was 3/2/1, boss was 20) - explicit request to
-        // slow down leveling now that level-ups also grant attribute points to allocate (see
-        // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
-        RoomController.EnemyPresetEntry[] enemyPresets =
-        {
-            // contactDamage rebalanced 2026-09-15 alongside boss damage (see BossTierStatsFor) -
-            // 1 flat point for every species was negligible against the limb-HP rework (Arm/Leg/
-            // Torso/Head, see PlayerLimbs.BaseMaxFor). Zombie hits hardest (tanky bruiser), Larve
-            // stays weakest (its threat is swarm numbers, not per-hit power - see its spawn count).
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 2, isFlying = true, xpReward = 1 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
-        };
+        // Split into two calls around the floorTheme roll just below - that roll consumes
+        // UnityEngine.Random, and it sits BETWEEN the enemyPresets/decor block and the markers/item
+        // registration block in the original code, so a single call here would consume Random in a
+        // different relative order than before (confirmed the hard way: the first attempt at this
+        // refactor moved the roll to before all asset creation, which is Random-free on its own,
+        // but subtly desynced every Random draw for the rest of the floor - biome pools, boss
+        // families, layout, decor placement, all downstream of one shared Random stream - caught by
+        // diffing a before/after fingerprint of a full Build() call, not by inspection).
+        FloorAssets assets = BuildFloorAssetsPart1(biomeTheme);
+        Sprite floorSprite = assets.floorSprite;
+        Sprite wallSprite = assets.wallSprite;
+        Sprite playerSprite = assets.playerSprite;
+        Sprite bossProjectileSprite = assets.bossProjectileSprite;
+        Sprite bossSlobberPuddleSprite = assets.bossSlobberPuddleSprite;
+        DecorSprites decorSprites = assets.decorSprites;
+        Sprite furnitureWoodSprite = assets.furnitureWoodSprite;
+        Sprite rugSprite = assets.rugSprite;
+        Sprite wallDecorSprite = assets.wallDecorSprite;
+        Sprite shopCrateSprite = assets.shopCrateSprite;
+        Sprite enemyGlowSprite = assets.enemyGlowSprite;
+        Sprite speedUpBadge = assets.speedUpBadge;
+        Sprite hpUpBadge = assets.hpUpBadge;
+        RoomController.EnemyPresetEntry[] enemyPresets = assets.enemyPresets;
 
         // A whole floor sometimes commits to a single creature type, so every Monster room draws
         // from it instead of picking its own encounter pattern.
         EnemyType? floorTheme = Random.value < 0.3f ? (EnemyType?)(EnemyType)Random.Range(0, 3) : null;
 
-        Sprite shopMarker = CreateMaskedSprite("Assets/Art/Markers/Shop.png", ChestMask, new Color(0.75f, 0.55f, 0.15f));
-        Sprite treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
-        Sprite chestSprite = CreateMaskedSprite("Assets/Art/Items/Chest.png", ChestMask, new Color(0.5f, 0.32f, 0.15f));
-        Sprite secretMarker = CreateMaskedSprite("Assets/Art/Markers/Secret.png", QuestionMask, new Color(0.85f, 0.85f, 0.9f));
-        Sprite gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
-        Sprite bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
-        Sprite eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
-        Sprite safeMarker = LoadIconPackSprite("Shield_Bright");
-        Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
-        Sprite stairsCageSprite = CreateMaskedSprite("Assets/Art/Fx/StairsCage.png", CageMask, new Color(0.16f, 0.15f, 0.18f));
-        Sprite leverSprite = CreateSolidSprite("Assets/Art/Decor/Lever.png", new Color(0.4f, 0.35f, 0.3f));
-        Sprite craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
-
-        Sprite projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
-        Sprite swordPickupSprite = CreateMaskedSprite("Assets/Art/Items/Sword.png", SwordMask, new Color(0.75f, 0.78f, 0.82f));
-        Sprite staffPickupSprite = CreateMaskedSprite("Assets/Art/Items/Staff.png", StaffMask, new Color(0.5f, 0.25f, 0.65f));
-        Sprite goldSprite = LoadIconPackSprite("Coin_Bright");
-        Sprite shurikenSprite = CreateMaskedSprite("Assets/Art/Items/Shuriken.png", ShurikenMask, new Color(0.6f, 0.6f, 0.65f));
-        Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
-        Sprite batonSprite = CreateMaskedSprite("Assets/Art/Items/Baton.png", BatonMask, new Color(0.5f, 0.35f, 0.2f));
-
-        Sprite fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
-        Sprite swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
-
-        Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
-        Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
-        decorSprites.explosion = explosionSprite;
-
-        // Registered immediately (usable right away by SpawnItemPickup etc. below) and also baked
-        // into an ItemCatalog placed in the scene, so the same data re-registers itself into
-        // ItemDatabase when the game is actually played later, without DungeonBootstrap running.
-        ItemDatabase.Clear();
-        var itemEntries = new List<ItemCatalog.Entry>();
-        RegisterItem(itemEntries, ItemIds.Gold, "Or", ItemCategory.Currency, 100, goldSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Shuriken, "Shuriken", ItemCategory.Throwable, 10, shurikenSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Throwable, 10, caillouSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Throwable, 10, batonSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Throwable, 10, bombSprite, rarity: 2);
-
-        Sprite swordItemSprite = swordPickupSprite;
-        Sprite staffItemSprite = staffPickupSprite;
-        RegisterItem(itemEntries, ItemIds.Sword, "Epee", ItemCategory.Weapon, 1, swordItemSprite,
-            "Une epee standard, equilibree.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Sword, maxDurability: 40, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Weapon, 1, staffItemSprite,
-            "Un baton qui canalise des projectiles magiques.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Staff, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
-
-        // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
-        // never in the common LootTable drop pool.
-        Sprite anvilSprite = CreateMaskedSprite("Assets/Art/Items/Anvil.png", AnvilMask, new Color(0.2f, 0.2f, 0.22f));
-        Sprite cursedSwordSprite = CreateMaskedSprite("Assets/Art/Items/CursedSword.png", CursedSwordMask, new Color(0.35f, 0.1f, 0.4f));
-        Sprite trapSackSprite = CreateMaskedSprite("Assets/Art/Items/TrapSack.png", TrapSackMask, new Color(0.5f, 0.4f, 0.3f));
-        RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Misc, 1, anvilSprite,
-            "Une lourde enclume de forgeron.", weight: 5, rarity: 2);
-        // "L'Epee Maudite du Soldat Dechu" - one specific cursed weapon (not a generic label; a
-        // future cursed item can be named however it likes, curse status is never spelled out in
-        // its own text, see ItemInspectManager). Always crits (+50% damage) but a swing that
-        // connects with nothing costs 10% of max HP - see PlayerController.MeleeAttack.
-        RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite du Soldat Dechu", ItemCategory.Weapon, 1, cursedSwordSprite,
-            "Une lame ancienne. Une presence malveillante semble y sommeiller.",
-            isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword,
-            maxDurability: 40, material: MaterialType.Metal, rarity: 6);
-        RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Misc, 1, trapSackSprite,
-            "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true, rarity: 2);
-
-        Sprite potionSprite = CreateCircleSprite("Assets/Art/Items/Potion.png", new Color(0.8f, 0.15f, 0.35f));
-        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
-            "Restaure un peu de vie.", healAmount: 3, rarity: 1);
-
-        Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
-            "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
-            isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, rarity: 5);
-
-        // The other 6 boss family trophies (see BossFamilyFor) - plain collectible drops, not
-        // equipment (only the Cerberus Collar was singled out for that earlier).
-        Sprite anacondaScaleSprite = CreateCircleSprite("Assets/Art/Items/AnacondaScale.png", new Color(0.2f, 0.55f, 0.2f));
-        RegisterItem(itemEntries, ItemIds.AnacondaScale, "Ecaille d'Anaconda Royale", ItemCategory.Misc, 1, anacondaScaleSprite,
-            "Une ecaille massive, encore luisante. Un trophee de votre victoire.", rarity: 5);
-        Sprite entHeartshardSprite = CreateCircleSprite("Assets/Art/Items/EntHeartshard.png", new Color(0.35f, 0.28f, 0.12f));
-        RegisterItem(itemEntries, ItemIds.EntHeartshard, "Eclat de Coeur d'Ent", ItemCategory.Misc, 1, entHeartshardSprite,
-            "Un fragment de bois anime, encore chaud de seve. Un trophee de votre victoire.", rarity: 5);
-        Sprite golemCoreSprite = CreateCircleSprite("Assets/Art/Items/GolemCore.png", new Color(0.55f, 0.56f, 0.6f));
-        RegisterItem(itemEntries, ItemIds.GolemCore, "Noyau du Golem d'Acier", ItemCategory.Misc, 1, golemCoreSprite,
-            "Le noyau qui animait un golem de fer et d'acier. Un trophee de votre victoire.", rarity: 5);
-        Sprite krakenTentacleSprite = CreateCircleSprite("Assets/Art/Items/KrakenTentacle.png", new Color(0.1f, 0.25f, 0.45f));
-        RegisterItem(itemEntries, ItemIds.KrakenTentacle, "Tentacule Petrifiee du Kraken", ItemCategory.Misc, 1, krakenTentacleSprite,
-            "Une ventouse geante, figee net. Un trophee de votre victoire.", rarity: 5);
-        Sprite eagleCogSprite = CreateCircleSprite("Assets/Art/Items/EagleCog.png", new Color(0.75f, 0.7f, 0.55f));
-        RegisterItem(itemEntries, ItemIds.EagleCog, "Rouage de l'Aigle Mecanique", ItemCategory.Misc, 1, eagleCogSprite,
-            "Un rouage dore, encore tiede des mecanismes de l'aigle. Un trophee de votre victoire.", rarity: 5);
-        Sprite wandererFragmentSprite = CreateCircleSprite("Assets/Art/Items/WandererFragment.png", new Color(0.65f, 0.6f, 0.25f));
-        RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.Misc, 1, wandererFragmentSprite,
-            "Un morceau de moquette jaune, etrangement lourd. Un trophee de votre victoire.", rarity: 5);
-
-        // Crafting materials - guaranteed drops from the matching decor material (see
-        // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
-        // crafting table (SpawnCraftingTable).
-        Sprite woodMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Wood.png", WoodMask, new Color(0.55f, 0.4f, 0.25f));
-        Sprite metalMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Metal.png", MetalMask, new Color(0.5f, 0.53f, 0.58f));
-        Sprite stoneMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Stone.png", StoneMask, new Color(0.42f, 0.4f, 0.38f));
-        RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.", rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.", rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.", rarity: 1);
-
-        // Corpse-only material (see CorpseLoot.cs) - no destructible-decor source, only found on
-        // NPC-type bodies.
-        Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
-        RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Misc, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.", rarity: 1);
-
-        // Flora (see DecorType.Flower) - crafting-only ingredients, no heal/effect of their own,
-        // spent at the Table de Craft for a Potion de Soin (see SpawnCraftingTable).
-        Sprite flowerRedSprite = CreateCircleSprite("Assets/Art/Items/FlowerRed.png", new Color(0.85f, 0.15f, 0.25f));
-        RegisterItem(itemEntries, ItemIds.FlowerRed, "Fleur Ecarlate", ItemCategory.Misc, 20, flowerRedSprite, "Une fleur aux petales rouge vif.", rarity: 1);
-        Sprite flowerBlueSprite = CreateCircleSprite("Assets/Art/Items/FlowerBlue.png", new Color(0.25f, 0.4f, 0.85f));
-        RegisterItem(itemEntries, ItemIds.FlowerBlue, "Fleur Azur", ItemCategory.Misc, 20, flowerBlueSprite, "Une fleur bleue au parfum leger.", rarity: 1);
-        Sprite herbSprite = CreateCircleSprite("Assets/Art/Items/Herb.png", new Color(0.3f, 0.65f, 0.3f));
-        RegisterItem(itemEntries, ItemIds.Herb, "Herbe Argentee", ItemCategory.Misc, 20, herbSprite, "Une touffe d'herbe aux reflets argentes.", rarity: 1);
-        Sprite mushroomSprite = CreateCircleSprite("Assets/Art/Items/Mushroom.png", new Color(0.8f, 0.65f, 0.2f));
-        RegisterItem(itemEntries, ItemIds.Mushroom, "Champignon Dore", ItemCategory.Misc, 20, mushroomSprite, "Un champignon a la teinte doree.", rarity: 2);
-
-        // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
-        // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
-        // PlayerLimbs.GetArmor) - Torso is covered by Shoulders+Belt+Neck at once, Arms/Legs share
-        // a single Gloves/Boots+Knees slot each, matching this project's one-slot-per-type layout.
-        // Head/Boots/Knees are the "heavy" pieces (Metal, sturdier, fire-resistant); Shoulders/
-        // Gloves/Neck/Belt are the "soft" pieces (Tissu - cloth/leather, lower durability, and the
-        // only material that can catch fire, see PlayerEquipment.IgniteFlammable).
-        Sprite ironHelmetSprite = CreateMaskedSprite("Assets/Art/Items/IronHelmet.png", HelmetMask, new Color(0.55f, 0.56f, 0.6f));
-        Sprite leatherPauldronsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherPauldrons.png", PauldronsMask, new Color(0.45f, 0.32f, 0.18f));
-        Sprite combatGlovesSprite = CreateMaskedSprite("Assets/Art/Items/CombatGloves.png", GlovesMask, new Color(0.35f, 0.25f, 0.15f));
-        Sprite walkingBootsSprite = CreateMaskedSprite("Assets/Art/Items/WalkingBoots.png", BootsMask, new Color(0.3f, 0.2f, 0.12f));
-        Sprite simpleNecklaceSprite = CreateCircleSprite("Assets/Art/Items/SimpleNecklace.png", new Color(0.8f, 0.75f, 0.3f));
-        Sprite leatherBeltSprite = CreateMaskedSprite("Assets/Art/Items/LeatherBelt.png", BeltMask, new Color(0.4f, 0.28f, 0.16f));
-        Sprite leatherKneepadsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherKneepads.png", KneepadsMask, new Color(0.42f, 0.3f, 0.17f));
-        Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
-        RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
-            "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1,
-            maxDurability: 40, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1,
-            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
-            "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1,
-            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
-            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1,
-            maxDurability: 30, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1,
-            maxDurability: 15, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
-            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1,
-            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
-            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1,
-            maxDurability: 30, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
-            "Se porte a n'importe quel doigt (+1 Endurance).", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft,
-            ringBonusStat: StatType.Endurance, rarity: 2);
-
-        // Real shop wares (see SpawnMerchantNpc) - 8 stat rings (one random one sold per floor),
-        // anti-hole boots (immune to the Hole debuff - see PlayerController.ApplyMovementDebuff),
-        // vision glasses (reveals a secret room's bombable wall - see SecretWallBlocker).
-        (string id, string name, StatType stat, Color color)[] ringDefs =
-        {
-            (ItemIds.RingForce, "Anneau de Force", StatType.Force, new Color(0.75f, 0.2f, 0.15f)),
-            (ItemIds.RingDexterite, "Anneau de Dexterite", StatType.Dexterite, new Color(0.2f, 0.65f, 0.25f)),
-            (ItemIds.RingIntelligence, "Anneau d'Intelligence", StatType.Intelligence, new Color(0.2f, 0.35f, 0.85f)),
-            (ItemIds.RingVitesse, "Anneau de Vitesse", StatType.Vitesse, new Color(0.2f, 0.75f, 0.8f)),
-            (ItemIds.RingConstitution, "Anneau de Constitution", StatType.Constitution, new Color(0.85f, 0.5f, 0.15f)),
-            (ItemIds.RingPortee, "Anneau de Portee", StatType.Portee, new Color(0.55f, 0.25f, 0.75f)),
-            (ItemIds.RingCharisme, "Anneau de Charisme", StatType.Charisme, new Color(0.85f, 0.4f, 0.65f)),
-            (ItemIds.RingEndurance, "Anneau d'Endurance", StatType.Endurance, new Color(0.85f, 0.75f, 0.2f)),
-        };
-        foreach (var ring in ringDefs)
-        {
-            Sprite ringSprite = CreateCircleSprite("Assets/Art/Items/" + ring.id + ".png", ring.color);
-            RegisterItem(itemEntries, ring.id, ring.name, ItemCategory.Equipment, 1, ringSprite,
-                "+1 " + ring.stat + " tant qu'il est equipe.", isEquipment: true,
-                equipmentSlot: EquipmentSlotType.RingLeft, ringBonusStat: ring.stat, rarity: 3);
-        }
-
-        Sprite antiHoleBootsSprite = CreateMaskedSprite("Assets/Art/Items/AntiHoleBoots.png", AntiHoleBootsMask, new Color(0.35f, 0.28f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipment, 1, antiHoleBootsSprite,
-            "Immunise contre le ralentissement des trous au sol.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, rarity: 3);
-
-        Sprite visionGlassesSprite = CreateMaskedSprite("Assets/Art/Items/VisionGlasses.png", GlassesMask, new Color(0.5f, 0.7f, 0.85f));
-        RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipment, 1, visionGlassesSprite,
-            "Revele les murs dissimulant une salle secrete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, rarity: 3);
-
-        Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
-        // Same face color as the wall itself, so a secret room's bombable wall blends in - no
-        // visual hint, on purpose (detection items are a separate future feature).
-        Sprite secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
-        Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
-        // Real Kenney character tiles (see KenneyCharacterSlicer.SlicePlayerSprite), one per NPC
-        // role, each with its own color tint applied at spawn time (SpawnExampleNpc etc. below) so
-        // even a reused silhouette still reads as a distinct character - same fallback convention
-        // as PlayerHero if the slice/bake step was never run.
-        Sprite npcStrangerSprite = LoadIconPackSprite("NpcStranger") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
-        Sprite npcElderSprite = LoadIconPackSprite("NpcElder") ?? npcStrangerSprite;
-        Sprite npcMerchantSprite = LoadIconPackSprite("NpcMerchant") ?? npcStrangerSprite;
-        // Ground items are flat colored circles/squares too (no dedicated art beyond a handful of
-        // icon-pack sprites) - without a marker, an NPC reads as just another item on the floor.
-        // A floating "!" above the head (same convention as EnemyController's elite badges) fixes
-        // that at a glance without needing new art.
-        Sprite npcBadgeSprite = LoadIconPackSprite("Quest01_Bright");
-
-        // Still used by StatsUI's Constitution icon below - HeartHUD itself no longer needs a
-        // heart sprite at all (see HeartHUD.cs, now a plain fill bar).
-        Sprite fullHeart = LoadIconPackSprite("Heart02_Bright");
-
-        Sprite forceIcon = LoadIconPackSprite("Sword_Bright");
-        Sprite agiliteIcon = LoadIconPackSprite("Bow_Bright");
-        Sprite intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
-        Sprite vitesseIcon = LoadIconPackSprite("Thunder_Bright");
-        Sprite porteeIcon = LoadIconPackSprite("Compass_Bright");
-        Sprite charismeIcon = LoadIconPackSprite("Star01_Bright");
-        Sprite enduranceIcon = LoadIconPackSprite("Watch_Bright");
-
-        Tile floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", floorSprite, Tile.ColliderType.None);
-        Tile wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", wallSprite, Tile.ColliderType.Grid);
+        BuildFloorAssetsPart2(assets, out List<ItemCatalog.Entry> itemEntries);
+        Sprite shopMarker = assets.shopMarker;
+        Sprite treasureMarker = assets.treasureMarker;
+        Sprite chestSprite = assets.chestSprite;
+        Sprite secretMarker = assets.secretMarker;
+        Sprite gambleMarker = assets.gambleMarker;
+        Sprite bossMarker = assets.bossMarker;
+        Sprite eventMarker = assets.eventMarker;
+        Sprite safeMarker = assets.safeMarker;
+        Sprite stairsMarker = assets.stairsMarker;
+        Sprite stairsCageSprite = assets.stairsCageSprite;
+        Sprite leverSprite = assets.leverSprite;
+        Sprite craftingTableSprite = assets.craftingTableSprite;
+        Sprite projectileSprite = assets.projectileSprite;
+        Sprite fistVisualSprite = assets.fistVisualSprite;
+        Sprite swordVisualSprite = assets.swordVisualSprite;
+        Sprite explosionSprite = assets.explosionSprite;
+        Sprite doorBarrierSprite = assets.doorBarrierSprite;
+        Sprite secretWallSprite = assets.secretWallSprite;
+        Sprite outlineRingSprite = assets.outlineRingSprite;
+        Sprite npcStrangerSprite = assets.npcStrangerSprite;
+        Sprite npcElderSprite = assets.npcElderSprite;
+        Sprite npcMerchantSprite = assets.npcMerchantSprite;
+        Sprite npcBadgeSprite = assets.npcBadgeSprite;
+        Sprite fullHeart = assets.fullHeart;
+        Sprite forceIcon = assets.forceIcon;
+        Sprite agiliteIcon = assets.agiliteIcon;
+        Sprite intelligenceIcon = assets.intelligenceIcon;
+        Sprite vitesseIcon = assets.vitesseIcon;
+        Sprite porteeIcon = assets.porteeIcon;
+        Sprite charismeIcon = assets.charismeIcon;
+        Sprite enduranceIcon = assets.enduranceIcon;
+        Tile floorTile = assets.floorTile;
+        Tile wallTile = assets.wallTile;
 
         GameObject existingRoot = GameObject.Find("DungeonRoot");
         if (existingRoot != null) Object.DestroyImmediate(existingRoot);
@@ -2272,6 +2042,320 @@ public static class DungeonGenerator
         }
 
         Debug.Log("DungeonGenerator: floor generated with " + layout.Count + " rooms (" + eliteRoomCount + " with an elite).");
+    }
+
+    // Extracted from Build() (2026-09-16 cleanup, finding #9 of the full-codebase review) - every
+    // sprite/tile this floor needs plus the full item registration pass (RegisterItem calls),
+    // exactly as inlined before, just moved out of Build()'s own body. Pure asset creation/data
+    // registration: none of it touches UnityEngine.Random, so extracting it changes nothing about
+    // Random consumption order relative to the rest of Build() (see the floorTheme roll, which DOES
+    // consume Random and was deliberately left inline in Build() itself, computed just before this
+    // call, rather than moved in here).
+    // Extracted from Build() (2026-09-16 cleanup, finding #9 of the full-codebase review) - part 1
+    // of 2, split around the floorTheme roll that stays inline in Build() itself (see its comment
+    // there for why: floorTheme consumes UnityEngine.Random, this method must not, so it can only
+    // safely sit either entirely before or entirely after that roll in Build()'s call sequence -
+    // this half is everything from the original code BEFORE the roll).
+    static FloorAssets BuildFloorAssetsPart1(BiomeTheme biomeTheme)
+    {
+        FloorAssets assets = new FloorAssets();
+
+        assets.floorSprite = CreateTexturedFloorSprite("Assets/Art/Tiles/Floor.png", biomeTheme.floorColor);
+        assets.wallSprite = CreateWallSprite("Assets/Art/Tiles/Wall.png", biomeTheme.wallFaceColor, biomeTheme.wallTopColor, biomeTheme.wallEdgeColor);
+        // "PlayerHero" is a real Kenney character tile (see KenneyCharacterSlicer.SlicePlayerSprite
+        // + Dungeon/Rebuild Icon Pack Data) - falls back to the old flat circle if that bake step
+        // was never run, so a missing/unbaked asset never means an invisible player.
+        assets.playerSprite = LoadIconPackSprite("PlayerHero") ?? CreateCircleSprite("Assets/Art/Player.png", new Color(0.85f, 0.75f, 0.15f));
+        Sprite zombieSprite = CreateMaskedSprite("Assets/Art/Enemies/Zombie.png", ZombieMask, new Color(0.25f, 0.4f, 0.2f));
+        Sprite chauveSourisSprite = CreateMaskedSprite("Assets/Art/Enemies/ChauveSouris.png", ChauveSourisMask, new Color(0.3f, 0.15f, 0.35f));
+        Sprite larveSprite = CreateMaskedSprite("Assets/Art/Enemies/Larve.png", LarveMask, new Color(0.8f, 0.85f, 0.5f));
+        assets.bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
+        assets.bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
+        Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
+        Sprite woodDebrisSprite = CreateSolidSprite("Assets/Art/Decor/WoodDebris.png", new Color(0.55f, 0.4f, 0.25f));
+        Sprite metalDebrisSprite = CreateSolidSprite("Assets/Art/Decor/MetalDebris.png", new Color(0.5f, 0.53f, 0.58f));
+        Sprite barrelSprite = CreateSolidSprite("Assets/Art/Decor/Barrel.png", new Color(0.5f, 0.25f, 0.15f));
+        Sprite fuelPuddleSprite = CreateCircleSprite("Assets/Art/Decor/FuelPuddle.png", new Color(0.12f, 0.1f, 0.08f));
+        Sprite floorTrapSprite = CreateCircleSprite("Assets/Art/Decor/FloorTrap.png", new Color(0.2f, 0.08f, 0.08f));
+        Sprite holeSprite = CreateCircleSprite("Assets/Art/Decor/Hole.png", new Color(0.03f, 0.03f, 0.04f));
+        // Backrooms-only decor (see SpawnBackroomsDecor) - purely decorative, no colliders, so an
+        // absurdly-scaled chair or a door standing in the open floor is just visual "loufoque"
+        // flavor, zero gameplay risk.
+        Sprite backroomsChairSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsChair.png", new Color(0.55f, 0.4f, 0.15f));
+        Sprite backroomsPillarSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsPillar.png", new Color(0.75f, 0.68f, 0.35f));
+        Sprite backroomsDoorSprite = CreateSolidSprite("Assets/Art/Decor/BackroomsDoor.png", new Color(0.45f, 0.32f, 0.12f));
+        Sprite backroomsStainSprite = CreateCircleSprite("Assets/Art/Decor/BackroomsStain.png", new Color(0.35f, 0.3f, 0.08f, 0.6f));
+        // Tavern/shop furniture (see SpawnTavernFurniture/SpawnShopFurniture) - same "one plain
+        // sprite, stretched/rotated/tinted per prop" trick as the Backrooms decor above, so a
+        // handful of squares becomes a bar counter, tables, chairs, crates and shelves.
+        assets.furnitureWoodSprite = CreateSolidSprite("Assets/Art/Decor/FurnitureWood.png", new Color(0.42f, 0.28f, 0.16f));
+        assets.rugSprite = CreateSolidSprite("Assets/Art/Decor/Rug.png", new Color(0.55f, 0.15f, 0.15f));
+        assets.wallDecorSprite = CreateSolidSprite("Assets/Art/Decor/WallDecor.png", new Color(0.35f, 0.3f, 0.55f));
+        assets.shopCrateSprite = CreateSolidSprite("Assets/Art/Decor/ShopCrate.png", new Color(0.5f, 0.38f, 0.22f));
+        assets.decorSprites = new DecorSprites
+        {
+            stoneBlock = stoneBlockSprite,
+            woodDebris = woodDebrisSprite,
+            metalDebris = metalDebrisSprite,
+            barrel = barrelSprite,
+            fuelPuddle = fuelPuddleSprite,
+            floorTrap = floorTrapSprite,
+            hole = holeSprite,
+            backroomsChair = backroomsChairSprite,
+            backroomsPillar = backroomsPillarSprite,
+            backroomsDoor = backroomsDoorSprite,
+            backroomsStain = backroomsStainSprite,
+        };
+        assets.enemyGlowSprite = CreateGlowSprite("Assets/Art/Fx/EnemyGlow.png");
+        assets.speedUpBadge = LoadIconPackSprite("ThunderStrike_Bright");
+        assets.hpUpBadge = LoadIconPackSprite("Heart02_Bright");
+
+        // XP rewards halved-ish across the board (was 3/2/1, boss was 20) - explicit request to
+        // slow down leveling now that level-ups also grant attribute points to allocate (see
+        // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
+        assets.enemyPresets = new RoomController.EnemyPresetEntry[]
+        {
+            // contactDamage rebalanced 2026-09-15 alongside boss damage (see BossTierStatsFor) -
+            // 1 flat point for every species was negligible against the limb-HP rework (Arm/Leg/
+            // Torso/Head, see PlayerLimbs.BaseMaxFor). Zombie hits hardest (tanky bruiser), Larve
+            // stays weakest (its threat is swarm numbers, not per-hit power - see its spawn count).
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 2, isFlying = true, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
+        };
+
+        return assets;
+    }
+
+    // Part 2 of 2 (see BuildFloorAssetsPart1 above) - everything from the original code AFTER the
+    // floorTheme roll, including the full item-registration pass. Mutates the SAME FloorAssets
+    // instance Part1 returned (a class, passed by reference) rather than returning a second one.
+    static void BuildFloorAssetsPart2(FloorAssets assets, out List<ItemCatalog.Entry> itemEntries)
+    {
+        assets.shopMarker = CreateMaskedSprite("Assets/Art/Markers/Shop.png", ChestMask, new Color(0.75f, 0.55f, 0.15f));
+        assets.treasureMarker = CreateSolidSprite("Assets/Art/Markers/Treasure.png", new Color(0.85f, 0.7f, 0.2f));
+        assets.chestSprite = CreateMaskedSprite("Assets/Art/Items/Chest.png", ChestMask, new Color(0.5f, 0.32f, 0.15f));
+        assets.secretMarker = CreateMaskedSprite("Assets/Art/Markers/Secret.png", QuestionMask, new Color(0.85f, 0.85f, 0.9f));
+        assets.gambleMarker = CreateSolidSprite("Assets/Art/Markers/Gamble.png", new Color(0.85f, 0.35f, 0.15f));
+        assets.bossMarker = CreateMaskedSprite("Assets/Art/Markers/Boss.png", SkullMask, new Color(0.9f, 0.9f, 0.92f));
+        assets.eventMarker = CreateMaskedSprite("Assets/Art/Markers/Event.png", ExclamationMask, new Color(0.55f, 0.25f, 0.85f));
+        assets.safeMarker = LoadIconPackSprite("Shield_Bright");
+        assets.stairsMarker = LoadIconPackSprite("Exit_Bright");
+        assets.stairsCageSprite = CreateMaskedSprite("Assets/Art/Fx/StairsCage.png", CageMask, new Color(0.16f, 0.15f, 0.18f));
+        assets.leverSprite = CreateSolidSprite("Assets/Art/Decor/Lever.png", new Color(0.4f, 0.35f, 0.3f));
+        assets.craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
+
+        assets.projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
+        Sprite swordPickupSprite = CreateMaskedSprite("Assets/Art/Items/Sword.png", SwordMask, new Color(0.75f, 0.78f, 0.82f));
+        Sprite staffPickupSprite = CreateMaskedSprite("Assets/Art/Items/Staff.png", StaffMask, new Color(0.5f, 0.25f, 0.65f));
+        Sprite goldSprite = LoadIconPackSprite("Coin_Bright");
+        Sprite shurikenSprite = CreateMaskedSprite("Assets/Art/Items/Shuriken.png", ShurikenMask, new Color(0.6f, 0.6f, 0.65f));
+        Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
+        Sprite batonSprite = CreateMaskedSprite("Assets/Art/Items/Baton.png", BatonMask, new Color(0.5f, 0.35f, 0.2f));
+
+        assets.fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
+        assets.swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
+
+        Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
+        assets.explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
+        assets.decorSprites.explosion = assets.explosionSprite;
+
+        // Registered immediately (usable right away by SpawnItemPickup etc. below) and also baked
+        // into an ItemCatalog placed in the scene, so the same data re-registers itself into
+        // ItemDatabase when the game is actually played later, without DungeonBootstrap running.
+        ItemDatabase.Clear();
+        itemEntries = new List<ItemCatalog.Entry>();
+        RegisterItem(itemEntries, ItemIds.Gold, "Or", ItemCategory.Currency, 100, goldSprite, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Shuriken, "Shuriken", ItemCategory.Throwable, 10, shurikenSprite, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Throwable, 10, caillouSprite, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Throwable, 10, batonSprite, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Throwable, 10, bombSprite, rarity: 2);
+
+        Sprite swordItemSprite = swordPickupSprite;
+        Sprite staffItemSprite = staffPickupSprite;
+        RegisterItem(itemEntries, ItemIds.Sword, "Epee", ItemCategory.Weapon, 1, swordItemSprite,
+            "Une epee standard, equilibree.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Sword, maxDurability: 40, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Weapon, 1, staffItemSprite,
+            "Un baton qui canalise des projectiles magiques.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Staff, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+
+        // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
+        // never in the common LootTable drop pool.
+        Sprite anvilSprite = CreateMaskedSprite("Assets/Art/Items/Anvil.png", AnvilMask, new Color(0.2f, 0.2f, 0.22f));
+        Sprite cursedSwordSprite = CreateMaskedSprite("Assets/Art/Items/CursedSword.png", CursedSwordMask, new Color(0.35f, 0.1f, 0.4f));
+        Sprite trapSackSprite = CreateMaskedSprite("Assets/Art/Items/TrapSack.png", TrapSackMask, new Color(0.5f, 0.4f, 0.3f));
+        RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Misc, 1, anvilSprite,
+            "Une lourde enclume de forgeron.", weight: 5, rarity: 2);
+        // "L'Epee Maudite du Soldat Dechu" - one specific cursed weapon (not a generic label; a
+        // future cursed item can be named however it likes, curse status is never spelled out in
+        // its own text, see ItemInspectManager). Always crits (+50% damage) but a swing that
+        // connects with nothing costs 10% of max HP - see PlayerController.MeleeAttack.
+        RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite du Soldat Dechu", ItemCategory.Weapon, 1, cursedSwordSprite,
+            "Une lame ancienne. Une presence malveillante semble y sommeiller.",
+            isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword,
+            maxDurability: 40, material: MaterialType.Metal, rarity: 6);
+        RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Misc, 1, trapSackSprite,
+            "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true, rarity: 2);
+
+        Sprite potionSprite = CreateCircleSprite("Assets/Art/Items/Potion.png", new Color(0.8f, 0.15f, 0.35f));
+        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
+            "Restaure un peu de vie.", healAmount: 3, rarity: 1);
+
+        Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
+            "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
+            isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, rarity: 5);
+
+        // The other 6 boss family trophies (see BossFamilyFor) - plain collectible drops, not
+        // equipment (only the Cerberus Collar was singled out for that earlier).
+        Sprite anacondaScaleSprite = CreateCircleSprite("Assets/Art/Items/AnacondaScale.png", new Color(0.2f, 0.55f, 0.2f));
+        RegisterItem(itemEntries, ItemIds.AnacondaScale, "Ecaille d'Anaconda Royale", ItemCategory.Misc, 1, anacondaScaleSprite,
+            "Une ecaille massive, encore luisante. Un trophee de votre victoire.", rarity: 5);
+        Sprite entHeartshardSprite = CreateCircleSprite("Assets/Art/Items/EntHeartshard.png", new Color(0.35f, 0.28f, 0.12f));
+        RegisterItem(itemEntries, ItemIds.EntHeartshard, "Eclat de Coeur d'Ent", ItemCategory.Misc, 1, entHeartshardSprite,
+            "Un fragment de bois anime, encore chaud de seve. Un trophee de votre victoire.", rarity: 5);
+        Sprite golemCoreSprite = CreateCircleSprite("Assets/Art/Items/GolemCore.png", new Color(0.55f, 0.56f, 0.6f));
+        RegisterItem(itemEntries, ItemIds.GolemCore, "Noyau du Golem d'Acier", ItemCategory.Misc, 1, golemCoreSprite,
+            "Le noyau qui animait un golem de fer et d'acier. Un trophee de votre victoire.", rarity: 5);
+        Sprite krakenTentacleSprite = CreateCircleSprite("Assets/Art/Items/KrakenTentacle.png", new Color(0.1f, 0.25f, 0.45f));
+        RegisterItem(itemEntries, ItemIds.KrakenTentacle, "Tentacule Petrifiee du Kraken", ItemCategory.Misc, 1, krakenTentacleSprite,
+            "Une ventouse geante, figee net. Un trophee de votre victoire.", rarity: 5);
+        Sprite eagleCogSprite = CreateCircleSprite("Assets/Art/Items/EagleCog.png", new Color(0.75f, 0.7f, 0.55f));
+        RegisterItem(itemEntries, ItemIds.EagleCog, "Rouage de l'Aigle Mecanique", ItemCategory.Misc, 1, eagleCogSprite,
+            "Un rouage dore, encore tiede des mecanismes de l'aigle. Un trophee de votre victoire.", rarity: 5);
+        Sprite wandererFragmentSprite = CreateCircleSprite("Assets/Art/Items/WandererFragment.png", new Color(0.65f, 0.6f, 0.25f));
+        RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.Misc, 1, wandererFragmentSprite,
+            "Un morceau de moquette jaune, etrangement lourd. Un trophee de votre victoire.", rarity: 5);
+
+        // Crafting materials - guaranteed drops from the matching decor material (see
+        // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
+        // crafting table (SpawnCraftingTable).
+        Sprite woodMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Wood.png", WoodMask, new Color(0.55f, 0.4f, 0.25f));
+        Sprite metalMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Metal.png", MetalMask, new Color(0.5f, 0.53f, 0.58f));
+        Sprite stoneMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Stone.png", StoneMask, new Color(0.42f, 0.4f, 0.38f));
+        RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.", rarity: 1);
+
+        // Corpse-only material (see CorpseLoot.cs) - no destructible-decor source, only found on
+        // NPC-type bodies.
+        Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
+        RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Misc, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.", rarity: 1);
+
+        // Flora (see DecorType.Flower) - crafting-only ingredients, no heal/effect of their own,
+        // spent at the Table de Craft for a Potion de Soin (see SpawnCraftingTable).
+        Sprite flowerRedSprite = CreateCircleSprite("Assets/Art/Items/FlowerRed.png", new Color(0.85f, 0.15f, 0.25f));
+        RegisterItem(itemEntries, ItemIds.FlowerRed, "Fleur Ecarlate", ItemCategory.Misc, 20, flowerRedSprite, "Une fleur aux petales rouge vif.", rarity: 1);
+        Sprite flowerBlueSprite = CreateCircleSprite("Assets/Art/Items/FlowerBlue.png", new Color(0.25f, 0.4f, 0.85f));
+        RegisterItem(itemEntries, ItemIds.FlowerBlue, "Fleur Azur", ItemCategory.Misc, 20, flowerBlueSprite, "Une fleur bleue au parfum leger.", rarity: 1);
+        Sprite herbSprite = CreateCircleSprite("Assets/Art/Items/Herb.png", new Color(0.3f, 0.65f, 0.3f));
+        RegisterItem(itemEntries, ItemIds.Herb, "Herbe Argentee", ItemCategory.Misc, 20, herbSprite, "Une touffe d'herbe aux reflets argentes.", rarity: 1);
+        Sprite mushroomSprite = CreateCircleSprite("Assets/Art/Items/Mushroom.png", new Color(0.8f, 0.65f, 0.2f));
+        RegisterItem(itemEntries, ItemIds.Mushroom, "Champignon Dore", ItemCategory.Misc, 20, mushroomSprite, "Un champignon a la teinte doree.", rarity: 2);
+
+        // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
+        // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
+        // PlayerLimbs.GetArmor) - Torso is covered by Shoulders+Belt+Neck at once, Arms/Legs share
+        // a single Gloves/Boots+Knees slot each, matching this project's one-slot-per-type layout.
+        // Head/Boots/Knees are the "heavy" pieces (Metal, sturdier, fire-resistant); Shoulders/
+        // Gloves/Neck/Belt are the "soft" pieces (Tissu - cloth/leather, lower durability, and the
+        // only material that can catch fire, see PlayerEquipment.IgniteFlammable).
+        Sprite ironHelmetSprite = CreateMaskedSprite("Assets/Art/Items/IronHelmet.png", HelmetMask, new Color(0.55f, 0.56f, 0.6f));
+        Sprite leatherPauldronsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherPauldrons.png", PauldronsMask, new Color(0.45f, 0.32f, 0.18f));
+        Sprite combatGlovesSprite = CreateMaskedSprite("Assets/Art/Items/CombatGloves.png", GlovesMask, new Color(0.35f, 0.25f, 0.15f));
+        Sprite walkingBootsSprite = CreateMaskedSprite("Assets/Art/Items/WalkingBoots.png", BootsMask, new Color(0.3f, 0.2f, 0.12f));
+        Sprite simpleNecklaceSprite = CreateCircleSprite("Assets/Art/Items/SimpleNecklace.png", new Color(0.8f, 0.75f, 0.3f));
+        Sprite leatherBeltSprite = CreateMaskedSprite("Assets/Art/Items/LeatherBelt.png", BeltMask, new Color(0.4f, 0.28f, 0.16f));
+        Sprite leatherKneepadsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherKneepads.png", KneepadsMask, new Color(0.42f, 0.3f, 0.17f));
+        Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
+        RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
+            "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1,
+            maxDurability: 40, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
+            "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1,
+            maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1,
+            maxDurability: 15, material: MaterialType.Tissu, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
+            "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1,
+            maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
+            "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1,
+            maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
+            "Se porte a n'importe quel doigt (+1 Endurance).", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft,
+            ringBonusStat: StatType.Endurance, rarity: 2);
+
+        // Real shop wares (see SpawnMerchantNpc) - 8 stat rings (one random one sold per floor),
+        // anti-hole boots (immune to the Hole debuff - see PlayerController.ApplyMovementDebuff),
+        // vision glasses (reveals a secret room's bombable wall - see SecretWallBlocker).
+        (string id, string name, StatType stat, Color color)[] ringDefs =
+        {
+            (ItemIds.RingForce, "Anneau de Force", StatType.Force, new Color(0.75f, 0.2f, 0.15f)),
+            (ItemIds.RingDexterite, "Anneau de Dexterite", StatType.Dexterite, new Color(0.2f, 0.65f, 0.25f)),
+            (ItemIds.RingIntelligence, "Anneau d'Intelligence", StatType.Intelligence, new Color(0.2f, 0.35f, 0.85f)),
+            (ItemIds.RingVitesse, "Anneau de Vitesse", StatType.Vitesse, new Color(0.2f, 0.75f, 0.8f)),
+            (ItemIds.RingConstitution, "Anneau de Constitution", StatType.Constitution, new Color(0.85f, 0.5f, 0.15f)),
+            (ItemIds.RingPortee, "Anneau de Portee", StatType.Portee, new Color(0.55f, 0.25f, 0.75f)),
+            (ItemIds.RingCharisme, "Anneau de Charisme", StatType.Charisme, new Color(0.85f, 0.4f, 0.65f)),
+            (ItemIds.RingEndurance, "Anneau d'Endurance", StatType.Endurance, new Color(0.85f, 0.75f, 0.2f)),
+        };
+        foreach (var ring in ringDefs)
+        {
+            Sprite ringSprite = CreateCircleSprite("Assets/Art/Items/" + ring.id + ".png", ring.color);
+            RegisterItem(itemEntries, ring.id, ring.name, ItemCategory.Equipment, 1, ringSprite,
+                "+1 " + ring.stat + " tant qu'il est equipe.", isEquipment: true,
+                equipmentSlot: EquipmentSlotType.RingLeft, ringBonusStat: ring.stat, rarity: 3);
+        }
+
+        Sprite antiHoleBootsSprite = CreateMaskedSprite("Assets/Art/Items/AntiHoleBoots.png", AntiHoleBootsMask, new Color(0.35f, 0.28f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipment, 1, antiHoleBootsSprite,
+            "Immunise contre le ralentissement des trous au sol.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, rarity: 3);
+
+        Sprite visionGlassesSprite = CreateMaskedSprite("Assets/Art/Items/VisionGlasses.png", GlassesMask, new Color(0.5f, 0.7f, 0.85f));
+        RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipment, 1, visionGlassesSprite,
+            "Revele les murs dissimulant une salle secrete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, rarity: 3);
+
+        assets.doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
+        // Same face color as the wall itself, so a secret room's bombable wall blends in - no
+        // visual hint, on purpose (detection items are a separate future feature).
+        assets.secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
+        assets.outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
+        // Real Kenney character tiles (see KenneyCharacterSlicer.SlicePlayerSprite), one per NPC
+        // role, each with its own color tint applied at spawn time (SpawnExampleNpc etc. below) so
+        // even a reused silhouette still reads as a distinct character - same fallback convention
+        // as PlayerHero if the slice/bake step was never run.
+        assets.npcStrangerSprite = LoadIconPackSprite("NpcStranger") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
+        assets.npcElderSprite = LoadIconPackSprite("NpcElder") ?? assets.npcStrangerSprite;
+        assets.npcMerchantSprite = LoadIconPackSprite("NpcMerchant") ?? assets.npcStrangerSprite;
+        // Ground items are flat colored circles/squares too (no dedicated art beyond a handful of
+        // icon-pack sprites) - without a marker, an NPC reads as just another item on the floor.
+        // A floating "!" above the head (same convention as EnemyController's elite badges) fixes
+        // that at a glance without needing new art.
+        assets.npcBadgeSprite = LoadIconPackSprite("Quest01_Bright");
+
+        // Still used by StatsUI's Constitution icon below - HeartHUD itself no longer needs a
+        // heart sprite at all (see HeartHUD.cs, now a plain fill bar).
+        assets.fullHeart = LoadIconPackSprite("Heart02_Bright");
+
+        assets.forceIcon = LoadIconPackSprite("Sword_Bright");
+        assets.agiliteIcon = LoadIconPackSprite("Bow_Bright");
+        assets.intelligenceIcon = LoadIconPackSprite("Gear01_Bright");
+        assets.vitesseIcon = LoadIconPackSprite("Thunder_Bright");
+        assets.porteeIcon = LoadIconPackSprite("Compass_Bright");
+        assets.charismeIcon = LoadIconPackSprite("Star01_Bright");
+        assets.enduranceIcon = LoadIconPackSprite("Watch_Bright");
+
+        assets.floorTile = CreateTileAsset("Assets/Art/Tiles/FloorTile.asset", assets.floorSprite, Tile.ColliderType.None);
+        assets.wallTile = CreateTileAsset("Assets/Art/Tiles/WallTile.asset", assets.wallSprite, Tile.ColliderType.Grid);
     }
 
     // Called by Staircase.OnTriggerEnter2D once its lock is open - a fresh floor+1 with a new
@@ -4206,6 +4290,63 @@ public static class DungeonGenerator
     // common LootTable pool - rare environmental finds, never a kill/break reward.
     const float SpecialLootChance = 0.15f;
     static readonly string[] SpecialLootIds = { ItemIds.Anvil, ItemIds.CursedSword, ItemIds.TrapSack };
+
+    // Everything BuildFloorAssetsPart1/Part2 create that's still referenced LATER in Build() (past
+    // the asset/item-registration block itself) - a sprite/tile only ever used to register an item
+    // (e.g. every crafting material, every piece of starter armor) stays a purely local variable
+    // inside those methods instead of living here, see their own comments for how that set was
+    // derived. 2026-09-16 cleanup (full-codebase review, finding #9): Build() used to inline sprite
+    // generation and item registration directly, ~290 lines mixed into the ~1700-line method body.
+    class FloorAssets
+    {
+        public Sprite floorSprite;
+        public Sprite wallSprite;
+        public Sprite playerSprite;
+        public Sprite bossProjectileSprite;
+        public Sprite bossSlobberPuddleSprite;
+        public DecorSprites decorSprites;
+        public Sprite furnitureWoodSprite;
+        public Sprite rugSprite;
+        public Sprite wallDecorSprite;
+        public Sprite shopCrateSprite;
+        public Sprite enemyGlowSprite;
+        public Sprite speedUpBadge;
+        public Sprite hpUpBadge;
+        public RoomController.EnemyPresetEntry[] enemyPresets;
+        public Sprite shopMarker;
+        public Sprite treasureMarker;
+        public Sprite chestSprite;
+        public Sprite secretMarker;
+        public Sprite gambleMarker;
+        public Sprite bossMarker;
+        public Sprite eventMarker;
+        public Sprite safeMarker;
+        public Sprite stairsMarker;
+        public Sprite stairsCageSprite;
+        public Sprite leverSprite;
+        public Sprite craftingTableSprite;
+        public Sprite projectileSprite;
+        public Sprite fistVisualSprite;
+        public Sprite swordVisualSprite;
+        public Sprite explosionSprite;
+        public Sprite doorBarrierSprite;
+        public Sprite secretWallSprite;
+        public Sprite outlineRingSprite;
+        public Sprite npcStrangerSprite;
+        public Sprite npcElderSprite;
+        public Sprite npcMerchantSprite;
+        public Sprite npcBadgeSprite;
+        public Sprite fullHeart;
+        public Sprite forceIcon;
+        public Sprite agiliteIcon;
+        public Sprite intelligenceIcon;
+        public Sprite vitesseIcon;
+        public Sprite porteeIcon;
+        public Sprite charismeIcon;
+        public Sprite enduranceIcon;
+        public Tile floorTile;
+        public Tile wallTile;
+    }
 
     // Bundles every sprite a decor piece might need, so SpawnRoomDecor's signature doesn't grow
     // with each new decor type.
