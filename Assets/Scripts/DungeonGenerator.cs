@@ -3177,6 +3177,16 @@ public static class DungeonGenerator
         {
             if (cell == protectedAnchor) continue;
             if (dist.TryGetValue(cell, out int cellDist) && cellDist + 1 >= maxDistanceFromStart) continue;
+            // Never branch a new room directly off an EXISTING room of the same type - a valid dead
+            // end can only ever touch exactly ONE existing room (see neighborCount below), so if
+            // that one room is already the same type, this candidate would glue two same-type rooms
+            // together. The "farthest from same type" scoring further down only DEPRIORITIZES that
+            // (it still wins if it's the only option left in a cramped layout) - this is what
+            // actually forbids it, closing the gap that let it happen anyway (reported 2026-09-16:
+            // an Arcade/Restaurant Safe-room variant placed directly against another Safe room -
+            // both RoomType.Safe, so the softer distance heuristic already in place, see below,
+            // wasn't enough on its own once a floor started placing 3 Safe rooms instead of 2).
+            if (rooms.TryGetValue(cell, out RoomType existingType) && existingType == type) continue;
             foreach (Vector2Int d in dirs)
             {
                 Vector2Int next = cell + d;
@@ -3190,13 +3200,13 @@ public static class DungeonGenerator
 
         if (candidates.Count == 0) return null;
 
-        // A type placed more than once per floor (currently Safe x2, see GenerateLayout) picks the
+        // A type placed more than once per floor (currently Safe x3, see GenerateLayout) picks the
         // dead end FARTHEST from every already-placed room of that same type, instead of a purely
-        // random one among all valid dead ends - a random pick can land the new room right next to
-        // an existing one of the same type (reported 2026-09-15: two Safe rooms/"tavernes" side by
-        // side), which reads as a placement bug even though it's technically a different cell. A
-        // type placed only once (Treasure/Shop/Event/Gamble/the farthest Boss) never has an
-        // existing same-type cell yet, so sameTypeCells is empty and this is a no-op for them.
+        // random one among all valid dead ends - on top of the hard same-type-anchor exclusion just
+        // above, this also keeps a same-type room from landing right next to a DIFFERENT existing
+        // room's dead end that just happens to be close by. A type placed only once (Treasure/Shop/
+        // Event/Gamble/the farthest Boss) never has an existing same-type cell yet, so sameTypeCells
+        // is empty and this is a no-op for them.
         List<Vector2Int> sameTypeCells = new List<Vector2Int>();
         foreach (KeyValuePair<Vector2Int, RoomType> kv in rooms) if (kv.Value == type) sameTypeCells.Add(kv.Key);
         if (sameTypeCells.Count == 0) return candidates[Random.Range(0, candidates.Count)];
