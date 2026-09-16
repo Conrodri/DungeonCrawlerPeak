@@ -11,7 +11,11 @@ public class PlayerStats : MonoBehaviour
 {
     public int level = 1;
     public int experience;
-    public int experienceToNextLevel = ExperienceBase;
+    // Computed from `level` (never stored/restored on its own) so it can never go stale relative
+    // to `level` - was a plain mutable field re-derived by AddExperience below, which SaveManager
+    // only conditionally overwrote on load (`> 0` check), so an old save could keep a pre-tuning
+    // threshold if the curve constants below ever changed (real bug, found 2026-09-16).
+    public int experienceToNextLevel => ExperienceBase + (level - 1) * ExperiencePerLevel;
     const int ExperienceBase = 10;
     const int ExperiencePerLevel = 5;
     // Granted per level-up (see AddExperience), spent one at a time on any stat in a Safe room -
@@ -185,8 +189,7 @@ public class PlayerStats : MonoBehaviour
         while (experience >= experienceToNextLevel)
         {
             experience -= experienceToNextLevel;
-            level++;
-            experienceToNextLevel = ExperienceBase + (level - 1) * ExperiencePerLevel;
+            level++; // experienceToNextLevel recomputes itself off the new level, see its getter
             unspentAttributePoints += AttributePointsPerLevel;
         }
         OnExperienceChanged?.Invoke(experience, experienceToNextLevel, level);

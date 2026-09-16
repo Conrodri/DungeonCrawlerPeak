@@ -41,7 +41,10 @@ public class SaveData
 
     public int level;
     public int experience;
-    public int experienceToNextLevel;
+    // No experienceToNextLevel here anymore - PlayerStats.experienceToNextLevel is a computed
+    // property derived from `level` now, so it's never captured/restored on its own (see
+    // PlayerStats.cs - old saves with a stale value from before this change simply recompute
+    // fresh off the `level` field above, exactly like a brand new run would).
     public int unspentAttributePoints;
     public int force;
     public int dexterite;

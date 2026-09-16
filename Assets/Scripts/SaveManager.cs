@@ -33,7 +33,6 @@ public static class SaveManager
             cursedItemId = inventory.CursedItemId,
             level = stats.level,
             experience = stats.experience,
-            experienceToNextLevel = stats.experienceToNextLevel,
             unspentAttributePoints = stats.unspentAttributePoints,
             force = stats.force,
             dexterite = stats.dexterite,
@@ -111,7 +110,6 @@ public static class SaveManager
 
         stats.level = data.level;
         stats.experience = data.experience;
-        stats.experienceToNextLevel = data.experienceToNextLevel > 0 ? data.experienceToNextLevel : stats.experienceToNextLevel;
         stats.unspentAttributePoints = data.unspentAttributePoints;
         stats.force = data.force;
         stats.dexterite = data.dexterite;

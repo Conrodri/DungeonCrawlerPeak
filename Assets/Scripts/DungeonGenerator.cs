@@ -3423,6 +3423,14 @@ public static class DungeonGenerator
         bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0,
         int maxDurability = 0, MaterialType material = MaterialType.None, int rarity = ItemRarity.Min)
     {
+        // Catches the exact bug SimpleRing shipped with (registered with no ringBonusStat, so
+        // equipping it did literally nothing). Scoped to ring slots only, not every equipment
+        // slot: an armor slot legitimately can have armorValue 0 when its real effect is a bespoke
+        // id check elsewhere (see AntiHoleBoots/VisionGlasses below, neither uses armorValue at
+        // all) - a ring has no such alternate mechanism, RingBonusStat is its only effect today.
+        if (isEquipment && (equipmentSlot == EquipmentSlotType.RingLeft || equipmentSlot == EquipmentSlotType.RingRight) && ringBonusStat == StatType.None)
+            Debug.LogWarning("RegisterItem: '" + id + "' (" + displayName + ") is a ring with no ringBonusStat - it will do nothing while equipped.");
+
         ItemDatabase.Register(new ItemDefinition
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
