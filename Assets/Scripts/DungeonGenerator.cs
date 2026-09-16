@@ -4735,6 +4735,7 @@ public static class DungeonGenerator
         SpriteRenderer renderer = bossGO.GetComponent<SpriteRenderer>();
         renderer.sprite = bossSprite;
         renderer.sortingOrder = 0;
+        bossGO.AddComponent<SpriteOutline>(); // same visibility fix as regular mobs, see RoomController.SpawnEnemies
 
         Rigidbody2D body = bossGO.GetComponent<Rigidbody2D>();
         body.gravityScale = 0f;

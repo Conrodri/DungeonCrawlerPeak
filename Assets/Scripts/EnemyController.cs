@@ -55,6 +55,16 @@ public class EnemyController : MonoBehaviour
     const float SeparationRadius = 1.4f;
     const float SeparationStrength = 1.8f;
 
+    // Small knockback "pop" away from whoever landed the hit (2026-09-16 request, paired with the
+    // player's own punch step - see PlayerController.MeleeAttack) - purely a movement flinch, no
+    // cooldown like the player's own stagger (see [[project bugfix]] note there): a mob getting
+    // chain-staggered by repeated hits reads as satisfying feedback, not as unfair loss of control,
+    // since the player is the one causing it on purpose.
+    const float StaggerDuration = 0.12f;
+    const float StaggerSpeed = 5f;
+    Vector2 staggerVelocity;
+    float staggerEndTime = -999f;
+
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
     public event Action OnDied;
@@ -80,6 +90,7 @@ public class EnemyController : MonoBehaviour
         statusIcons = GetComponent<StatusIconDisplay>();
         statusIcons.height = 0.7f; // shorter reach than the player's default - enemies read smaller on screen
         health.OnDeath += HandleDeath;
+        health.OnDamagedFrom += HandleDamagedFrom;
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
         // tilemap CompositeCollider2D can otherwise creep through a corner over many frames.
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -132,10 +143,24 @@ public class EnemyController : MonoBehaviour
         if (badgeIcon != null) statusIcons.ShowIcon(EliteIconKey, badgeIcon);
     }
 
+    void HandleDamagedFrom(Vector2 fromPosition)
+    {
+        Vector2 away = rb.position - fromPosition;
+        if (away.sqrMagnitude < 0.0001f) away = UnityEngine.Random.insideUnitCircle.normalized;
+        staggerVelocity = away.normalized * StaggerSpeed;
+        staggerEndTime = Time.time + StaggerDuration;
+    }
+
     static readonly Collider2D[] SeparationBuffer = new Collider2D[8];
 
     void FixedUpdate()
     {
+        if (Time.time < staggerEndTime)
+        {
+            rb.linearVelocity = staggerVelocity;
+            return;
+        }
+
         if (target == null || Time.time < activeAtTime)
         {
             rb.linearVelocity = Vector2.zero;
@@ -222,7 +247,7 @@ public class EnemyController : MonoBehaviour
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
 
-        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSourceMapping.For(enemyType));
+        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSourceMapping.For(enemyType), rb.position);
         lastHitTime = Time.time;
     }
 

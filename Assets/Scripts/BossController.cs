@@ -451,7 +451,7 @@ public class BossController : MonoBehaviour
         if (Vector2.Distance(center, target.position) > radius) return;
         Health targetHealth = target.GetComponent<Health>();
         if (targetHealth == null) return;
-        targetHealth.TakeDamageFromEnemy(damage, AttackSource.Random);
+        targetHealth.TakeDamageFromEnemy(damage, AttackSource.Random, center);
     }
 
     void LateUpdate()
@@ -543,7 +543,7 @@ public class BossController : MonoBehaviour
 
         // No AttackSource given for bosses in the 2026-09-14 spec - rolls a fully random body part
         // (see PlayerLimbs.RollTarget).
-        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSource.Random);
+        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSource.Random, rb.position);
         if (lifestealFraction > 0f) health.Heal(Mathf.CeilToInt(contactDamage * lifestealFraction));
         lastContactTime = Time.time;
     }

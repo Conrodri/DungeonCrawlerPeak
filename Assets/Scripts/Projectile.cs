@@ -46,7 +46,7 @@ public class Projectile : MonoBehaviour
         // PlayerLimbs there), and a random body-part roll + armor mitigation on the rare
         // projectile that actually lands on the player (a boss volley - see BossController).
         Health health = collision.collider.GetComponent<Health>();
-        if (health != null) health.TakeDamageFromEnemy(damage, AttackSource.Random);
+        if (health != null) health.TakeDamageFromEnemy(damage, AttackSource.Random, transform.position);
 
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);

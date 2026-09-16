@@ -170,6 +170,9 @@ public class RoomController : MonoBehaviour
             SpriteRenderer renderer = enemy.GetComponent<SpriteRenderer>();
             renderer.sprite = preset.sprite;
             renderer.sortingOrder = 0;
+            // Some biome floors/walls are close in value to a mob's own tint - an outline reads
+            // regardless of what's behind it (2026-09-16 request).
+            enemy.AddComponent<SpriteOutline>();
 
             Rigidbody2D body = enemy.GetComponent<Rigidbody2D>();
             body.gravityScale = 0f;

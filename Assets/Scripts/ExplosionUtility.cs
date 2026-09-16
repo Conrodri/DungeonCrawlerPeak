@@ -12,7 +12,7 @@ public static class ExplosionUtility
         foreach (Collider2D hit in hits)
         {
             Health health = hit.GetComponent<Health>();
-            if (health != null) health.TakeDamage(damage);
+            if (health != null) health.TakeDamage(damage, fromPosition: position);
 
             // Standing in the blast can set any equipped Tissu piece alight (see PlayerEquipment.
             // TryIgnite) - a real risk of the same "stand in your own explosion" danger as above.

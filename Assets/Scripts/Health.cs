@@ -21,6 +21,11 @@ public class Health : MonoBehaviour
     public event Action<int, int> OnHealthChanged;
     public event Action OnDeath;
     public event Action OnDodged;
+    // Fired once a hit actually connects (post-dodge/invulnerable, whether the target is the
+    // player or a plain-pool enemy) - ONLY when the caller supplies where the hit came from (see
+    // TakeDamage/TakeDamageFromEnemy's fromPosition). Lets PlayerController/EnemyController react
+    // with a knockback/stagger without Health needing to know either of those types exist.
+    public event Action<Vector2> OnDamagedFrom;
 
     bool isDead;
 
@@ -79,11 +84,11 @@ public class Health : MonoBehaviour
     // AttackSource bias which BodyPart gets targeted (see PlayerLimbs.RollTarget). A hazard that
     // has its own defined zone (e.g. FloorTrap's BearTrap/CollapsingCeiling) passes it to
     // TakeDamage's own optional parameter instead of using this overload, which is for mob attacks.
-    public void TakeDamageFromEnemy(int amount, AttackSource source) => ApplyDamage(amount, source);
+    public void TakeDamageFromEnemy(int amount, AttackSource source, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
 
-    public void TakeDamage(int amount, AttackSource source = AttackSource.Random) => ApplyDamage(amount, source);
+    public void TakeDamage(int amount, AttackSource source = AttackSource.Random, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
 
-    void ApplyDamage(int amount, AttackSource source)
+    void ApplyDamage(int amount, AttackSource source, Vector2? fromPosition = null)
     {
         if (amount <= 0 || isDead || IsInvulnerable) return;
 
@@ -94,6 +99,8 @@ public class Health : MonoBehaviour
             OnDodged?.Invoke();
             return;
         }
+
+        if (fromPosition.HasValue) OnDamagedFrom?.Invoke(fromPosition.Value);
 
         PlayerLimbs limbs = Limbs;
         if (limbs != null)

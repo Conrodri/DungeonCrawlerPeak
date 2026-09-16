@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -106,6 +107,24 @@ public class PlayerController : MonoBehaviour
     float lastAttackTime = -999f;
     float attackLockEndTime = -999f;
     float lastThrowTime = -999f;
+    // Small forward "step" on a melee swing (Fist/Sword, see MeleeAttack) - a plain root (velocity
+    // zero for the whole attackLockEndTime window) read as the character just standing still while
+    // punching, this gives the first sliver of that window a forward nudge instead so it reads as
+    // a real step-in (2026-09-16 request). Deliberately shorter than any weapon's own cooldown so
+    // it always settles back to a full stop before the swing's rooted window ends.
+    const float AttackLungeDuration = 0.08f;
+    const float AttackLungeSpeed = 3.5f;
+    Vector2 attackLungeVelocity;
+    float attackLungeEndTime = -999f;
+    // Small knockback "pop" away from whoever landed the hit (2026-09-16 request) - capped to once
+    // per StaggerCooldown so a burst of fast hits (e.g. standing in a boss volley) can't lock the
+    // player out of moving via back-to-back stagger windows ("pas se faire stagger en chaine").
+    const float StaggerDuration = 0.15f;
+    const float StaggerSpeed = 6f;
+    const float StaggerCooldown = 0.5f;
+    Vector2 staggerVelocity;
+    float staggerEndTime = -999f;
+    float lastStaggerTime = -999f;
     // Selected via the hotbar (see UseItem) but not yet thrown - the next direction key press is
     // what actually launches it (see Update's aim-key handling / ThrowArmedItem), instead of the
     // old "hotbar key = instant throw in whatever direction you already happened to be aiming".
@@ -147,6 +166,18 @@ public class PlayerController : MonoBehaviour
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
+        health.OnDamagedFrom += HandleDamagedFrom;
+    }
+
+    void HandleDamagedFrom(Vector2 fromPosition)
+    {
+        if (Time.time - lastStaggerTime < StaggerCooldown) return;
+
+        Vector2 away = rb.position - fromPosition;
+        if (away.sqrMagnitude < 0.0001f) away = -aimDirection;
+        staggerVelocity = away.normalized * StaggerSpeed;
+        staggerEndTime = Time.time + StaggerDuration;
+        lastStaggerTime = Time.time;
     }
 
     void Update()
@@ -253,6 +284,16 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Highest priority: a knockback pop from just having been hit overrides even the roll/
+        // attack-lock roots below (can't actually co-occur with isRolling in practice - rolling
+        // grants IsInvulnerable, which blocks OnDamagedFrom from firing at all - but attack-lock
+        // has no such protection, and getting popped mid-swing is the point).
+        if (!isDead && Time.time < staggerEndTime)
+        {
+            rb.linearVelocity = staggerVelocity;
+            return;
+        }
+
         // Drives the roll itself (and ends it) here rather than in Update, so it still finishes
         // and clears invulnerability even if Update starts bailing out early mid-roll (e.g. a
         // dialogue opens, or the player dies from something invulnerability doesn't block).
@@ -266,9 +307,11 @@ public class PlayerController : MonoBehaviour
 
         // Rooted for the attack's own cooldown, whatever movement keys are still held (see
         // TryAttack) - takes priority over every multiplier below, same as isDead/isRolling above.
+        // The opening sliver of that root (AttackLungeDuration) gets a forward nudge instead of a
+        // flat zero, so a punch/swing reads as a small step-in rather than a standstill jab.
         if (!isDead && Time.time < attackLockEndTime)
         {
-            rb.linearVelocity = Vector2.zero;
+            rb.linearVelocity = Time.time < attackLungeEndTime ? attackLungeVelocity : Vector2.zero;
             return;
         }
 
@@ -462,17 +505,46 @@ public class PlayerController : MonoBehaviour
         switch (currentWeapon)
         {
             case WeaponType.Fist:
-                MeleeAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
+                else
+                    MeleeAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
                 break;
             case WeaponType.Sword:
-                MeleeAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                else
+                    MeleeAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
                 DamageWeaponDurability();
                 break;
             case WeaponType.Staff:
+                comboCount = 0; // ranged/cast - doesn't continue or count toward the melee combo
                 LaunchProjectile(projectileSprite, ScaledMagicDamage(staffDamage), projectileSpeed, StaffMaxRange);
                 DamageWeaponDurability();
                 break;
         }
+    }
+
+    // 3rd chained melee swing (Fist or Sword, see ComboWindow) becomes the finisher instead of a
+    // normal hit (2026-09-16 request: "3 coups de poing enchaines... 2 coups normaux et un coup
+    // qui nous fait dash en avant et tape en aoe"). Resets the chain back to 0 on the finisher
+    // itself, so it's always hit 1, 2, 3-finisher, 1, 2, 3-finisher... never a longer run.
+    const int ComboFinisherHitNumber = 3;
+    const float ComboWindow = 1f;
+    const float ComboFinisherDashDistance = 3f;
+    const float ComboFinisherDashSpeed = 16f;
+    const float ComboFinisherDashDuration = ComboFinisherDashDistance / ComboFinisherDashSpeed;
+    int comboCount;
+    float lastMeleeComboTime = -999f;
+
+    bool AdvanceMeleeCombo()
+    {
+        if (Time.time - lastMeleeComboTime > ComboWindow) comboCount = 0;
+        lastMeleeComboTime = Time.time;
+        comboCount++;
+        bool isFinisher = comboCount >= ComboFinisherHitNumber;
+        if (isFinisher) comboCount = 0;
+        return isFinisher;
     }
 
     int ScaledPhysicalDamage(int baseDamage) => Mathf.RoundToInt(baseDamage * stats.PhysicalDamageMultiplier);
@@ -601,7 +673,9 @@ public class PlayerController : MonoBehaviour
     // connects with nothing at all.
     const float CurseMissDamageFraction = 0.1f;
 
-    void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
+    // Shared by MeleeAttack and ComboFinisherAttack - skills bonus/crit roll + the cursed weapon's
+    // automatic +50% (see weaponLocked below) apply the same way to either.
+    int PrepareMeleeDamage(int damage)
     {
         if (skills != null)
         {
@@ -616,6 +690,15 @@ public class PlayerController : MonoBehaviour
         // A curse isn't purely a downside, and this one isn't described as cursed anywhere the
         // player can read (see ItemInspectManager) - only its effects reveal it.
         if (weaponLocked) damage = Mathf.RoundToInt(damage * 1.5f);
+        return damage;
+    }
+
+    void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
+    {
+        damage = PrepareMeleeDamage(damage);
+
+        attackLungeVelocity = aimDirection * AttackLungeSpeed;
+        attackLungeEndTime = Time.time + AttackLungeDuration;
 
         Vector2 origin = (Vector2)transform.position + aimDirection * offset;
         Collider2D[] hits = Physics2D.OverlapCircleAll(origin, range);
@@ -624,7 +707,7 @@ public class PlayerController : MonoBehaviour
         {
             if (hit.gameObject == gameObject) continue;
             Health targetHealth = hit.GetComponent<Health>();
-            if (targetHealth != null) { targetHealth.TakeDamage(damage); connected = true; }
+            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: rb.position); connected = true; }
 
             DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
             if (destructible != null) { destructible.TryDamage(damage, stats.force); connected = true; }
@@ -634,6 +717,52 @@ public class PlayerController : MonoBehaviour
             health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
 
         SpawnAttackVisual(visualSprite, origin, range);
+    }
+
+    // 3rd chained melee hit (see AdvanceMeleeCombo) - dashes the player forward along the aim
+    // direction instead of striking once in place, hitting every enemy/destructible the dash line
+    // crosses (2026-09-16 request). Sampled overlap circles along the line rather than one big hit
+    // box, spaced no further apart than `range` so consecutive circles overlap and nothing between
+    // sample points is missed; a HashSet keeps each target from being hit twice where two circles
+    // overlap the same target.
+    void ComboFinisherAttack(float offset, float range, int damage, Sprite visualSprite)
+    {
+        damage = PrepareMeleeDamage(damage);
+
+        Vector2 startPos = rb.position;
+        float dashDistance = ComboFinisherDashDistance * stats.RangeMultiplier;
+        Vector2 endPos = startPos + aimDirection * dashDistance;
+
+        var hitHealths = new HashSet<Health>();
+        var hitDestructibles = new HashSet<DestructibleObject>();
+        int steps = Mathf.Max(1, Mathf.CeilToInt(dashDistance / Mathf.Max(0.1f, range)));
+        bool connected = false;
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector2 point = Vector2.Lerp(startPos, endPos, (float)i / steps);
+            Collider2D[] hits = Physics2D.OverlapCircleAll(point, range);
+            foreach (Collider2D hit in hits)
+            {
+                if (hit.gameObject == gameObject) continue;
+                Health targetHealth = hit.GetComponent<Health>();
+                if (targetHealth != null && hitHealths.Add(targetHealth)) { targetHealth.TakeDamage(damage, fromPosition: startPos); connected = true; }
+
+                DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
+                if (destructible != null && hitDestructibles.Add(destructible)) { destructible.TryDamage(damage, stats.force); connected = true; }
+            }
+        }
+
+        if (weaponLocked && !connected && health != null)
+            health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
+
+        // Reuses the same attack-lunge velocity override a normal swing's small step already drives
+        // in FixedUpdate - just bigger/longer - and extends attackLockEndTime (Mathf.Max, never
+        // shrinks it) so ordinary movement input can't cut the dash short partway through.
+        attackLungeVelocity = aimDirection * ComboFinisherDashSpeed;
+        attackLungeEndTime = Time.time + ComboFinisherDashDuration;
+        attackLockEndTime = Mathf.Max(attackLockEndTime, attackLungeEndTime);
+
+        SpawnAttackVisual(visualSprite, endPos, range * 1.5f);
     }
 
     void SpawnAttackVisual(Sprite sprite, Vector2 position, float range)
