@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 // A Staircase's Lever lock: walk up and press E to pull it, once, permanently (2026-09-16 rework -
 // used to be a silent walk-OVER trigger with no prompt, no on-screen feedback when pulled, and a
@@ -39,10 +38,10 @@ public class Lever : MonoBehaviour
 
     void Update()
     {
-        if (pulled || Keyboard.current == null) return;
+        if (pulled) return;
 
         if (promptGO != null) promptGO.SetActive(playerNearby);
-        if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Pull();
+        if (playerNearby && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Pull();
     }
 
     const float ShakeDuration = 1f;

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // A stationary container holding exactly one item, inspected before it's taken - explicit request:
@@ -93,17 +92,17 @@ public class Chest : MonoBehaviour, UIWindowStack.IWindow
 
     void Update()
     {
-        if (Keyboard.current == null || promptGO == null) return;
+        if (promptGO == null) return;
 
         if (isOpen)
         {
-            if (!taken && Keyboard.current.eKey.wasPressedThisFrame) TakeItem();
+            if (!taken && KeyBindings.WasPressedThisFrame(GameAction.Interact)) TakeItem();
             // Escape closes this (see TryCloseFromStack/UIWindowStack), handled centrally now.
             return;
         }
 
         promptGO.SetActive(playerNearby);
-        if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Open();
+        if (playerNearby && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Open();
     }
 
     void Open()

@@ -159,6 +159,17 @@ public class PlayerController : MonoBehaviour
     // old "hotbar key = instant throw in whatever direction you already happened to be aiming".
     string armedThrowItemId;
     const string ArmedThrowIconKey = "ArmedThrow";
+    // Same arm-then-aim pattern as armedThrowItemId, driven by SpellBarUI instead of the item
+    // hotbar (2026-09-18 request: "un sort se lance en le selectionnant puis en cliquant dans une
+    // direction") - mutually exclusive with armedThrowItemId, see ArmSpell/UseItem.
+    string armedSpellId;
+    const string ArmedSpellIconKey = "ArmedSpell";
+    public string ArmedSpellId => armedSpellId;
+    // Which spell sits in each of SpellBarUI's 5 slots - lives here (not on SpellBarUI itself) so
+    // the Z/X/C/V/B shortcuts below (2026-09-18 request: "il nous faut evidemment une touche
+    // attribuee") and a mouse click on the bar both arm the exact same thing through ArmSpell.
+    // Only slot 0 is populated today (Orbe de Foudre); see Awake.
+    public readonly string[] spellSlots = new string[SpellBarUI.SlotCount];
     // See ApplySlow (e.g. BossController's Cerbere slobber puddle) - a temporary multiplier on top
     // of the normal speed calc, same "take the strongest, extend the duration" pattern as
     // ApplyMovementDebuff below.
@@ -197,6 +208,8 @@ public class PlayerController : MonoBehaviour
         statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
         health.OnDamagedFrom += HandleDamagedFrom;
+
+        spellSlots[0] = SpellIds.LightningOrb;
     }
 
     void HandleDamagedFrom(Vector2 fromPosition)
@@ -230,28 +243,27 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        var kb = Keyboard.current;
-        if (kb == null)
+        if (Keyboard.current == null)
         {
             moveInput = Vector2.zero;
             isSprinting = false;
             return;
         }
 
-        if (kb.hKey.wasPressedThisFrame) SwitchWeaponHand();
+        if (KeyBindings.WasPressedThisFrame(GameAction.SwitchHand)) SwitchWeaponHand();
 
-        // Movement: WASD only (ZQSD on an AZERTY layout maps to the same physical keys).
+        // Movement: rebindable (see KeyBindings), WASD by default.
         float x = 0f;
         float y = 0f;
-        if (kb.dKey.isPressed) x += 1f;
-        if (kb.aKey.isPressed) x -= 1f;
-        if (kb.wKey.isPressed) y += 1f;
-        if (kb.sKey.isPressed) y -= 1f;
+        if (KeyBindings.IsPressed(GameAction.MoveRight)) x += 1f;
+        if (KeyBindings.IsPressed(GameAction.MoveLeft)) x -= 1f;
+        if (KeyBindings.IsPressed(GameAction.MoveUp)) y += 1f;
+        if (KeyBindings.IsPressed(GameAction.MoveDown)) y -= 1f;
         moveInput = new Vector2(x, y).normalized;
 
         // Sprint: held Shift while actually moving, gated on stamina - runs out mid-sprint and it
         // cuts off on its own instead of going negative. Also gated on the Hole debuff.
-        isSprinting = kb.leftShiftKey.isPressed && moveInput != Vector2.zero && stamina.currentStamina > 0f
+        isSprinting = KeyBindings.IsPressed(GameAction.Sprint) && moveInput != Vector2.zero && stamina.currentStamina > 0f
             && Time.time >= movementDebuffEndTime;
         if (isSprinting)
         {
@@ -269,7 +281,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (kb.spaceKey.wasPressedThisFrame) TryRoll();
+        if (KeyBindings.WasPressedThisFrame(GameAction.Roll)) TryRoll();
         if (isRolling) return; // just started rolling this frame - no attack/hotbar until it ends
 
         // Aiming: still tracked while sprinting (so the facing is already correct the instant
@@ -277,10 +289,10 @@ public class PlayerController : MonoBehaviour
         // running, same as the roll's commitment above.
         Vector2 aim = Vector2.zero;
         bool directionPressedThisFrame = false;
-        if (kb.upArrowKey.isPressed) { aim = Vector2.up; directionPressedThisFrame = kb.upArrowKey.wasPressedThisFrame; }
-        else if (kb.downArrowKey.isPressed) { aim = Vector2.down; directionPressedThisFrame = kb.downArrowKey.wasPressedThisFrame; }
-        else if (kb.leftArrowKey.isPressed) { aim = Vector2.left; directionPressedThisFrame = kb.leftArrowKey.wasPressedThisFrame; }
-        else if (kb.rightArrowKey.isPressed) { aim = Vector2.right; directionPressedThisFrame = kb.rightArrowKey.wasPressedThisFrame; }
+        if (KeyBindings.IsPressed(GameAction.AimUp)) { aim = Vector2.up; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimUp); }
+        else if (KeyBindings.IsPressed(GameAction.AimDown)) { aim = Vector2.down; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimDown); }
+        else if (KeyBindings.IsPressed(GameAction.AimLeft)) { aim = Vector2.left; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimLeft); }
+        else if (KeyBindings.IsPressed(GameAction.AimRight)) { aim = Vector2.right; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimRight); }
 
         if (aim != Vector2.zero) aimDirection = aim;
         // The combo (see AdvanceMeleeCombo) only continues while a direction key stays held -
@@ -295,7 +307,12 @@ public class PlayerController : MonoBehaviour
         // still can't fight with their weapon out while running.
         if (isSprinting && (skills == null || !skills.CanAttackWhileSprinting)) return;
 
-        if (armedThrowItemId != null)
+        if (armedSpellId != null)
+        {
+            // Same idea as armedThrowItemId just below - the direction press itself is the cast.
+            if (directionPressedThisFrame) CastArmedSpell();
+        }
+        else if (armedThrowItemId != null)
         {
             // The direction press itself is the throw, not a melee swing - TryAttack is skipped
             // entirely while something is armed (see UseItem).
@@ -306,22 +323,21 @@ public class PlayerController : MonoBehaviour
             TryAttack();
         }
 
-        // Orbe de Foudre - its own key (R) rather than piggybacking on the aim/attack keys, so it
-        // fires immediately toward the player's current aimDirection instead of needing a fresh
-        // direction press like a hotbar throwable does.
-        if (kb.rKey.wasPressedThisFrame) TryCastLightningOrb();
-
         // Hotbar: reads whatever the player actually assigned to each slot (drag & drop, feature
         // 2) instead of assuming the starting loadout.
-        if (kb.digit1Key.wasPressedThisFrame) UseHotbarSlot(0);
-        if (kb.digit2Key.wasPressedThisFrame) UseHotbarSlot(1);
-        if (kb.digit3Key.wasPressedThisFrame) UseHotbarSlot(2);
-        if (kb.digit4Key.wasPressedThisFrame) UseHotbarSlot(3);
-        // HotbarUI actually builds 5 slots (HotbarUI.SlotCount) but this key was never added for
-        // the 5th - a bomb/throwable dragged there was reachable on the bar but had no way to
-        // fire, silently "unusable" (see also UseItem, now reachable directly from the inventory
-        // grid without needing the hotbar at all).
-        if (kb.digit5Key.wasPressedThisFrame) UseHotbarSlot(4);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Hotbar1)) UseHotbarSlot(0);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Hotbar2)) UseHotbarSlot(1);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Hotbar3)) UseHotbarSlot(2);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Hotbar4)) UseHotbarSlot(3);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Hotbar5)) UseHotbarSlot(4);
+
+        // Spell bar: Z/X/C/V/B by default (2026-09-18 request) - arms the slot's spell exactly
+        // like clicking it on SpellBarUI does.
+        if (KeyBindings.WasPressedThisFrame(GameAction.Spell1)) UseSpellSlot(0);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Spell2)) UseSpellSlot(1);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Spell3)) UseSpellSlot(2);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Spell4)) UseSpellSlot(3);
+        if (KeyBindings.WasPressedThisFrame(GameAction.Spell5)) UseSpellSlot(4);
     }
 
     void FixedUpdate()
@@ -605,6 +621,14 @@ public class PlayerController : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemId)) return;
 
+        // Arming an item cancels whatever spell was armed (see ArmSpell) - only one directional
+        // action can be pending at a time.
+        if (armedSpellId != null)
+        {
+            armedSpellId = null;
+            if (statusIcons != null) statusIcons.HideIcon(ArmedSpellIconKey);
+        }
+
         ItemDefinition definition = ItemDatabase.Get(itemId);
         if (definition != null && definition.HealAmount > 0)
         {
@@ -634,6 +658,49 @@ public class PlayerController : MonoBehaviour
 
         if (itemId == ItemIds.Bomb) TryThrowBomb();
         else TryThrow(itemId);
+    }
+
+    // Z/X/C/V/B (see KeyBindings.Spell1-5) - same shape as UseHotbarSlot, just arming instead of
+    // firing straight away since a spell still needs a direction.
+    void UseSpellSlot(int index)
+    {
+        string spellId = spellSlots[index];
+        if (!string.IsNullOrEmpty(spellId)) ArmSpell(spellId);
+    }
+
+    // Called by SpellBarUI when a slot is clicked - arms the spell so the next direction press
+    // (see Update) casts it, same as UseItem does for a throwable. Re-clicking the already-armed
+    // slot cancels it.
+    public void ArmSpell(string spellId)
+    {
+        if (string.IsNullOrEmpty(spellId)) return;
+
+        if (armedThrowItemId != null)
+        {
+            armedThrowItemId = null;
+            if (statusIcons != null) statusIcons.HideIcon(ArmedThrowIconKey);
+        }
+
+        if (armedSpellId == spellId)
+        {
+            armedSpellId = null;
+            if (statusIcons != null) statusIcons.HideIcon(ArmedSpellIconKey);
+            return;
+        }
+
+        armedSpellId = spellId;
+        if (statusIcons != null) statusIcons.ShowIcon(ArmedSpellIconKey, IconForSpell(spellId));
+    }
+
+    Sprite IconForSpell(string spellId) => spellId == SpellIds.LightningOrb ? lightningOrbSprite : null;
+
+    void CastArmedSpell()
+    {
+        string spellId = armedSpellId;
+        armedSpellId = null;
+        if (statusIcons != null) statusIcons.HideIcon(ArmedSpellIconKey);
+
+        if (spellId == SpellIds.LightningOrb) TryCastLightningOrb();
     }
 
     void UsePotion(string itemId, int healAmount)
@@ -981,6 +1048,8 @@ public class PlayerController : MonoBehaviour
         isDead = true;
         armedThrowItemId = null;
         if (statusIcons != null) statusIcons.HideIcon(ArmedThrowIconKey);
+        armedSpellId = null;
+        if (statusIcons != null) statusIcons.HideIcon(ArmedSpellIconKey);
         // A save is only ever a "come back later" convenience - it must never survive death,
         // or a player could just relaunch the game to undo dying (save-scumming).
         SaveManager.DeleteSave();

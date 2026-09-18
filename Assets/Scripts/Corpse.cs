@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // A dead mob/boss's remains - explicit request (2026-09-14): examining a corpse (E) opens its
@@ -79,17 +78,17 @@ public class Corpse : MonoBehaviour, UIWindowStack.IWindow
 
     void Update()
     {
-        if (Keyboard.current == null || promptGO == null) return;
+        if (promptGO == null) return;
 
         if (isOpen)
         {
             // Escape also closes this (see TryCloseFromStack/UIWindowStack).
-            if (Keyboard.current.eKey.wasPressedThisFrame) Close();
+            if (KeyBindings.WasPressedThisFrame(GameAction.Interact)) Close();
             return;
         }
 
         promptGO.SetActive(playerNearby);
-        if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Open();
+        if (playerNearby && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Open();
     }
 
     void Open()

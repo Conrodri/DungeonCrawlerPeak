@@ -65,7 +65,8 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
     void Update()
     {
         Keyboard kb = Keyboard.current;
-        if (kb == null || (!kb.iKey.wasPressedThisFrame && !kb.tabKey.wasPressedThisFrame)) return;
+        bool tabPressed = kb != null && kb.tabKey.wasPressedThisFrame;
+        if (!tabPressed && !KeyBindings.WasPressedThisFrame(GameAction.Inventory)) return;
 
         if (panel.activeSelf) ClosePanel();
         else OpenPanel();

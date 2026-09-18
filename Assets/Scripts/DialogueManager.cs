@@ -62,7 +62,7 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
 
         if (promptGO != null) promptGO.SetActive(nearbyNpc != null);
 
-        if (nearbyNpc != null && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
+        if (nearbyNpc != null && KeyBindings.WasPressedThisFrame(GameAction.Interact))
         {
             Open(nearbyNpc);
         }

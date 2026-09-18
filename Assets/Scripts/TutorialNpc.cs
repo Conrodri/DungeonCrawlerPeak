@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // A read-only explanation popup - distinct from NpcInteractable/DialogueManager (built for
@@ -77,17 +76,15 @@ public class TutorialNpc : MonoBehaviour, UIWindowStack.IWindow
 
     void Update()
     {
-        if (Keyboard.current == null) return;
-
         if (isOpen)
         {
             // Escape also closes this (see TryCloseFromStack/UIWindowStack).
-            if (Keyboard.current.eKey.wasPressedThisFrame) Close();
+            if (KeyBindings.WasPressedThisFrame(GameAction.Interact)) Close();
             return;
         }
 
         if (promptGO != null) promptGO.SetActive(playerNearby);
-        if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Open();
+        if (playerNearby && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Open();
     }
 
     void Open()

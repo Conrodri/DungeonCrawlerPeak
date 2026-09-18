@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Proximity prompt + description panel for ground items that need a look before picking up
@@ -47,14 +46,14 @@ public class ItemInspectManager : MonoBehaviour, UIWindowStack.IWindow
         if (isOpen)
         {
             if (nearbyItem == null) { Close(); return; }
-            if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) PickUp();
+            if (KeyBindings.WasPressedThisFrame(GameAction.Interact)) PickUp();
             // Escape (see TryCloseFromStack) also closes this without picking up - explicit
             // request, the player can look at a description and simply decide not to take it.
             return;
         }
 
         if (promptGO != null) promptGO.SetActive(nearbyItem != null);
-        if (nearbyItem != null && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Open();
+        if (nearbyItem != null && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Open();
     }
 
     void Open()

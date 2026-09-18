@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // A physical rest point in the Safe room (2026-09-14: replaces the Tavernier's old "Se reposer"
@@ -41,7 +40,7 @@ public class RestBed : MonoBehaviour
 
     void Update()
     {
-        if (Keyboard.current == null || promptGO == null) return;
+        if (promptGO == null) return;
 
         if (Time.time < messageUntil)
         {
@@ -51,7 +50,7 @@ public class RestBed : MonoBehaviour
         if (promptLabel.text != DefaultPrompt) promptLabel.text = DefaultPrompt;
 
         promptGO.SetActive(playerNearby);
-        if (playerNearby && Keyboard.current.eKey.wasPressedThisFrame) Rest();
+        if (playerNearby && KeyBindings.WasPressedThisFrame(GameAction.Interact)) Rest();
     }
 
     // Same heal+repair+save sequence the Tavernier's "Se reposer" option used to trigger via

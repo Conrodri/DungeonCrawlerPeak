@@ -1406,6 +1406,19 @@ public static class DungeonGenerator
         characterSheet.stats = playerStats;
         characterSheet.skills = playerSkills;
 
+        // --- Spell book (recap of every known spell, toggled with K) ---
+        GameObject spellBookGO = new GameObject("SpellBookUI", typeof(RectTransform), typeof(SpellBookUI));
+        spellBookGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBookRect = spellBookGO.GetComponent<RectTransform>();
+        spellBookRect.anchorMin = Vector2.zero;
+        spellBookRect.anchorMax = Vector2.one;
+        spellBookRect.offsetMin = Vector2.zero;
+        spellBookRect.offsetMax = Vector2.zero;
+        SpellBookUI spellBook = spellBookGO.GetComponent<SpellBookUI>();
+        spellBook.controller = playerController;
+        spellBook.mana = player.GetComponent<Mana>();
+        spellBook.stats = playerStats;
+
         // --- Hotbar (throwable consumables, slots 1-3 used today) ---
         GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
         hotbarGO.transform.SetParent(canvasGO.transform, false);
@@ -1420,6 +1433,22 @@ public static class DungeonGenerator
         hotbar.slotSize = 56f;
         hotbar.spacing = 64f;
         hotbar.fontSize = 36;
+
+        // --- Spell bar (5 slots, sits just above the hotbar - click a slot then an arrow key to
+        // cast, same arm-then-aim pattern as a hotbar throwable) ---
+        GameObject spellBarGO = new GameObject("SpellBarUI", typeof(RectTransform), typeof(SpellBarUI));
+        spellBarGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBarRect = spellBarGO.GetComponent<RectTransform>();
+        spellBarRect.anchorMin = Vector2.zero;
+        spellBarRect.anchorMax = Vector2.one;
+        spellBarRect.offsetMin = Vector2.zero;
+        spellBarRect.offsetMax = Vector2.zero;
+
+        SpellBarUI spellBar = spellBarGO.GetComponent<SpellBarUI>();
+        spellBar.controller = playerController;
+        spellBar.slotSize = 56f;
+        spellBar.spacing = 64f;
+        spellBar.rowYOffset = 84f; // clears the hotbar row (20..76) with a small gap
 
         // --- Inventory screen (grid, toggled with the I key) ---
         GameObject inventoryGO = new GameObject("InventoryUI", typeof(RectTransform), typeof(InventoryUI));
@@ -2699,6 +2728,32 @@ public static class DungeonGenerator
         characterSheetRect.offsetMax = Vector2.zero;
         characterSheetGO.GetComponent<CharacterSheetUI>().stats = player.GetComponent<PlayerStats>();
 
+        // --- Spell book (recap of every known spell, toggled with K) - available here too so K
+        // works consistently from floor 0 onward, same as C for the character sheet ---
+        GameObject spellBookGO = new GameObject("SpellBookUI", typeof(RectTransform), typeof(SpellBookUI));
+        spellBookGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBookRect = spellBookGO.GetComponent<RectTransform>();
+        spellBookRect.anchorMin = Vector2.zero;
+        spellBookRect.anchorMax = Vector2.one;
+        spellBookRect.offsetMin = Vector2.zero;
+        spellBookRect.offsetMax = Vector2.zero;
+        SpellBookUI spellBook = spellBookGO.GetComponent<SpellBookUI>();
+        spellBook.controller = playerController;
+        spellBook.mana = player.GetComponent<Mana>();
+        spellBook.stats = player.GetComponent<PlayerStats>();
+
+        // --- Spell bar (5 slots, click then an arrow key to cast) - no item hotbar in the
+        // tutorial, so this sits directly at the bottom instead of stacked above it ---
+        GameObject spellBarGO = new GameObject("SpellBarUI", typeof(RectTransform), typeof(SpellBarUI));
+        spellBarGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBarRect = spellBarGO.GetComponent<RectTransform>();
+        spellBarRect.anchorMin = Vector2.zero;
+        spellBarRect.anchorMax = Vector2.one;
+        spellBarRect.offsetMin = Vector2.zero;
+        spellBarRect.offsetMax = Vector2.zero;
+        SpellBarUI spellBar = spellBarGO.GetComponent<SpellBarUI>();
+        spellBar.controller = playerController;
+
         // --- The one Zombie standing between the player and the portal ---
         GameObject roomGO = new GameObject("TutorialRoom", typeof(RoomController));
         roomGO.transform.SetParent(root.transform);
@@ -2748,6 +2803,450 @@ public static class DungeonGenerator
         // --- The Guide: appears only once the Zombie is dead ---
         Vector2 npcPos = roomOrigin + new Vector2(TutorialRoomWidth - 7f, TutorialRoomHeight / 2f + 2.5f);
         controller.OnRoomCleared += _ => SpawnTutorialNpc(npcPos, npcSprite, root.transform);
+    }
+
+    // Sandbox for trying out new moves/items without a real floor's pressure (2026-09-18 request:
+    // "un punching ball, un monstre immobile, avec une grande quantite de vie"). A single hand-
+    // built room, same shape as BuildTutorial, but with the FULL player (PlayerEquipment/
+    // PlayerLimbs included, unlike the tutorial's trimmed-down one) so gear/limb mechanics test
+    // exactly like a real floor, plus a real ItemCatalog (via BuildFloorAssetsPart1/2, the same
+    // pipeline Build() uses) so every item's icon/rarity/stats are authentic rather than a
+    // hand-rolled subset. No RoomController/door-lock/portal - nothing here needs to be "cleared".
+    public static void BuildTrainingRoom(int seed)
+    {
+        Random.InitState(seed);
+        Physics2D.IgnoreLayerCollision(BlockingLayer, FlyingLayer, true);
+        CurrentSeed = seed;
+        CurrentFloor = 0;
+        clearedRoomsThisFloor.Clear();
+        bossDefeatedThisFloor = false;
+        usedBossBiomes.Clear();
+        preFloorUsedBossBiomes.Clear();
+
+        BiomeTheme biomeTheme = BiomeTheme.Get(Biome.Forest);
+        FloorAssets assets = BuildFloorAssetsPart1(biomeTheme);
+        BuildFloorAssetsPart2(assets, out List<ItemCatalog.Entry> itemEntries);
+
+        GameObject existingRoot = GameObject.Find("DungeonRoot");
+        if (existingRoot != null) Object.DestroyImmediate(existingRoot);
+        GameObject root = new GameObject("DungeonRoot");
+
+        // Same "build inactive, assign entries, then activate" dance as Build() - see its own
+        // comment on ItemCatalog for why (Awake() re-registering into ItemDatabase before entries
+        // is assigned would wipe it).
+        GameObject itemCatalogGO = new GameObject("ItemCatalog");
+        itemCatalogGO.SetActive(false);
+        itemCatalogGO.transform.SetParent(root.transform);
+        ItemCatalog itemCatalog = itemCatalogGO.AddComponent<ItemCatalog>();
+        itemCatalog.entries = itemEntries;
+        itemCatalogGO.SetActive(true);
+
+        GameObject gridGO = new GameObject("Grid", typeof(Grid));
+        gridGO.transform.SetParent(root.transform);
+
+        GameObject floorGO = new GameObject("Floor", typeof(Tilemap), typeof(TilemapRenderer));
+        floorGO.transform.SetParent(gridGO.transform);
+        floorGO.GetComponent<TilemapRenderer>().sortingOrder = -1;
+
+        GameObject wallsGO = new GameObject("Walls", typeof(Tilemap), typeof(TilemapRenderer), typeof(TilemapCollider2D), typeof(Rigidbody2D));
+        wallsGO.layer = BlockingLayer;
+        wallsGO.transform.SetParent(gridGO.transform);
+        wallsGO.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Individual;
+        wallsGO.GetComponent<TilemapRenderer>().sortingOrder = 0;
+        wallsGO.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+
+        Tilemap floorMap = floorGO.GetComponent<Tilemap>();
+        Tilemap wallsMap = wallsGO.GetComponent<Tilemap>();
+        wallsMap.tileAnchor = new Vector3(0.5f, 0f, 0f);
+
+        BuildRoomGeometry(0, 0, floorMap, wallsMap, assets.floorTile, assets.wallTile);
+
+        Vector2 roomOrigin = Vector2.zero;
+        Vector2 roomCenter = new Vector2(RoomWidth / 2f, RoomHeight / 2f);
+        Vector2 startWorld = roomOrigin + new Vector2(3f, RoomHeight / 2f);
+
+        // --- Player: full component set (PlayerEquipment/PlayerLimbs included) - see Build()'s
+        // own player constructor, this is the exact same shape. ---
+        GameObject player = new GameObject("Player", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(Stamina), typeof(Mana), typeof(PlayerInventory), typeof(PlayerEquipment), typeof(PlayerLimbs), typeof(PlayerStats), typeof(PlayerSkills), typeof(StatusIconDisplay), typeof(PlayerController));
+        player.transform.SetParent(root.transform);
+        player.transform.position = startWorld;
+        player.tag = "Player";
+
+        SpriteRenderer playerRenderer = player.GetComponent<SpriteRenderer>();
+        playerRenderer.sprite = assets.playerSprite;
+        playerRenderer.sortingOrder = 0;
+
+        Rigidbody2D playerBody = player.GetComponent<Rigidbody2D>();
+        playerBody.gravityScale = 0f;
+        playerBody.constraints = RigidbodyConstraints2D.FreezeRotation;
+        player.GetComponent<CircleCollider2D>().radius = 0.4f;
+
+        PlayerController playerController = player.GetComponent<PlayerController>();
+        playerController.projectileSprite = assets.projectileSprite;
+        playerController.fistVisualSprite = assets.fistVisualSprite;
+        playerController.swordVisualSprite = assets.swordVisualSprite;
+        playerController.explosionSprite = assets.explosionSprite;
+        playerController.lightningOrbSprite = assets.lightningOrbSprite;
+        playerController.lightningBoltSprite = assets.lightningBoltSprite;
+        playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
+
+        PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
+        PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
+        PlayerStats playerStats = player.GetComponent<PlayerStats>();
+        PlayerSkills playerSkills = player.GetComponent<PlayerSkills>();
+        PlayerLimbs playerLimbs = player.GetComponent<PlayerLimbs>();
+        playerEquipment.stats = playerStats;
+        playerEquipment.fireIcon = CreateCircleSprite("Assets/Art/Fx/Fire.png", new Color(0.95f, 0.35f, 0.1f));
+        // No explicit maxHealth/currentHealth here either - see Build()'s own comment, PlayerStats.
+        // Awake() already sets both correctly via PlayerLimbs.
+        Health playerHealth = player.GetComponent<Health>();
+        Stamina playerStamina = player.GetComponent<Stamina>();
+        Mana playerMana = player.GetComponent<Mana>();
+
+        // Starting loadout: a Sword already equipped (melee combos testable immediately) plus a
+        // stack of everything else worth trying - thrown items on the hotbar, gear/rings left in
+        // the inventory to equip by hand.
+        playerEquipment.Set(EquipmentSlotType.Weapon, 0, ItemIds.Sword);
+        playerInventory.Add(ItemIds.Staff, 1);
+        playerInventory.Add(ItemIds.CursedSword, 1);
+        playerInventory.Add(ItemIds.Bomb, 20);
+        playerInventory.Add(ItemIds.Shuriken, 20);
+        playerInventory.Add(ItemIds.Caillou, 20);
+        playerInventory.Add(ItemIds.Baton, 20);
+        playerInventory.Add(ItemIds.HealthPotion, 10);
+        playerInventory.Add(ItemIds.IronHelmet, 1);
+        playerInventory.Add(ItemIds.LeatherPauldrons, 1);
+        playerInventory.Add(ItemIds.CombatGloves, 1);
+        playerInventory.Add(ItemIds.WalkingBoots, 1);
+        playerInventory.Add(ItemIds.SimpleNecklace, 1);
+        playerInventory.Add(ItemIds.LeatherBelt, 1);
+        playerInventory.Add(ItemIds.LeatherKneepads, 1);
+        playerInventory.Add(ItemIds.SimpleRing, 1);
+        playerInventory.hotbarSlots[0] = ItemIds.Bomb;
+        playerInventory.hotbarSlots[1] = ItemIds.Shuriken;
+        playerInventory.hotbarSlots[2] = ItemIds.Caillou;
+        playerInventory.hotbarSlots[3] = ItemIds.Baton;
+        playerInventory.hotbarSlots[4] = ItemIds.HealthPotion;
+
+        // --- Camera: fixed on the one room ---
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            cam.orthographic = true;
+            cam.orthographicSize = RoomHeight / 2f;
+            cam.transform.position = new Vector3(roomCenter.x, roomCenter.y, cam.transform.position.z);
+            cam.transparencySortMode = TransparencySortMode.CustomAxis;
+            cam.transparencySortAxis = new Vector3(0f, 1f, 0f);
+        }
+
+        // --- UI: Canvas + EventSystem ---
+        GameObject canvasGO = new GameObject("Canvas", typeof(Canvas), typeof(GraphicRaycaster));
+        canvasGO.transform.SetParent(root.transform);
+        canvasGO.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+
+        GameObject tooltipGO = new GameObject("TooltipUI", typeof(TooltipUI));
+        tooltipGO.transform.SetParent(canvasGO.transform, false);
+
+        GameObject eventSystemGO = GameObject.Find("EventSystem");
+        if (eventSystemGO == null) eventSystemGO = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        eventSystemGO.transform.SetParent(root.transform);
+
+        Sprite uiFillSprite = CreateSolidSprite("Assets/Art/UI/Fill.png", Color.white);
+
+        // --- Health bar ---
+        GameObject heartBarGO = new GameObject("HeartBar", typeof(RectTransform), typeof(Image), typeof(HeartHUD));
+        heartBarGO.transform.SetParent(canvasGO.transform, false);
+        Image heartBarBackground = heartBarGO.GetComponent<Image>();
+        heartBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform heartBarRect = heartBarBackground.rectTransform;
+        heartBarRect.anchorMin = heartBarRect.anchorMax = new Vector2(0f, 1f);
+        heartBarRect.pivot = new Vector2(0f, 1f);
+        heartBarRect.anchoredPosition = new Vector2(20f, -20f);
+        heartBarRect.sizeDelta = new Vector2(160f, 24f);
+
+        GameObject heartFillGO = new GameObject("Fill", typeof(Image));
+        heartFillGO.transform.SetParent(heartBarGO.transform, false);
+        Image heartFill = heartFillGO.GetComponent<Image>();
+        heartFill.sprite = uiFillSprite;
+        heartFill.color = new Color(0.85f, 0.15f, 0.2f);
+        heartFill.type = Image.Type.Filled;
+        heartFill.fillMethod = Image.FillMethod.Horizontal;
+        heartFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform heartFillRect = heartFill.rectTransform;
+        heartFillRect.anchorMin = Vector2.zero;
+        heartFillRect.anchorMax = Vector2.one;
+        heartFillRect.offsetMin = new Vector2(1f, 1f);
+        heartFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject heartLabelGO = new GameObject("HeartLabel", typeof(Text));
+        heartLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text heartLabel = heartLabelGO.GetComponent<Text>();
+        heartLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        heartLabel.fontSize = 18;
+        heartLabel.alignment = TextAnchor.MiddleLeft;
+        heartLabel.color = Color.white;
+        RectTransform heartLabelRect = heartLabel.rectTransform;
+        heartLabelRect.anchorMin = heartLabelRect.anchorMax = new Vector2(0f, 1f);
+        heartLabelRect.pivot = new Vector2(0f, 1f);
+        heartLabelRect.anchoredPosition = new Vector2(188f, -20f);
+        heartLabelRect.sizeDelta = new Vector2(100f, 24f);
+
+        HeartHUD hud = heartBarGO.GetComponent<HeartHUD>();
+        hud.target = playerHealth;
+        hud.fill = heartFill;
+        hud.label = heartLabel;
+
+        // --- Stamina bar ---
+        GameObject staminaBarGO = new GameObject("StaminaBar", typeof(RectTransform), typeof(Image), typeof(StaminaBarUI));
+        staminaBarGO.transform.SetParent(canvasGO.transform, false);
+        Image staminaBarBackground = staminaBarGO.GetComponent<Image>();
+        staminaBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform staminaBarRect = staminaBarBackground.rectTransform;
+        staminaBarRect.anchorMin = staminaBarRect.anchorMax = new Vector2(0f, 1f);
+        staminaBarRect.pivot = new Vector2(0f, 1f);
+        staminaBarRect.anchoredPosition = new Vector2(20f, -52f);
+        staminaBarRect.sizeDelta = new Vector2(160f, 24f);
+
+        GameObject staminaFillGO = new GameObject("Fill", typeof(Image));
+        staminaFillGO.transform.SetParent(staminaBarGO.transform, false);
+        Image staminaFill = staminaFillGO.GetComponent<Image>();
+        staminaFill.sprite = uiFillSprite;
+        staminaFill.color = new Color(0.75f, 0.7f, 0.15f);
+        staminaFill.type = Image.Type.Filled;
+        staminaFill.fillMethod = Image.FillMethod.Horizontal;
+        staminaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform staminaFillRect = staminaFill.rectTransform;
+        staminaFillRect.anchorMin = Vector2.zero;
+        staminaFillRect.anchorMax = Vector2.one;
+        staminaFillRect.offsetMin = new Vector2(1f, 1f);
+        staminaFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject staminaLabelGO = new GameObject("StaminaLabel", typeof(Text));
+        staminaLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text staminaLabel = staminaLabelGO.GetComponent<Text>();
+        staminaLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        staminaLabel.fontSize = 18;
+        staminaLabel.alignment = TextAnchor.MiddleLeft;
+        staminaLabel.color = Color.white;
+        RectTransform staminaLabelRect = staminaLabel.rectTransform;
+        staminaLabelRect.anchorMin = staminaLabelRect.anchorMax = new Vector2(0f, 1f);
+        staminaLabelRect.pivot = new Vector2(0f, 1f);
+        staminaLabelRect.anchoredPosition = new Vector2(188f, -52f);
+        staminaLabelRect.sizeDelta = new Vector2(80f, 24f);
+
+        StaminaBarUI staminaBar = staminaBarGO.GetComponent<StaminaBarUI>();
+        staminaBar.target = playerStamina;
+        staminaBar.fill = staminaFill;
+        staminaBar.label = staminaLabel;
+
+        // --- Mana bar ---
+        GameObject manaBarGO = new GameObject("ManaBar", typeof(RectTransform), typeof(Image), typeof(ManaBarUI));
+        manaBarGO.transform.SetParent(canvasGO.transform, false);
+        Image manaBarBackground = manaBarGO.GetComponent<Image>();
+        manaBarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.75f);
+        RectTransform manaBarRect = manaBarBackground.rectTransform;
+        manaBarRect.anchorMin = manaBarRect.anchorMax = new Vector2(0f, 1f);
+        manaBarRect.pivot = new Vector2(0f, 1f);
+        manaBarRect.anchoredPosition = new Vector2(20f, -84f);
+        manaBarRect.sizeDelta = new Vector2(160f, 24f);
+
+        GameObject manaFillGO = new GameObject("Fill", typeof(Image));
+        manaFillGO.transform.SetParent(manaBarGO.transform, false);
+        Image manaFill = manaFillGO.GetComponent<Image>();
+        manaFill.sprite = uiFillSprite;
+        manaFill.color = new Color(0.3f, 0.5f, 0.9f);
+        manaFill.type = Image.Type.Filled;
+        manaFill.fillMethod = Image.FillMethod.Horizontal;
+        manaFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        RectTransform manaFillRect = manaFill.rectTransform;
+        manaFillRect.anchorMin = Vector2.zero;
+        manaFillRect.anchorMax = Vector2.one;
+        manaFillRect.offsetMin = new Vector2(1f, 1f);
+        manaFillRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject manaLabelGO = new GameObject("ManaLabel", typeof(Text));
+        manaLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text manaLabel = manaLabelGO.GetComponent<Text>();
+        manaLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        manaLabel.fontSize = 18;
+        manaLabel.alignment = TextAnchor.MiddleLeft;
+        manaLabel.color = Color.white;
+        RectTransform manaLabelRect = manaLabel.rectTransform;
+        manaLabelRect.anchorMin = manaLabelRect.anchorMax = new Vector2(0f, 1f);
+        manaLabelRect.pivot = new Vector2(0f, 1f);
+        manaLabelRect.anchoredPosition = new Vector2(188f, -84f);
+        manaLabelRect.sizeDelta = new Vector2(80f, 24f);
+
+        ManaBarUI manaBar = manaBarGO.GetComponent<ManaBarUI>();
+        manaBar.target = playerMana;
+        manaBar.fill = manaFill;
+        manaBar.label = manaLabel;
+
+        // --- Title label (top-center) ---
+        Font uiFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
+        GameObject titleLabelGO = new GameObject("TrainingRoomLabel", typeof(Text));
+        titleLabelGO.transform.SetParent(canvasGO.transform, false);
+        Text titleLabel = titleLabelGO.GetComponent<Text>();
+        titleLabel.text = "Salle d'entrainement - testez vos coups, sorts et objets sur le punching ball";
+        titleLabel.font = uiFont;
+        titleLabel.fontSize = 22;
+        titleLabel.alignment = TextAnchor.MiddleCenter;
+        titleLabel.color = new Color(0.85f, 0.85f, 0.9f);
+        RectTransform titleLabelRect = titleLabel.rectTransform;
+        titleLabelRect.anchorMin = titleLabelRect.anchorMax = new Vector2(0.5f, 1f);
+        titleLabelRect.pivot = new Vector2(0.5f, 1f);
+        titleLabelRect.anchoredPosition = new Vector2(0f, -20f);
+        titleLabelRect.sizeDelta = new Vector2(900f, 30f);
+
+        // --- Pause menu + death screen (same shape as BuildTutorial's) ---
+        MainMenuController trainingMainMenu = Object.FindFirstObjectByType<MainMenuController>();
+        BuildPauseMenu(canvasGO.transform, uiFont, trainingMainMenu);
+
+        GameObject deathGO = new GameObject("DeathScreen", typeof(RectTransform), typeof(Image), typeof(DeathScreenUI));
+        deathGO.transform.SetParent(canvasGO.transform, false);
+        Image deathBg = deathGO.GetComponent<Image>();
+        deathBg.color = new Color(0.03f, 0.02f, 0.02f, 0.92f);
+        RectTransform deathRect = deathBg.rectTransform;
+        deathRect.anchorMin = Vector2.zero;
+        deathRect.anchorMax = Vector2.one;
+        deathRect.offsetMin = Vector2.zero;
+        deathRect.offsetMax = Vector2.zero;
+
+        GameObject deathTitleGO = new GameObject("Title", typeof(Text));
+        deathTitleGO.transform.SetParent(deathGO.transform, false);
+        Text deathTitle = deathTitleGO.GetComponent<Text>();
+        deathTitle.text = "VOUS ETES MORT";
+        deathTitle.font = uiFont;
+        deathTitle.fontSize = 64;
+        deathTitle.fontStyle = FontStyle.Bold;
+        deathTitle.alignment = TextAnchor.MiddleCenter;
+        deathTitle.color = new Color(0.8f, 0.15f, 0.15f);
+        RectTransform deathTitleRect = deathTitle.rectTransform;
+        deathTitleRect.anchorMin = new Vector2(0.5f, 0.5f);
+        deathTitleRect.anchorMax = new Vector2(0.5f, 0.5f);
+        deathTitleRect.pivot = new Vector2(0.5f, 0.5f);
+        deathTitleRect.anchoredPosition = new Vector2(0f, 30f);
+        deathTitleRect.sizeDelta = new Vector2(1200f, 120f);
+
+        GameObject deathPromptGO = new GameObject("Prompt", typeof(Text));
+        deathPromptGO.transform.SetParent(deathGO.transform, false);
+        Text deathPrompt = deathPromptGO.GetComponent<Text>();
+        deathPrompt.text = "Appuyez sur ESPACE pour retourner au menu";
+        deathPrompt.font = uiFont;
+        deathPrompt.fontSize = 26;
+        deathPrompt.alignment = TextAnchor.MiddleCenter;
+        deathPrompt.color = new Color(0.85f, 0.85f, 0.85f);
+        RectTransform deathPromptRect = deathPrompt.rectTransform;
+        deathPromptRect.anchorMin = new Vector2(0.5f, 0.5f);
+        deathPromptRect.anchorMax = new Vector2(0.5f, 0.5f);
+        deathPromptRect.pivot = new Vector2(0.5f, 0.5f);
+        deathPromptRect.anchoredPosition = new Vector2(0f, -40f);
+        deathPromptRect.sizeDelta = new Vector2(900f, 60f);
+
+        deathGO.SetActive(false);
+
+        DeathScreenUI deathScreen = deathGO.GetComponent<DeathScreenUI>();
+        deathScreen.root = deathGO;
+        deathScreen.mainMenu = trainingMainMenu;
+        playerHealth.OnDeath += deathScreen.Show;
+
+        // --- Character sheet / spell book / spell bar / hotbar / inventory - the full set, so
+        // every new move/item is reachable exactly like on a real floor ---
+        GameObject characterSheetGO = new GameObject("CharacterSheetUI", typeof(RectTransform), typeof(CharacterSheetUI));
+        characterSheetGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform characterSheetRect = characterSheetGO.GetComponent<RectTransform>();
+        characterSheetRect.anchorMin = Vector2.zero;
+        characterSheetRect.anchorMax = Vector2.one;
+        characterSheetRect.offsetMin = Vector2.zero;
+        characterSheetRect.offsetMax = Vector2.zero;
+        CharacterSheetUI characterSheet = characterSheetGO.GetComponent<CharacterSheetUI>();
+        characterSheet.stats = playerStats;
+        characterSheet.skills = playerSkills;
+
+        GameObject spellBookGO = new GameObject("SpellBookUI", typeof(RectTransform), typeof(SpellBookUI));
+        spellBookGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBookRect = spellBookGO.GetComponent<RectTransform>();
+        spellBookRect.anchorMin = Vector2.zero;
+        spellBookRect.anchorMax = Vector2.one;
+        spellBookRect.offsetMin = Vector2.zero;
+        spellBookRect.offsetMax = Vector2.zero;
+        SpellBookUI spellBook = spellBookGO.GetComponent<SpellBookUI>();
+        spellBook.controller = playerController;
+        spellBook.mana = playerMana;
+        spellBook.stats = playerStats;
+
+        GameObject hotbarGO = new GameObject("HotbarUI", typeof(RectTransform), typeof(HotbarUI));
+        hotbarGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform hotbarRect = hotbarGO.GetComponent<RectTransform>();
+        hotbarRect.anchorMin = Vector2.zero;
+        hotbarRect.anchorMax = Vector2.one;
+        hotbarRect.offsetMin = Vector2.zero;
+        hotbarRect.offsetMax = Vector2.zero;
+        HotbarUI hotbar = hotbarGO.GetComponent<HotbarUI>();
+        hotbar.inventory = playerInventory;
+        hotbar.slotSize = 56f;
+        hotbar.spacing = 64f;
+        hotbar.fontSize = 36;
+
+        GameObject spellBarGO = new GameObject("SpellBarUI", typeof(RectTransform), typeof(SpellBarUI));
+        spellBarGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform spellBarRect = spellBarGO.GetComponent<RectTransform>();
+        spellBarRect.anchorMin = Vector2.zero;
+        spellBarRect.anchorMax = Vector2.one;
+        spellBarRect.offsetMin = Vector2.zero;
+        spellBarRect.offsetMax = Vector2.zero;
+        SpellBarUI spellBar = spellBarGO.GetComponent<SpellBarUI>();
+        spellBar.controller = playerController;
+        spellBar.slotSize = 56f;
+        spellBar.spacing = 64f;
+        spellBar.rowYOffset = 84f;
+
+        GameObject inventoryGO = new GameObject("InventoryUI", typeof(RectTransform), typeof(InventoryUI));
+        inventoryGO.transform.SetParent(canvasGO.transform, false);
+        RectTransform inventoryRect = inventoryGO.GetComponent<RectTransform>();
+        inventoryRect.anchorMin = Vector2.zero;
+        inventoryRect.anchorMax = Vector2.one;
+        inventoryRect.offsetMin = Vector2.zero;
+        inventoryRect.offsetMax = Vector2.zero;
+        InventoryUI inventoryUI = inventoryGO.GetComponent<InventoryUI>();
+        inventoryUI.inventory = playerInventory;
+        inventoryUI.equipment = playerEquipment;
+        inventoryUI.player = playerController;
+        inventoryUI.limbs = playerLimbs;
+        inventoryUI.slotSize = 72f;
+        inventoryUI.spacing = 84f;
+        inventoryUI.fontSize = 32;
+
+        // Same raycast-order fix as Build() - see its own comment on this exact line.
+        hotbarGO.transform.SetAsLastSibling();
+
+        // --- The punching ball: stationary (never given a target, so EnemyController.FixedUpdate
+        // never moves it), absurd HP so it never actually dies mid-session, no contact damage (it
+        // doesn't hit back), no XP (it's not a real kill) ---
+        Sprite dummySprite = CreateCircleSprite("Assets/Art/Enemies/PunchingBall.png", new Color(0.55f, 0.35f, 0.18f));
+        GameObject dummyGO = new GameObject("PunchingBall", typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(EnemyController));
+        dummyGO.transform.SetParent(root.transform);
+        dummyGO.transform.position = roomOrigin + new Vector2(RoomWidth * 0.7f, RoomHeight / 2f);
+
+        SpriteRenderer dummyRenderer = dummyGO.GetComponent<SpriteRenderer>();
+        dummyRenderer.sprite = dummySprite;
+        dummyRenderer.sortingOrder = 0;
+        dummyGO.AddComponent<SpriteOutline>();
+
+        Rigidbody2D dummyBody = dummyGO.GetComponent<Rigidbody2D>();
+        dummyBody.gravityScale = 0f;
+        dummyBody.constraints = RigidbodyConstraints2D.FreezeRotation;
+        dummyGO.GetComponent<CircleCollider2D>().radius = 0.5f;
+
+        Health dummyHealth = dummyGO.GetComponent<Health>();
+        dummyHealth.maxHealth = 999999;
+        dummyHealth.currentHealth = dummyHealth.maxHealth;
+
+        EnemyController dummyController = dummyGO.GetComponent<EnemyController>();
+        dummyController.enemyType = EnemyType.Zombie; // only affects which BodyPart a hit rolls onto
+        dummyController.moveSpeed = 0f;
+        dummyController.contactDamage = 0;
+        dummyController.xpReward = 0;
     }
 
     // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it

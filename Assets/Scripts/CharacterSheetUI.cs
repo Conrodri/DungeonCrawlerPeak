@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Read-only recap of all 8 raw stats + level/XP + the 4 skill levels, toggled with C. Originally
@@ -17,6 +16,7 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
 
     GameObject panel;
     Text bodyText;
+    Text closeHintText;
     bool isOpen;
 
     void Start()
@@ -26,7 +26,7 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
 
     void Update()
     {
-        if (Keyboard.current == null || !Keyboard.current.cKey.wasPressedThisFrame) return;
+        if (!KeyBindings.WasPressedThisFrame(GameAction.CharacterSheet)) return;
         if (isOpen) Close();
         else Open();
     }
@@ -78,13 +78,12 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
 
         GameObject closeGO = new GameObject("CloseHint", typeof(Text));
         closeGO.transform.SetParent(panel.transform, false);
-        Text closeHint = closeGO.GetComponent<Text>();
-        closeHint.text = "[C] ou [ECHAP] pour fermer";
-        closeHint.font = font;
-        closeHint.fontSize = 22;
-        closeHint.alignment = TextAnchor.MiddleCenter;
-        closeHint.color = new Color(0.7f, 0.7f, 0.75f);
-        RectTransform closeRect = closeHint.rectTransform;
+        closeHintText = closeGO.GetComponent<Text>();
+        closeHintText.font = font;
+        closeHintText.fontSize = 22;
+        closeHintText.alignment = TextAnchor.MiddleCenter;
+        closeHintText.color = new Color(0.7f, 0.7f, 0.75f);
+        RectTransform closeRect = closeHintText.rectTransform;
         closeRect.anchorMin = closeRect.anchorMax = new Vector2(0.5f, 0f);
         closeRect.pivot = new Vector2(0.5f, 0f);
         closeRect.anchoredPosition = new Vector2(0f, 40f);
@@ -98,6 +97,7 @@ public class CharacterSheetUI : MonoBehaviour, UIWindowStack.IWindow
         isOpen = true;
         panel.SetActive(true);
         UIWindowStack.Push(this);
+        if (closeHintText != null) closeHintText.text = "[" + KeyBindings.Label(GameAction.CharacterSheet) + "] ou [ECHAP] pour fermer";
         Refresh();
     }
 

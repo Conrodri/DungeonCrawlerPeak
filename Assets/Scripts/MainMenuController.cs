@@ -80,6 +80,9 @@ public class MainMenuController : MonoBehaviour
         CreateButton(panel.transform, "Nouvelle Partie", font, y, OnNewGame);
 
         y -= 80f;
+        CreateButton(panel.transform, "Salle d'entrainement", font, y, OnTrainingRoom);
+
+        y -= 80f;
         CreateButton(panel.transform, "Parametres", font, y, OnToggleSettings);
 
         y -= 80f;
@@ -135,7 +138,7 @@ public class MainMenuController : MonoBehaviour
         RectTransform bgRect = bg.rectTransform;
         bgRect.anchorMin = bgRect.anchorMax = new Vector2(0.5f, 0.5f);
         bgRect.pivot = new Vector2(0.5f, 0.5f);
-        bgRect.sizeDelta = new Vector2(420f, 260f);
+        bgRect.sizeDelta = new Vector2(420f, 340f);
 
         GameObject titleGO = new GameObject("Title", typeof(Text));
         titleGO.transform.SetParent(settingsPanel.transform, false);
@@ -181,7 +184,9 @@ public class MainMenuController : MonoBehaviour
         slider.value = AudioListener.volume;
         slider.onValueChanged.AddListener(v => AudioListener.volume = v);
 
-        CreateButton(settingsPanel.transform, "Retour", font, -170f, () => settingsPanel.SetActive(false));
+        RebindKeysUI rebindKeys = RebindKeysUI.Build(parent, font);
+        CreateButton(settingsPanel.transform, "Touches", font, -170f, rebindKeys.Open);
+        CreateButton(settingsPanel.transform, "Retour", font, -250f, () => settingsPanel.SetActive(false));
 
         settingsPanel.SetActive(false);
         return settingsPanel;
@@ -227,6 +232,15 @@ public class MainMenuController : MonoBehaviour
         // A brand new run always starts in the tutorial room, not straight into floor 1 - see
         // DungeonGenerator.BuildTutorial. "Continuer" skips it (a resumed save is already past it).
         DungeonGenerator.BuildTutorial(Random.Range(int.MinValue, int.MaxValue));
+        Destroy(menuCanvas);
+    }
+
+    // A throwaway sandbox floor (see DungeonGenerator.BuildTrainingRoom) - full gear, a stack of
+    // every item worth testing, and a stationary punching ball with huge HP. Doesn't touch
+    // SaveManager at all, same as this being a dead end with no progression to save.
+    void OnTrainingRoom()
+    {
+        DungeonGenerator.BuildTrainingRoom(Random.Range(int.MinValue, int.MaxValue));
         Destroy(menuCanvas);
     }
 
