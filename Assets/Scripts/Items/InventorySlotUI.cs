@@ -109,7 +109,7 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     // Validates the item at `fromIndex` can go into THIS equipment slot (right category, right
     // slot type - rings accept either hand, see PlayerEquipment.IsCompatible) before touching
-    // anything; a previously equipped item there is swapped back into that same inventory slot.
+    // anything, then delegates to EquipInto below.
     void EquipFromInventory(int fromIndex)
     {
         if (equipment == null) return;
@@ -117,18 +117,87 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         ItemDefinition definition = !string.IsNullOrEmpty(itemId) ? ItemDatabase.Get(itemId) : null;
         if (definition == null || !definition.IsEquipment || !PlayerEquipment.IsCompatible(definition.EquipmentSlot, equipmentSlotType)) return;
 
-        string previouslyEquipped = equipment.Get(equipmentSlotType, ringIndex);
+        EquipInto(inventory, equipment, fromIndex, equipmentSlotType, ringIndex);
+    }
+
+    // Shared by a drag onto a specific equipment slot (EquipFromInventory above, which already
+    // knows the exact target) and a double-click auto-equip (TryAutoEquip below, which has to pick
+    // one) - swaps whatever's currently in (targetSlot, targetRingIndex) back into the same
+    // inventory slot the new item came from.
+    static void EquipInto(PlayerInventory inventory, PlayerEquipment equipment, int fromIndex, EquipmentSlotType targetSlot, int targetRingIndex)
+    {
+        string previouslyEquipped = equipment.Get(targetSlot, targetRingIndex);
         string removed = inventory.RemoveOneFromSlot(fromIndex);
         if (removed == null) return;
-        equipment.Set(equipmentSlotType, ringIndex, removed);
+        equipment.Set(targetSlot, targetRingIndex, removed);
         if (!string.IsNullOrEmpty(previouslyEquipped)) inventory.ReturnToSlotOrAdd(fromIndex, previouslyEquipped);
+    }
+
+    // Double-click-to-equip (2026-09-19 request) - picks the item's own matching slot type
+    // instead of requiring a drag onto a specific target the way EquipFromInventory does. A ring
+    // goes into the first empty slot across both hands (left checked before right); if all 10 are
+    // already full it falls back to swapping RingLeft[0], same "something always happens" outcome
+    // a single-slot equipment type gets for free.
+    static void TryAutoEquip(PlayerInventory inventory, PlayerEquipment equipment, int fromIndex)
+    {
+        if (equipment == null || inventory == null) return;
+        string itemId = inventory.GetSlot(fromIndex).itemId;
+        ItemDefinition definition = !string.IsNullOrEmpty(itemId) ? ItemDatabase.Get(itemId) : null;
+        if (definition == null || !definition.IsEquipment) return;
+
+        EquipmentSlotType targetSlot = definition.EquipmentSlot;
+        int targetRingIndex = 0;
+        if (targetSlot == EquipmentSlotType.RingLeft && !FindEmptyRingSlot(equipment, out targetSlot, out targetRingIndex))
+        {
+            targetSlot = EquipmentSlotType.RingLeft;
+            targetRingIndex = 0;
+        }
+
+        EquipInto(inventory, equipment, fromIndex, targetSlot, targetRingIndex);
+    }
+
+    static bool FindEmptyRingSlot(PlayerEquipment equipment, out EquipmentSlotType slot, out int ringIndex)
+    {
+        for (int i = 0; i < PlayerEquipment.RingSlotsPerHand; i++)
+        {
+            if (string.IsNullOrEmpty(equipment.Get(EquipmentSlotType.RingLeft, i))) { slot = EquipmentSlotType.RingLeft; ringIndex = i; return true; }
+        }
+        for (int i = 0; i < PlayerEquipment.RingSlotsPerHand; i++)
+        {
+            if (string.IsNullOrEmpty(equipment.Get(EquipmentSlotType.RingRight, i))) { slot = EquipmentSlotType.RingRight; ringIndex = i; return true; }
+        }
+        slot = EquipmentSlotType.RingLeft;
+        ringIndex = 0;
+        return false;
+    }
+
+    // Double-click-to-unequip (2026-09-19 request) - the mirror of TryAutoEquip, dropped back
+    // into inventory.Add's normal stack-or-first-empty-slot placement rather than a specific index
+    // (a double-click has no "target inventory slot" the way a drag onto one does).
+    void UnequipToInventory()
+    {
+        if (equipment == null || inventory == null) return;
+        string itemId = ItemId;
+        if (string.IsNullOrEmpty(itemId)) return;
+
+        equipment.Set(equipmentSlotType, ringIndex, null);
+        inventory.Add(itemId, 1);
     }
 
     // A plain click (not a drag) on an inventory-grid item uses/throws it immediately in whatever
     // direction the player was last aiming - lets a throwable/potion be used straight from the
-    // grid instead of requiring it to be dragged onto the hotbar first.
+    // grid instead of requiring it to be dragged onto the hotbar first. A double-click instead
+    // transfers the item to/from its equipment slot (2026-09-19 request) - see TryAutoEquip/
+    // UnequipToInventory above.
     public void OnPointerClick(PointerEventData eventData)
     {
+        if (eventData.clickCount >= 2)
+        {
+            if (kind == InventorySlotKind.Inventory) TryAutoEquip(inventory, equipment, index);
+            else if (kind == InventorySlotKind.Equipment) UnequipToInventory();
+            return;
+        }
+
         if (kind != InventorySlotKind.Inventory || player == null) return;
         string itemId = ItemId;
         if (string.IsNullOrEmpty(itemId)) return;

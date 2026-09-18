@@ -123,16 +123,30 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
 
         if (controller != null)
         {
-            int damage = stats != null
-                ? Mathf.RoundToInt(controller.lightningOrbDamage * stats.MagicDamageMultiplier)
-                : controller.lightningOrbDamage;
+            float magicMultiplier = stats != null ? stats.MagicDamageMultiplier : 1f;
+            int lightningDamage = Mathf.RoundToInt(controller.lightningOrbDamage * magicMultiplier);
+            int fireballDamage = Mathf.RoundToInt(controller.fireballDamage * magicMultiplier);
+            int burnDamage = Mathf.RoundToInt(controller.burnDamagePerTick * magicMultiplier);
 
             text +=
                 "Orbe de Foudre [" + KeyBindings.Label(GameAction.Spell1) + "]\n" +
                 "Cout : " + controller.lightningOrbManaCost + " mana\n" +
-                "Degats : " + damage + " (rebondit sur les ennemis a moins de " + controller.lightningOrbChainRadius.ToString("0.#") + "m de l'impact)\n" +
+                "Degats : " + lightningDamage + " (rebondit sur les ennemis a moins de " + controller.lightningOrbChainRadius.ToString("0.#") + "m de l'impact)\n" +
                 "Portee : " + controller.lightningOrbRange.ToString("0.#") + "\n" +
-                "Recharge : " + controller.lightningOrbCooldown.ToString("0.#") + "s\n";
+                "Recharge : " + controller.lightningOrbCooldown.ToString("0.#") + "s\n\n" +
+
+                "Boule de Feu [" + KeyBindings.Label(GameAction.Spell2) + "]\n" +
+                "Cout : " + controller.fireballManaCost + " mana\n" +
+                "Degats : " + fireballDamage + " (grossit " + controller.fireballChargeDuration.ToString("0.#") + "s avant de partir)\n" +
+                "Portee : " + controller.fireballRange.ToString("0.#") + "\n" +
+                "Recharge : " + controller.fireballCooldown.ToString("0.#") + "s\n\n" +
+
+                "Ligne de Feu [" + KeyBindings.Label(GameAction.Spell3) + "]\n" +
+                "Cout : " + controller.fireLineManaCost + " mana\n" +
+                "Laisse une trainee de feu pendant " + controller.fireLineLifetime.ToString("0.#") + "s\n" +
+                "Brulure : " + burnDamage + " degats/" + controller.burnTickInterval.ToString("0.#") + "s pendant " + controller.burnDuration.ToString("0.#") + "s (se renouvelle tant que la cible reste dans le feu)\n" +
+                "Portee : " + controller.fireLineRange.ToString("0.#") + "\n" +
+                "Recharge : " + controller.fireLineCooldown.ToString("0.#") + "s\n";
         }
         else
         {

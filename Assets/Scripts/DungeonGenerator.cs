@@ -678,6 +678,9 @@ public static class DungeonGenerator
         Sprite explosionSprite = assets.explosionSprite;
         Sprite lightningOrbSprite = assets.lightningOrbSprite;
         Sprite lightningBoltSprite = assets.lightningBoltSprite;
+        Sprite fireballSprite = assets.fireballSprite;
+        Sprite fireLineSprite = assets.fireLineSprite;
+        Sprite burnIconSprite = assets.burnIconSprite;
         Sprite doorBarrierSprite = assets.doorBarrierSprite;
         Sprite secretWallSprite = assets.secretWallSprite;
         Sprite outlineRingSprite = assets.outlineRingSprite;
@@ -915,6 +918,9 @@ public static class DungeonGenerator
         playerController.explosionSprite = explosionSprite;
         playerController.lightningOrbSprite = lightningOrbSprite;
         playerController.lightningBoltSprite = lightningBoltSprite;
+        playerController.fireballSprite = fireballSprite;
+        playerController.fireLineSprite = fireLineSprite;
+        playerController.burnIconSprite = burnIconSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
@@ -2279,6 +2285,9 @@ public static class DungeonGenerator
         // reads as a distinct spell rather than another staff bolt.
         assets.lightningOrbSprite = CreateCircleSprite("Assets/Art/Fx/LightningOrb.png", new Color(0.55f, 0.85f, 1f));
         assets.lightningBoltSprite = CreateRectSprite("Assets/Art/Fx/LightningBolt.png", new Color(0.75f, 0.9f, 1f));
+        assets.fireballSprite = CreateCircleSprite("Assets/Art/Fx/Fireball.png", new Color(0.95f, 0.45f, 0.1f));
+        assets.fireLineSprite = CreateCircleSprite("Assets/Art/Fx/FireTrail.png", new Color(0.85f, 0.35f, 0.1f, 0.85f));
+        assets.burnIconSprite = CreateCircleSprite("Assets/Art/Fx/BurnIcon.png", new Color(0.95f, 0.55f, 0.15f));
 
         Sprite bombSprite = CreateCircleSprite("Assets/Art/Items/Bomb.png", new Color(0.15f, 0.15f, 0.17f));
         assets.explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
@@ -2538,6 +2547,9 @@ public static class DungeonGenerator
         Sprite explosionSprite = CreateCircleSprite("Assets/Art/Fx/Explosion.png", new Color(0.95f, 0.55f, 0.15f));
         Sprite lightningOrbSprite = CreateCircleSprite("Assets/Art/Fx/LightningOrb.png", new Color(0.55f, 0.85f, 1f));
         Sprite lightningBoltSprite = CreateRectSprite("Assets/Art/Fx/LightningBolt.png", new Color(0.75f, 0.9f, 1f));
+        Sprite fireballSprite = CreateCircleSprite("Assets/Art/Fx/Fireball.png", new Color(0.95f, 0.45f, 0.1f));
+        Sprite fireLineSprite = CreateCircleSprite("Assets/Art/Fx/FireTrail.png", new Color(0.85f, 0.35f, 0.1f, 0.85f));
+        Sprite burnIconSprite = CreateCircleSprite("Assets/Art/Fx/BurnIcon.png", new Color(0.95f, 0.55f, 0.15f));
         Sprite npcSprite = LoadIconPackSprite("NpcGuide") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
@@ -2589,6 +2601,9 @@ public static class DungeonGenerator
         playerController.explosionSprite = explosionSprite;
         playerController.lightningOrbSprite = lightningOrbSprite;
         playerController.lightningBoltSprite = lightningBoltSprite;
+        playerController.fireballSprite = fireballSprite;
+        playerController.fireLineSprite = fireLineSprite;
+        playerController.burnIconSprite = burnIconSprite;
 
         Health playerHealth = player.GetComponent<Health>();
         playerHealth.maxHealth = 6;
@@ -2888,6 +2903,9 @@ public static class DungeonGenerator
         playerController.explosionSprite = assets.explosionSprite;
         playerController.lightningOrbSprite = assets.lightningOrbSprite;
         playerController.lightningBoltSprite = assets.lightningBoltSprite;
+        playerController.fireballSprite = assets.fireballSprite;
+        playerController.fireLineSprite = assets.fireLineSprite;
+        playerController.burnIconSprite = assets.burnIconSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
 
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
@@ -5054,6 +5072,9 @@ public static class DungeonGenerator
         public Sprite explosionSprite;
         public Sprite lightningOrbSprite;
         public Sprite lightningBoltSprite;
+        public Sprite fireballSprite;
+        public Sprite fireLineSprite;
+        public Sprite burnIconSprite;
         public Sprite doorBarrierSprite;
         public Sprite secretWallSprite;
         public Sprite outlineRingSprite;

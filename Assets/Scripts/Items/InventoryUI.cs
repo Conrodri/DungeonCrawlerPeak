@@ -139,6 +139,7 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
 
             InventorySlotUI slotUI = slotGO.AddComponent<InventorySlotUI>();
             slotUI.inventory = inventory;
+            slotUI.equipment = equipment; // needed for double-click-to-equip, see OnPointerClick
             slotUI.kind = InventorySlotKind.Inventory;
             slotUI.index = i;
             slotUI.player = player;

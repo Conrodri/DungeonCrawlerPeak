@@ -108,7 +108,7 @@ public class SpellBarUI : MonoBehaviour
             bool armed = hasSpell && controller.ArmedSpellId == spellId;
 
             backgrounds[i].color = armed ? ArmedColor : UnarmedColor;
-            icons[i].sprite = spellId == SpellIds.LightningOrb ? controller.lightningOrbSprite : null;
+            icons[i].sprite = hasSpell ? controller.IconForSpell(spellId) : null;
             icons[i].color = hasSpell ? Color.white : new Color(1f, 1f, 1f, 0f);
             keyLabels[i].text = hasSpell ? KeyBindings.Label(SlotActions[i]) : "";
         }

@@ -114,6 +114,34 @@ public class PlayerController : MonoBehaviour
     public Sprite lightningOrbSprite;
     public Sprite lightningBoltSprite;
 
+    // 2026-09-19 request: "boule de feu... fera grossir un projectile devant soi puis le
+    // lancera" - a visible wind-up (see FireballCharge) before it fires as an oversized
+    // single-target projectile, unlike Orbe de Foudre's instant cast.
+    [Header("Boule de Feu")]
+    public int fireballManaCost = 30;
+    public int fireballDamage = 5;
+    public float fireballSpeed = 7f;
+    public float fireballRange = 9f;
+    public float fireballCooldown = 1.5f;
+    public float fireballChargeDuration = 0.5f;
+    public Sprite fireballSprite;
+
+    // 2026-09-19 request: "mur de feu ou ligne de feu, qui laissera une trainee de feu pour 3
+    // secondes. Et infligera le debuff brulure pour 5 secondes (se refresh tant que la cible est
+    // dans le feu)" - a line of FireTrail segments in the aim direction, each applying/refreshing
+    // BurnStatus on anything standing in it.
+    [Header("Ligne de Feu")]
+    public int fireLineManaCost = 25;
+    public float fireLineRange = 6f;
+    public float fireLineSegmentSpacing = 1.3f;
+    public float fireLineLifetime = 3f;
+    public float fireLineCooldown = 4f;
+    public int burnDamagePerTick = 2;
+    public float burnTickInterval = 1f;
+    public float burnDuration = 5f;
+    public Sprite fireLineSprite;
+    public Sprite burnIconSprite;
+
     // A weapon's total reach: how far from the player its hit area extends.
     float SwordReach => (swordOffset + swordRange) * stats.RangeMultiplier;
     float StaffMaxRange => SwordReach * staffRangeMultiplier;
@@ -136,6 +164,8 @@ public class PlayerController : MonoBehaviour
     float attackLockEndTime = -999f;
     float lastThrowTime = -999f;
     float lastLightningOrbTime = -999f;
+    float lastFireballTime = -999f;
+    float lastFireLineTime = -999f;
     // Small forward "step" on a melee swing (Fist/Sword, see MeleeAttack) - a plain root (velocity
     // zero for the whole attackLockEndTime window) read as the character just standing still while
     // punching, this gives the first sliver of that window a forward nudge instead so it reads as
@@ -213,6 +243,8 @@ public class PlayerController : MonoBehaviour
         health.OnDamagedFrom += HandleDamagedFrom;
 
         spellSlots[0] = SpellIds.LightningOrb;
+        spellSlots[1] = SpellIds.Fireball;
+        spellSlots[2] = SpellIds.FireLine;
     }
 
     void HandleDamagedFrom(Vector2 fromPosition)
@@ -705,7 +737,14 @@ public class PlayerController : MonoBehaviour
         if (statusIcons != null) statusIcons.ShowIcon(ArmedSpellIconKey, IconForSpell(spellId));
     }
 
-    Sprite IconForSpell(string spellId) => spellId == SpellIds.LightningOrb ? lightningOrbSprite : null;
+    // Public so SpellBarUI can reuse the exact same spellId->icon mapping instead of duplicating it.
+    public Sprite IconForSpell(string spellId) => spellId switch
+    {
+        SpellIds.LightningOrb => lightningOrbSprite,
+        SpellIds.Fireball => fireballSprite,
+        SpellIds.FireLine => fireLineSprite,
+        _ => null,
+    };
 
     void CastArmedSpell()
     {
@@ -714,6 +753,8 @@ public class PlayerController : MonoBehaviour
         if (statusIcons != null) statusIcons.HideIcon(ArmedSpellIconKey);
 
         if (spellId == SpellIds.LightningOrb) TryCastLightningOrb();
+        else if (spellId == SpellIds.Fireball) TryCastFireball();
+        else if (spellId == SpellIds.FireLine) TryCastFireLine();
     }
 
     void UsePotion(string itemId, int healAmount)
@@ -1054,6 +1095,96 @@ public class PlayerController : MonoBehaviour
         projectile.chainRadius = lightningOrbChainRadius;
         projectile.chainBoltSprite = lightningBoltSprite;
         projectile.Launch(direction);
+    }
+
+    void TryCastFireball()
+    {
+        if (limbs != null && limbs.IsBroken(weaponHand)) return;
+        if (Time.time - lastFireballTime < fireballCooldown) return;
+        if (mana == null || mana.currentMana < fireballManaCost) return;
+
+        mana.Drain(fireballManaCost);
+        lastFireballTime = Time.time;
+        LaunchFireballCharge();
+    }
+
+    // Spawns the growing wind-up (see FireballCharge) instead of a projectile directly - the
+    // actual Projectile only gets created once FireballCharge finishes growing.
+    void LaunchFireballCharge()
+    {
+        int damage = ScaledMagicDamage(fireballDamage);
+        float speed = fireballSpeed;
+        float maxDistance = fireballRange;
+        if (skills != null)
+        {
+            damage = Mathf.RoundToInt(damage * (1f + skills.RangedDamageBonus));
+            speed *= skills.RangedSpeedMultiplier;
+            maxDistance *= skills.RangedRangeMultiplier;
+            skills.AddUsage(SkillType.Ranged, 1f);
+        }
+
+        GameObject go = new GameObject("FireballCharge", typeof(SpriteRenderer), typeof(FireballCharge));
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = fireballSprite;
+        renderer.sortingOrder = 0;
+
+        FireballCharge charge = go.GetComponent<FireballCharge>();
+        charge.chargeDuration = fireballChargeDuration;
+        charge.direction = AimWithInertia();
+        charge.speed = speed;
+        charge.maxDistance = maxDistance;
+        charge.damage = damage;
+        charge.attackerForce = stats.force;
+        charge.ignoreCollider = bodyCollider;
+        charge.Begin(transform, aimDirection * 0.6f);
+    }
+
+    void TryCastFireLine()
+    {
+        if (limbs != null && limbs.IsBroken(weaponHand)) return;
+        if (Time.time - lastFireLineTime < fireLineCooldown) return;
+        if (mana == null || mana.currentMana < fireLineManaCost) return;
+
+        mana.Drain(fireLineManaCost);
+        lastFireLineTime = Time.time;
+        LaunchFireLine();
+    }
+
+    // A row of FireTrail segments laid out from the player toward the aimed direction - each one
+    // independently applies/refreshes BurnStatus on anything standing in it (see FireTrail).
+    void LaunchFireLine()
+    {
+        Vector2 direction = AimWithInertia();
+        Vector2 origin = (Vector2)transform.position;
+        float range = fireLineRange * (skills != null ? skills.RangedRangeMultiplier : 1f);
+        int segmentCount = Mathf.Max(1, Mathf.RoundToInt(range / fireLineSegmentSpacing));
+        if (skills != null) skills.AddUsage(SkillType.Ranged, 1f);
+
+        for (int i = 1; i <= segmentCount; i++)
+        {
+            Vector2 pos = origin + direction * (fireLineSegmentSpacing * i);
+
+            GameObject go = new GameObject("FireTrailSegment", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(FireTrail));
+            go.transform.position = pos;
+
+            SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+            renderer.sprite = fireLineSprite;
+            renderer.sortingOrder = -1; // ground decal, under mobs/the player
+
+            CircleCollider2D collider = go.GetComponent<CircleCollider2D>();
+            collider.isTrigger = true;
+            // Slight overlap between neighboring segments so the line reads as one continuous
+            // strip rather than a row of separate gaps.
+            collider.radius = fireLineSegmentSpacing * 0.6f;
+
+            FireTrail trail = go.GetComponent<FireTrail>();
+            trail.lifetime = fireLineLifetime;
+            trail.burnDuration = burnDuration;
+            trail.burnDamagePerTick = ScaledMagicDamage(burnDamagePerTick);
+            trail.burnTickInterval = burnTickInterval;
+            trail.burnIcon = burnIconSprite;
+        }
     }
 
     void HandleDeath()
