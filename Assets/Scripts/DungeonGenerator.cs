@@ -3247,6 +3247,11 @@ public static class DungeonGenerator
         dummyController.moveSpeed = 0f;
         dummyController.contactDamage = 0;
         dummyController.xpReward = 0;
+
+        // Floating red damage numbers (2026-09-19 request) - training-room-only, see
+        // DamageNumberDisplay's own comment for why this never gets wired onto a real enemy.
+        DamageNumberDisplay dummyDamageNumbers = dummyGO.AddComponent<DamageNumberDisplay>();
+        dummyDamageNumbers.target = dummyHealth;
     }
 
     // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it

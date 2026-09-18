@@ -159,6 +159,9 @@ public class PlayerController : MonoBehaviour
     // old "hotbar key = instant throw in whatever direction you already happened to be aiming".
     string armedThrowItemId;
     const string ArmedThrowIconKey = "ArmedThrow";
+    // See Update's directionConsumedByThrowOrCast comment - blocks a melee swing from also firing
+    // off the same held key that just threw an item or cast a spell.
+    Vector2 directionConsumedByThrowOrCast = Vector2.zero;
     // Same arm-then-aim pattern as armedThrowItemId, driven by SpellBarUI instead of the item
     // hotbar (2026-09-18 request: "un sort se lance en le selectionnant puis en cliquant dans une
     // direction") - mutually exclusive with armedThrowItemId, see ArmSpell/UseItem.
@@ -303,6 +306,16 @@ public class PlayerController : MonoBehaviour
         // to notice.
         else comboCount = 0;
 
+        // A direction press that just threw an item/cast a spell must not ALSO start a melee swing
+        // the instant that same key is still held on the next frame (2026-09-19 bug report: "si je
+        // lance un projectile ou un sort, je ne dois pas mettre un coup") - armedThrowItemId/
+        // armedSpellId only block TryAttack for the one frame they're still non-null, and both are
+        // cleared inside ThrowArmedItem/CastArmedSpell before this method returns, so the very next
+        // frame's aim != Vector2.zero would otherwise read as a fresh attack input. This remembers
+        // which direction was just consumed that way and keeps blocking TryAttack for it specifically
+        // until the key is released (aim goes back to zero) or a different direction is pressed.
+        if (aim == Vector2.zero) directionConsumedByThrowOrCast = Vector2.zero;
+
         // Level 10 Sprint (see PlayerSkills.CanAttackWhileSprinting) lifts this - everyone else
         // still can't fight with their weapon out while running.
         if (isSprinting && (skills == null || !skills.CanAttackWhileSprinting)) return;
@@ -310,15 +323,15 @@ public class PlayerController : MonoBehaviour
         if (armedSpellId != null)
         {
             // Same idea as armedThrowItemId just below - the direction press itself is the cast.
-            if (directionPressedThisFrame) CastArmedSpell();
+            if (directionPressedThisFrame) { CastArmedSpell(); directionConsumedByThrowOrCast = aim; }
         }
         else if (armedThrowItemId != null)
         {
             // The direction press itself is the throw, not a melee swing - TryAttack is skipped
             // entirely while something is armed (see UseItem).
-            if (directionPressedThisFrame) ThrowArmedItem();
+            if (directionPressedThisFrame) { ThrowArmedItem(); directionConsumedByThrowOrCast = aim; }
         }
-        else if (aim != Vector2.zero)
+        else if (aim != Vector2.zero && aim != directionConsumedByThrowOrCast)
         {
             TryAttack();
         }
