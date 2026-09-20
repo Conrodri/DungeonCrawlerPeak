@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -44,6 +45,26 @@ public class BossRoomController : MonoBehaviour
     // Set in DungeonGenerator.SetupBossRoom - which of the 3 power tiers this room's boss is, so
     // OnAnyBossDefeated below (and QuestNpc's boss-kill quests) can tell them apart.
     public DungeonGenerator.BossTier tier;
+
+    // Boss-intro cutscene (2026-09-21 request: "au debut d'un combat de boss, une pause... camera
+    // vers le boss, description orale... puis retour"). introName is the boss's plain display name
+    // (bossName above but WITHOUT modifier tags like "[Colossal]" - those read oddly spoken aloud).
+    // tierLabel/introDescription/introVoiceKey all come from DungeonGenerator.SetupBossRoom's
+    // family/tier (see BossFamily.introKey/introDescription, TierLabel).
+    public string introName;
+    public string tierLabel;
+    public string introDescription;
+    public string introVoiceKey;
+    public BossIntroUI introUI;
+    public BossIntroVoice introVoice;
+    // Fixed floor for how long the title card holds even without a generated voice clip yet (see
+    // BossIntroVoice.Play's 0-length "no clip found" case) - long enough to actually read the lore
+    // line, short enough not to feel like a stall once every clip IS generated.
+    const float IntroMinHoldDuration = 5f;
+    // Cutscene camera pan never waits longer than this for LateUpdate's lerp to visually arrive at
+    // the boss before showing the title card anyway - a safety cap, not the normal case (see
+    // RoomCameraController.followSpeed).
+    const float IntroPanTimeout = 2.5f;
 
     // Lets a BossKill-locked Staircase (see DungeonGenerator.SetupStaircase) unlock the moment
     // this floor's boss dies, without the staircase needing to poll anything itself.
@@ -104,13 +125,58 @@ public class BossRoomController : MonoBehaviour
     {
         if (Array.IndexOf(memberCells, enteredGridPos) < 0 || boss == null) return;
 
-        boss.SetTarget(player);
-
         if (!healthBarBound)
         {
             healthBarBound = true;
             if (healthBar != null) healthBar.Bind(boss.GetComponent<Health>());
+            // First arrival only - the intro cutscene itself calls boss.SetTarget once it finishes
+            // (see PlayIntroThenEngage), so the boss stays put and passive for its whole duration.
+            StartCoroutine(PlayIntroThenEngage());
+            return;
         }
+
+        // Player left this arena mid-fight (or after a resumed save skipped the intro entirely -
+        // see startDefeated) and just walked back in - re-arm engagement immediately, no cutscene.
+        boss.SetTarget(player);
+    }
+
+    // "au debut d'un combat de boss, une pause dans la salle, personne ne bouge, la camera se
+    // dirige vers le boss, description orale... puis retour vers la camera personnage et le combat
+    // commence" (2026-09-21 request). The boss never received a target yet at this point (see
+    // Start()), so it simply stands still on its own - only the player needs an explicit freeze.
+    IEnumerator PlayIntroThenEngage()
+    {
+        PlayerController playerController = player != null ? player.GetComponent<PlayerController>() : null;
+        if (playerController != null) playerController.cutsceneFrozen = true;
+
+        RoomCameraController camController = roomCamera;
+        if (camController != null) camController.overrideTarget = boss.transform;
+
+        // Polled rather than a fixed wait so the title card only appears once the pan has actually
+        // arrived, regardless of how far the boss sits from the room's entrance (bounded so a
+        // slow/interrupted pan can never soft-lock the cutscene).
+        float panDeadline = Time.time + IntroPanTimeout;
+        while (camController != null && Time.time < panDeadline
+            && Vector2.Distance(camController.transform.position, boss.transform.position) > 0.5f)
+        {
+            yield return null;
+        }
+
+        if (introUI != null) introUI.Show(introName, tierLabel, introDescription);
+
+        float holdDuration = IntroMinHoldDuration;
+        if (introVoice != null)
+        {
+            float clipLength = introVoice.Play(introVoiceKey);
+            if (clipLength > 0f) holdDuration = Mathf.Max(holdDuration, clipLength + 0.5f);
+        }
+        yield return new WaitForSeconds(holdDuration);
+
+        if (introUI != null) introUI.Hide();
+        if (camController != null) camController.overrideTarget = null;
+        if (playerController != null) playerController.cutsceneFrozen = false;
+
+        if (boss != null) boss.SetTarget(player);
     }
 
     void HandleBossDied()

@@ -32,6 +32,11 @@ public class PlayerController : MonoBehaviour
     // PlayerLimbs/LimbState: a broken weaponHand blocks TryAttack entirely until the player either
     // switches to the other arm or gets it repaired (Tavernier "Se reposer").
     public BodyPart weaponHand = BodyPart.ArmRight;
+    // Set/cleared by BossRoomController's intro cutscene (2026-09-21 request: "personne ne bouge"
+    // while the camera pans to the boss) - checked in Update() exactly like DialogueManager.IsOpen/
+    // InventoryUI.IsOpen just below, so it needs no special-casing anywhere else: moveInput/
+    // isSprinting zero out and FixedUpdate's velocity naturally follows suit.
+    public bool cutsceneFrozen;
     // Base Sword/Staff never go through ItemDatabase (see WeaponPickup - equipping one is a flat
     // capability flip, not an inventory item), so their durability lives here as a plain pair of
     // maxes instead of ItemDefinition.MaxDurability. 0 = infinite, matching that same convention -
@@ -277,7 +282,7 @@ public class PlayerController : MonoBehaviour
         // its own timer, so this stays correct even if a dialogue/inventory screen opens mid-roll.
         if (isRolling) return;
 
-        if (DialogueManager.IsOpen || InventoryUI.IsOpen)
+        if (DialogueManager.IsOpen || InventoryUI.IsOpen || cutsceneFrozen)
         {
             moveInput = Vector2.zero;
             isSprinting = false;

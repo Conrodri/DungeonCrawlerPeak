@@ -23,6 +23,10 @@ public class RoomCameraController : MonoBehaviour
     public Transform target;
     public RoomEntry[] rooms;
     public float followSpeed = 22f;
+    // Set by BossRoomController's intro cutscene (2026-09-21 request) to pan the camera onto the
+    // boss instead of the player, without disturbing room-entry detection below (which always
+    // stays keyed on the real player position - see LateUpdate) - null resumes normal following.
+    public Transform overrideTarget;
 
     public event Action<Vector2Int> OnRoomEntered;
 
@@ -75,6 +79,12 @@ public class RoomCameraController : MonoBehaviour
     {
         if (target == null || rooms == null) return;
 
+        // Room-entry detection ALWAYS stays keyed on the real player position, even while
+        // overrideTarget is panning the view elsewhere (see BossRoomController's intro cutscene) -
+        // otherwise a boss sitting in a different cell of a merged arena than the player entered
+        // from would fire a spurious OnRoomEntered the instant the camera reaches it, re-triggering
+        // room logic (minimap reveal, RoomController resets, etc.) for a cell the player never
+        // actually walked into.
         Vector2 pos = target.position;
         for (int i = 0; i < rooms.Length; i++)
         {
@@ -93,17 +103,18 @@ public class RoomCameraController : MonoBehaviour
 
         if (!hasRoom) return;
 
-        // Follows the player, clamped so the view never shows outside currentRoomRect. On a plain
-        // single-cell room the view is sized to fit the room exactly (see DungeonGenerator's
-        // orthographicSize = RoomHeight / 2f), so the clamp range collapses to a single point and
-        // this reproduces the old fixed-at-center behavior automatically. On a merged duo/trio/
-        // quad room - bigger than the view - the range opens up and the camera actually tracks the
-        // player across it instead of freezing on the group's center regardless of where they are.
+        // Follows the player (or overrideTarget, if set), clamped so the view never shows outside
+        // currentRoomRect. On a plain single-cell room the view is sized to fit the room exactly
+        // (see DungeonGenerator's orthographicSize = RoomHeight / 2f), so the clamp range collapses
+        // to a single point and this reproduces the old fixed-at-center behavior automatically. On
+        // a merged duo/trio/quad room - bigger than the view - the range opens up and the camera
+        // actually tracks the target across it instead of freezing on the group's center.
+        Vector2 followPos = overrideTarget != null ? (Vector2)overrideTarget.position : pos;
         float halfHeight = cam != null && cam.orthographic ? cam.orthographicSize : currentRoomRect.height / 2f;
         float halfWidth = cam != null && cam.orthographic ? halfHeight * cam.aspect : currentRoomRect.width / 2f;
 
-        float x = ClampCenter(pos.x, currentRoomRect.xMin, currentRoomRect.xMax, halfWidth);
-        float y = ClampCenter(pos.y, currentRoomRect.yMin, currentRoomRect.yMax, halfHeight);
+        float x = ClampCenter(followPos.x, currentRoomRect.xMin, currentRoomRect.xMax, halfWidth);
+        float y = ClampCenter(followPos.y, currentRoomRect.yMin, currentRoomRect.yMax, halfHeight);
 
         Vector3 desired = new Vector3(x, y, transform.position.z);
         transform.position = Vector3.Lerp(transform.position, desired, followSpeed * Time.deltaTime);

@@ -1895,6 +1895,61 @@ public static class DungeonGenerator
         playerStats.OnExperienceChanged += (xp, xpToNext, level) => achievementManager.NotifyLevelReached(level);
         playerInventory.OnItemPickedUp += achievementManager.NotifyItemPickedUp;
 
+        // --- Boss intro title card (center screen, hidden by default) + voice (2026-09-21 request:
+        // "pause dans la salle... camera vers le boss... description orale... puis retour") ---
+        GameObject bossIntroGO = new GameObject("BossIntro", typeof(RectTransform), typeof(BossIntroUI));
+        bossIntroGO.transform.SetParent(canvasGO.transform, false);
+
+        GameObject bossIntroBgGO = new GameObject("Bg", typeof(Image));
+        bossIntroBgGO.transform.SetParent(bossIntroGO.transform, false);
+        Image bossIntroBg = bossIntroBgGO.GetComponent<Image>();
+        bossIntroBg.color = new Color(0.03f, 0.02f, 0.02f, 0.88f);
+        RectTransform bossIntroBgRect = bossIntroBg.rectTransform;
+        bossIntroBgRect.anchorMin = new Vector2(0.5f, 0.5f);
+        bossIntroBgRect.anchorMax = new Vector2(0.5f, 0.5f);
+        bossIntroBgRect.pivot = new Vector2(0.5f, 0.5f);
+        bossIntroBgRect.anchoredPosition = new Vector2(0f, 60f);
+        bossIntroBgRect.sizeDelta = new Vector2(1000f, 180f);
+
+        GameObject bossIntroNameGO = new GameObject("Name", typeof(Text));
+        bossIntroNameGO.transform.SetParent(bossIntroBgGO.transform, false);
+        Text bossIntroNameText = bossIntroNameGO.GetComponent<Text>();
+        bossIntroNameText.font = uiFont;
+        bossIntroNameText.fontSize = 40;
+        bossIntroNameText.fontStyle = FontStyle.Bold;
+        bossIntroNameText.alignment = TextAnchor.MiddleCenter;
+        bossIntroNameText.color = new Color(0.85f, 0.2f, 0.2f);
+        RectTransform bossIntroNameRect = bossIntroNameText.rectTransform;
+        bossIntroNameRect.anchorMin = new Vector2(0f, 1f);
+        bossIntroNameRect.anchorMax = new Vector2(1f, 1f);
+        bossIntroNameRect.pivot = new Vector2(0.5f, 1f);
+        bossIntroNameRect.anchoredPosition = new Vector2(0f, -14f);
+        bossIntroNameRect.sizeDelta = new Vector2(-40f, 56f);
+
+        GameObject bossIntroDescGO = new GameObject("Description", typeof(Text));
+        bossIntroDescGO.transform.SetParent(bossIntroBgGO.transform, false);
+        Text bossIntroDescText = bossIntroDescGO.GetComponent<Text>();
+        bossIntroDescText.font = uiFont;
+        bossIntroDescText.fontSize = 22;
+        bossIntroDescText.alignment = TextAnchor.MiddleCenter;
+        bossIntroDescText.color = Color.white;
+        RectTransform bossIntroDescRect = bossIntroDescText.rectTransform;
+        bossIntroDescRect.anchorMin = new Vector2(0f, 0f);
+        bossIntroDescRect.anchorMax = new Vector2(1f, 1f);
+        bossIntroDescRect.pivot = new Vector2(0.5f, 0.5f);
+        bossIntroDescRect.anchoredPosition = new Vector2(0f, -34f);
+        bossIntroDescRect.sizeDelta = new Vector2(-60f, -80f);
+        bossIntroBgGO.SetActive(false);
+
+        BossIntroUI bossIntroUI = bossIntroGO.GetComponent<BossIntroUI>();
+        bossIntroUI.root = bossIntroBgGO;
+        bossIntroUI.nameText = bossIntroNameText;
+        bossIntroUI.descriptionText = bossIntroDescText;
+
+        GameObject bossIntroVoiceGO = new GameObject("BossIntroVoicePlayer", typeof(AudioSource), typeof(BossIntroVoice));
+        bossIntroVoiceGO.transform.SetParent(canvasGO.transform, false);
+        BossIntroVoice bossIntroVoice = bossIntroVoiceGO.GetComponent<BossIntroVoice>();
+
         if (roomCam != null)
         {
             RoomType? lastAnnouncedType = null;
@@ -2226,6 +2281,8 @@ public static class DungeonGenerator
         {
             bossRoomController.victoryBanner = victoryBanner;
             bossRoomController.healthBar = bossHealthBar;
+            bossRoomController.introUI = bossIntroUI;
+            bossRoomController.introVoice = bossIntroVoice;
         }
 
         Debug.Log("DungeonGenerator: floor generated with " + layout.Count + " rooms (" + eliteRoomCount + " with an elite).");
@@ -5621,6 +5678,11 @@ public static class DungeonGenerator
         public Color color;
         public string dropItemId;
         public string[] mask;
+        // Boss-intro cutscene content (2026-09-21 request) - introKey names the voice clip folder
+        // entry (see BossRoomController.introVoiceKey/Tools/generate_boss_intro_voices.ps1),
+        // introDescription is the lore line read aloud alongside the name/tier.
+        public string introKey;
+        public string introDescription;
     }
 
     struct BossTierStats
@@ -5643,14 +5705,32 @@ public static class DungeonGenerator
     // literal golem, just a different zone).
     static BossFamily BossFamilyFor(Biome biome) => biome switch
     {
-        Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale, mask = AnacondaMask },
-        Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard, mask = EntMask },
-        Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore, mask = GolemMask },
-        Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle, mask = KrakenMask },
-        Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask },
-        Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog, mask = AigleMask },
-        Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment, mask = ArpenteurMask },
-        _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask },
+        Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale, mask = AnacondaMask,
+            introKey = "jungle", introDescription = "Ce serpent gigantesque rode dans les frondaisons depuis des siecles, digerant lentement tout ce qui a eu le malheur de croiser sa route. Il vient de sentir une nouvelle proie approcher, et il en a apres VOUS." },
+        Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard, mask = EntMask,
+            introKey = "forest", introDescription = "Autrefois gardien paisible de cette foret, cet arbre anime a vu trop d'aventuriers pietiner ses racines sans jamais s'excuser. Sa patience est epuisee, et il en a apres VOUS." },
+        Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore, mask = GolemMask,
+            introKey = "city", introDescription = "Assemble a partir des ruines d'une cite oubliee, ce golem de fer et de rouille ne connait qu'un seul ordre : proteger ce territoire de tout intrus. Ses capteurs viennent de vous reperer, et il en a apres VOUS." },
+        Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle, mask = KrakenMask,
+            introKey = "beach", introDescription = "Echoue sur ce rivage il y a bien longtemps, ce monstre des profondeurs n'a jamais cesse de chercher un chemin vers l'ocean, brisant tout ce qui se trouve sur son passage. Il vient de decider que VOUS feriez un bon obstacle a eliminer." },
+        Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask,
+            introKey = "cave", introDescription = "Ce chien des enfers s'est egare depuis que son maitre l'a laisse faire mumuse avec les ossements des enfers. Il semblerait bien qu'il soit ici maintenant, et qu'il en ait apres VOUS." },
+        Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog, mask = AigleMask,
+            introKey = "skycastle", introDescription = "Construit par une civilisation disparue pour veiller sur les cieux, cet aigle mecanique patrouille encore ces ruines flottantes des siecles plus tard. Ses circuits viennent de designer une nouvelle cible, et il en a apres VOUS." },
+        Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment, mask = ArpenteurMask,
+            introKey = "backrooms", introDescription = "Personne ne sait depuis combien de temps cette silhouette erre dans ces couloirs identiques, ni si elle a jamais ete humaine. Elle vient de s'arreter de marcher pour la premiere fois depuis des annees, et elle en a apres VOUS." },
+        _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask,
+            introKey = "cave", introDescription = "Ce chien des enfers s'est egare depuis que son maitre l'a laisse faire mumuse avec les ossements des enfers. Il semblerait bien qu'il soit ici maintenant, et qu'il en ait apres VOUS." },
+    };
+
+    // "quartier/ville/region" as spoken/written words (2026-09-21 request) - the boss's own
+    // display name (BossNameFor) already differs per tier, this is just the category label the
+    // intro title card/voice line appends after it.
+    static string TierLabel(BossTier tier) => tier switch
+    {
+        BossTier.Zone => "quartier",
+        BossTier.Ville => "ville",
+        _ => "region",
     };
 
     static string BossNameFor(BossFamily family, BossTier tier) => tier switch
@@ -5895,6 +5975,13 @@ public static class DungeonGenerator
         controller.roomSize = roomSize;
         controller.startDefeated = startDefeated;
         controller.bossName = taggedBossName;
+        // Plain (untagged) name + lore for the intro cutscene (2026-09-21 request) - modifier tags
+        // like "[Colossal]" belong on the health bar/corpse name, not spoken/written in the title
+        // card.
+        controller.introName = bossName;
+        controller.tierLabel = TierLabel(tier);
+        controller.introDescription = family.introDescription;
+        controller.introVoiceKey = family.introKey + "_" + tier.ToString().ToLowerInvariant();
         controller.dropItemId = family.dropItemId;
         controller.dropChance = stats.dropChance;
         controller.xpReward = stats.xpReward;
