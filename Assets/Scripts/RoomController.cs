@@ -167,7 +167,7 @@ public class RoomController : MonoBehaviour
             int level = MonsterLeveling.RollLevel(floor);
 
             GameObject enemy = new GameObject(spawn.type + " Niv." + level,
-                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(StatusIconDisplay), typeof(EnemyController));
+                typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyLimbs), typeof(StatusIconDisplay), typeof(EnemyController));
             // "les mobs volants passent au travers de tous les murs et objets bloquants" (2026-09-15
             // request) - see DungeonGenerator.BlockingLayer/FlyingLayer, IgnoreLayerCollision set up
             // once per Build(). A non-flying enemy stays on Default, unaffected.
@@ -222,6 +222,11 @@ public class RoomController : MonoBehaviour
             Color glowColor = spawn.modifier == EliteModifier.SpeedUp ? Color.white
                 : spawn.modifier == EliteModifier.HpUp ? Color.red : Color.clear;
             controller.ApplyModifier(spawn.modifier, badge, glowSprite, glowColor);
+
+            // After ApplyModifier so a rolled HpUp elite (which multiplies health.maxHealth
+            // directly) splits its POST-modifier total across limbs, not the pre-roll one -
+            // "chaque monstre a le meme systeme de membre que le joueur" (2026-09-20 request).
+            enemy.GetComponent<EnemyLimbs>().Configure(EnemyLimbLayout.For(spawn.type), health.maxHealth);
 
             controller.OnDied += () => HandleEnemyDied(controller);
 

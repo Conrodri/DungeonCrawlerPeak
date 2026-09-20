@@ -39,8 +39,11 @@ public class Health : MonoBehaviour
     // calls Awake() synchronously per-AddComponent as each type in that list is attached, so a
     // GetComponent<PlayerLimbs>() from inside Health.Awake() ran before PlayerLimbs existed on the
     // object yet and silently cached null forever. A plain on-demand GetComponent per hit/heal
-    // (never a hot path) sidesteps the whole class of ordering bugs.
-    PlayerLimbs Limbs => GetComponent<PlayerLimbs>();
+    // (never a hot path) sidesteps the whole class of ordering bugs. ILimbs (2026-09-20) covers
+    // both PlayerLimbs (player, armor-aware) and EnemyLimbs (monsters, see RoomController.
+    // SpawnEnemies) - a plain Health with neither (bosses, destructibles, the tutorial's own
+    // simplified player) falls through to the flat pool math below exactly as before.
+    ILimbs Limbs => GetComponent<ILimbs>();
 
     public void SetInvulnerable(bool value)
     {
@@ -52,7 +55,7 @@ public class Health : MonoBehaviour
     public void Kill()
     {
         if (isDead) return;
-        PlayerLimbs limbs = Limbs;
+        ILimbs limbs = Limbs;
         if (limbs != null)
         {
             limbs.KillAll(); // zeroes every limb - syncs this Health's totals + fires OnDeath itself
@@ -67,11 +70,11 @@ public class Health : MonoBehaviour
     public void Heal(int amount)
     {
         if (amount <= 0 || isDead) return;
-        PlayerLimbs limbs = Limbs;
+        ILimbs limbs = Limbs;
         if (limbs != null)
         {
             // Distributes the heal across non-broken limbs and resyncs this Health's totals (see
-            // PlayerLimbs.HealNonBroken/SyncHealth) - this IS the full heal for the player, not a
+            // PlayerLimbs/EnemyLimbs.HealNonBroken/SyncHealth) - this IS the full heal, not a
             // pre-step before the plain pool math below.
             limbs.HealNonBroken(amount);
             return;
@@ -105,14 +108,14 @@ public class Health : MonoBehaviour
 
         if (fromPosition.HasValue) OnDamagedFrom?.Invoke(fromPosition.Value);
 
-        PlayerLimbs limbs = Limbs;
+        ILimbs limbs = Limbs;
         if (limbs != null)
         {
-            // Applies armor mitigation + the rolled limb's own damage + resyncs this Health's
-            // totals in one call (see PlayerLimbs.MitigateHit/SyncHealth, which also fires OnDeath
-            // once currentHealth reaches 0) - this IS the full damage application for the player,
-            // every other Health instance (enemies/bosses) has no PlayerLimbs and falls through to
-            // the plain pool math below exactly as before.
+            // Applies the rolled limb's own damage (+ armor mitigation for the player, see
+            // PlayerLimbs.MitigateHit) and resyncs this Health's totals in one call (also fires
+            // OnDeath once currentHealth reaches 0) - this IS the full damage application whenever
+            // an ILimbs is present (player or monster); a plain Health with neither (bosses,
+            // destructibles) falls through to the flat pool math below exactly as before.
             limbs.MitigateHit(source, amount);
             return true;
         }

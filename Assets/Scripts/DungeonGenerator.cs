@@ -2236,15 +2236,20 @@ public static class DungeonGenerator
         // XP rewards halved-ish across the board (was 3/2/1, boss was 20) - explicit request to
         // slow down leveling now that level-ups also grant attribute points to allocate (see
         // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
+        //
+        // maxHealth/contactDamage fully re-rebalanced 2026-09-20 ("revois le systeme de degats,
+        // normalise le sur les hp du joueur") - the 2026-09-15 pass below only bumped
+        // contactDamage, never each species' own maxHealth, which was left at pre-limb-rework
+        // numbers (1-4) while the player ballooned to 205 total HP (see PlayerLimbs.BaseMaxFor) -
+        // every regular mob still died in a single fist hit regardless of weapon. New target: a
+        // basic sword hit (see PlayerController.swordDamage) takes ~2 hits to drop a Larve, ~2 to
+        // drop a fragile ChauveSouris, ~5 to drop a tanky Zombie - see EnemyLimbLayout for how each
+        // species' total now splits across BodyParts (EnemyLimbs, same request).
         assets.enemyPresets = new RoomController.EnemyPresetEntry[]
         {
-            // contactDamage rebalanced 2026-09-15 alongside boss damage (see BossTierStatsFor) -
-            // 1 flat point for every species was negligible against the limb-HP rework (Arm/Leg/
-            // Torso/Head, see PlayerLimbs.BaseMaxFor). Zombie hits hardest (tanky bruiser), Larve
-            // stays weakest (its threat is swarm numbers, not per-hit power - see its spawn count).
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 1, contactDamage = 2, isFlying = true, xpReward = 1 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 1, contactDamage = 1, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 70, contactDamage = 12, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 24, contactDamage = 8, isFlying = true, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 16, contactDamage = 4, isFlying = false, xpReward = 1 },
         };
 
         return assets;
@@ -5485,20 +5490,23 @@ public static class DungeonGenerator
     // (a boss is meant to be out-run, not just out-fought, at the easier tiers); Region (0 Vitesse,
     // 5 u/s) ties the player's own base pace exactly, on top of which the Rapide modifier/enrage
     // still layer their existing multipliers unchanged.
-    // contactDamage/volleyDamage rebalanced 2026-09-15 (roughly 3x the old 1/2/3 and 1/1/2) - the
-    // limb-HP rework (Head 35/Torso 70/Arm 20/Leg 30 each, see PlayerLimbs.BaseMaxFor) left every
-    // boss hit chipping a small single-digit fraction of a limb, nowhere near threatening. New
-    // scale: a Zone boss breaks a bare Arm in ~5 contact hits, Region in ~2-3 - see
-    // SetupBossRoom's shockwaveDamage/tentacleDamage/rootDamage/poisonDamagePerTick, all derived
-    // from contactDamage so a family's special attack scales the same way.
+    // health/contactDamage/volleyDamage re-rebalanced 2026-09-20 alongside every regular monster
+    // (see BuildFloorAssetsPart1's assets.enemyPresets) - the 2026-09-15 pass below was already a
+    // step in the right direction but still left a Region boss's 65 HP a trivial ~5 sword hits
+    // against the now-205-total-HP player (see PlayerLimbs.BaseMaxFor) it's meant to threaten.
+    // Bosses stay a single flat Health pool (no EnemyLimbs/limb layout) - they already carry their
+    // own bespoke kit (fatigue stun, family abilities, modifiers), grafting per-limb targeting on
+    // top wasn't asked for and would fight that existing design. shockwaveDamage/tentacleDamage/
+    // rootDamage/poisonDamagePerTick (see SetupBossRoom) stay derived from contactDamage below, so
+    // they keep scaling automatically.
     static BossTierStats BossTierStatsFor(BossTier tier, int floor)
     {
         int regionXp = RegionBossXpFor(floor);
         return tier switch
         {
-            BossTier.Zone => new BossTierStats { health = 25, contactDamage = 4, chargeSpeed = 6f, volleyDamage = 2, volleyCount = 3, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-20) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
-            BossTier.Ville => new BossTierStats { health = 40, contactDamage = 6, chargeSpeed = 8f, volleyDamage = 3, volleyCount = 5, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-10) * MonsterLeveling.MonsterSpeedScale, dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
-            _ => new BossTierStats { health = 65, contactDamage = 9, chargeSpeed = 10f, volleyDamage = 5, volleyCount = 7, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(0) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f, xpReward = regionXp },
+            BossTier.Zone => new BossTierStats { health = 150, contactDamage = 15, chargeSpeed = 6f, volleyDamage = 6, volleyCount = 3, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-20) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f / 3f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.375f)) },
+            BossTier.Ville => new BossTierStats { health = 260, contactDamage = 22, chargeSpeed = 8f, volleyDamage = 10, volleyCount = 5, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(-10) * MonsterLeveling.MonsterSpeedScale, dropChance = 0.5f, xpReward = Mathf.Max(1, Mathf.RoundToInt(regionXp * 0.625f)) },
+            _ => new BossTierStats { health = 420, contactDamage = 32, chargeSpeed = 10f, volleyDamage = 15, volleyCount = 7, moveSpeed = MonsterLeveling.BaseSpeed * PlayerStats.MoveSpeedMultiplierFor(0) * MonsterLeveling.MonsterSpeedScale, dropChance = 1f, xpReward = regionXp },
         };
     }
 

@@ -58,11 +58,11 @@ public static class MonsterLeveling
     // monster-side equivalent (no monster casts, shoots at range, shops, or has stamina today), so
     // building a 5-stat table nobody would ever read felt like the wrong kind of "complete" -
     // scoped down deliberately rather than invented wholesale.
-    // Force kept modest in absolute terms - the player starts with only ~4 HP (see Health.
-    // maxHealth/PlayerStats.constitution), and a monster at the very TOP of its species band can
-    // already be rolled on floor 1 (t below is relative to the current floor's own range, not the
-    // dungeon's deepest floor - see ApplyLevelStats) - so even Zombie's "strong" end must stay well
-    // short of one-shotting a fresh player.
+    // Force kept modest in absolute terms - the player has 205 total HP across 6 limb pools (see
+    // PlayerLimbs.BaseMaxFor), and a monster at the very TOP of its species band can already be
+    // rolled on floor 1 (t below is relative to the current floor's own range, not the dungeon's
+    // deepest floor - see ApplyLevelStats) - so even Zombie's "strong" end must stay well short of
+    // one-shotting a fresh player.
     static StatRange RangeFor(EnemyType type) => type switch
     {
         EnemyType.Zombie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
@@ -82,13 +82,12 @@ public static class MonsterLeveling
         int force = Mathf.RoundToInt(Mathf.Lerp(range.forceMin, range.forceMax, t));
         int vitesse = Mathf.RoundToInt(Mathf.Lerp(range.vitesseMin, range.vitesseMax, t));
 
-        // Additive, not PlayerStats' 1%-per-point multiplier - contactDamage starts as a small
-        // flat int (1-2 across every current preset), where a 1% multiplier would round away to
-        // nothing even at Force 15 (1 * 1.15 still rounds to 1). +1 damage per 5 Force keeps the
-        // stat's effect visible at the top of a species' band (Zombie: +1) without needing to
-        // rebalance every preset's base damage, and without a lucky floor-1 roll coming close to
-        // one-shotting a fresh player (see RangeFor's Force caps).
-        contactDamage += Mathf.FloorToInt(force / 5f);
+        // Additive, not PlayerStats' 1%-per-point multiplier - a 1% multiplier would barely move a
+        // preset's own base contactDamage. +4 per 5 Force (rescaled 2026-09-20 alongside every
+        // preset's base contactDamage - was +1, negligible against the new 4-12 base range) keeps
+        // the stat's effect visible at the top of a species' band (Zombie: +4) without a lucky
+        // floor-1 roll coming close to one-shotting a fresh player (see RangeFor's Force caps).
+        contactDamage += Mathf.FloorToInt(force / 5f) * 4;
         // Overwrites the caller's incoming value outright rather than multiplying it - a preset's
         // old flat moveSpeed number no longer means anything once Vitesse alone decides speed (see
         // RoomController.SpawnEnemies, which now passes in a throwaway 0f).

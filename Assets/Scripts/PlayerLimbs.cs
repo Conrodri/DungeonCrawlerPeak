@@ -18,7 +18,7 @@ using UnityEngine;
 // broken weaponHand, and treats either broken leg as -50% speed + damage while sprinting.
 [RequireComponent(typeof(PlayerEquipment))]
 [RequireComponent(typeof(Health))]
-public class PlayerLimbs : MonoBehaviour
+public class PlayerLimbs : MonoBehaviour, ILimbs
 {
     public static int BaseMaxFor(BodyPart part) => part switch
     {

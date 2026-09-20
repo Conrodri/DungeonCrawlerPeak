@@ -52,15 +52,21 @@ public class PlayerController : MonoBehaviour
     // Shown above the player's head via StatusIconDisplay while the Hole debuff is active.
     public Sprite movementDebuffIcon;
 
+    // Every base damage field below rescaled 2026-09-20 ("revois le systeme de degats, normalise
+    // le sur les hp du joueur") - these were still at pre-limb-rework numbers (fist 1, sword 2,
+    // fireball 5) while the player's own pool grew to 205 total HP across 6 limbs (see
+    // PlayerLimbs.BaseMaxFor) and monster HP got rebalanced to match (see DungeonGenerator's
+    // assets.enemyPresets/BossTierStatsFor) - relative ratios between weapons/spells kept the same,
+    // just scaled up together (~x6-8 melee/ranged, ~x8 the two big spells).
     [Header("Fist")]
-    public int fistDamage = 1;
+    public int fistDamage = 6;
     public float fistRange = 1.0f;
     public float fistOffset = 0.8f;
     public float fistCooldown = 0.33f;
     public float fistStaminaCost = 5f;
 
     [Header("Sword")]
-    public int swordDamage = 2;
+    public int swordDamage = 14;
     public float swordRange = 0.7f;
     public float swordOffset = 0.9f;
     // Recharge before the NEXT swing can start (2026-09-16 request: originally 0.25, shorter than
@@ -77,7 +83,7 @@ public class PlayerController : MonoBehaviour
     public float swordStaminaCost = 8f;
 
     [Header("Staff")]
-    public int staffDamage = 1;
+    public int staffDamage = 8;
     public float staffCooldown = 0.5f;
     public float projectileSpeed = 8f;
     // The staff isn't hitscan/infinite range: it reaches three sword-lengths out.
@@ -85,14 +91,14 @@ public class PlayerController : MonoBehaviour
     public float staffStaminaCost = 10f;
 
     [Header("Throwables")]
-    public int throwDamage = 1;
+    public int throwDamage = 8;
     public float throwSpeed = 10f;
     public float throwCooldown = 0.3f;
     public float throwRangeMultiplier = 2f;
 
     [Header("Bomb")]
     public Sprite explosionSprite;
-    public int bombDamage = 3;
+    public int bombDamage = 26;
     public float bombExplosionRadius = 2f;
     public float bombFuseTime = 1.2f;
     public float bombSpeed = 6f;
@@ -104,7 +110,7 @@ public class PlayerController : MonoBehaviour
     // of whatever's currently equipped in the weapon hand.
     [Header("Lightning Orb")]
     public int lightningOrbManaCost = 20;
-    public int lightningOrbDamage = 3;
+    public int lightningOrbDamage = 20;
     public float lightningOrbSpeed = 9f;
     public float lightningOrbRange = 10f;
     public float lightningOrbCooldown = 1f;
@@ -119,7 +125,7 @@ public class PlayerController : MonoBehaviour
     // single-target projectile, unlike Orbe de Foudre's instant cast.
     [Header("Boule de Feu")]
     public int fireballManaCost = 30;
-    public int fireballDamage = 5;
+    public int fireballDamage = 40;
     public float fireballSpeed = 7f;
     public float fireballRange = 9f;
     public float fireballCooldown = 1.5f;
@@ -136,7 +142,7 @@ public class PlayerController : MonoBehaviour
     public float fireLineSegmentSpacing = 1.3f;
     public float fireLineLifetime = 3f;
     public float fireLineCooldown = 4f;
-    public int burnDamagePerTick = 2;
+    public int burnDamagePerTick = 6;
     public float burnTickInterval = 1f;
     public float burnDuration = 5f;
     public Sprite fireLineSprite;
