@@ -2732,7 +2732,12 @@ public static class DungeonGenerator
         playerController.burnIconSprite = burnIconSprite;
 
         Health playerHealth = player.GetComponent<Health>();
-        playerHealth.maxHealth = 6;
+        // Rescaled 2026-09-21 alongside the tutorial Zombie preset just below (was 6, from before
+        // the main damage-system rebalance - see assets.enemyPresets in BuildFloorAssetsPart1) -
+        // this tutorial player has no PlayerLimbs (see its GameObject constructor above), so
+        // there's no 205-total-HP pool to match here, just its own small self-contained scale, big
+        // enough that a first-time player's very first fight isn't a coin flip.
+        playerHealth.maxHealth = 30;
         playerHealth.currentHealth = playerHealth.maxHealth;
 
         // --- Camera: fixed on the one room, no per-room scrolling needed ---
@@ -2901,7 +2906,14 @@ public static class DungeonGenerator
 
         RoomController.EnemyPresetEntry[] presets =
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 4, contactDamage = 3, isFlying = false, xpReward = 2 },
+            // Rescaled 2026-09-21 ("le mob de depart a bien plus de vie mnt" - the real game's own
+            // Zombie preset jumped from 4 to 70 HP in the big damage-system rebalance, see
+            // BuildFloorAssetsPart1's assets.enemyPresets): 4 HP died in a single fist hit once
+            // fistDamage went from 1 to 6, trivializing the player's very first fight. 24 HP takes
+            // ~4 fist hits again, matching the original pre-rebalance feel at the new numbers -
+            // this tutorial Zombie has no MonsterLeveling scaling applied (fixed preset, not
+            // rolled), so this value is the whole story, not just a base to build on.
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 24, contactDamage = 6, isFlying = false, xpReward = 2 },
         };
         RoomController.EnemySpawn[] recipe =
         {
