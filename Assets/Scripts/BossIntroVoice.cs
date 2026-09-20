@@ -23,7 +23,7 @@ public class BossIntroVoice : MonoBehaviour
     {
         AudioClip clip = Resources.Load<AudioClip>("BossIntroVoices/" + key);
         if (clip == null) return 0f;
-        source.PlayOneShot(clip);
+        source.PlayOneShot(clip, AudioSettingsManager.VoiceVolume);
         return clip.length;
     }
 }

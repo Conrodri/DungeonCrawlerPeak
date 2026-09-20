@@ -22,6 +22,6 @@ public class AchievementVoice : MonoBehaviour
     {
         AudioClip clip = Resources.Load<AudioClip>("AchievementVoices/" + achievementId);
         if (clip == null) return;
-        source.PlayOneShot(clip);
+        source.PlayOneShot(clip, AudioSettingsManager.VoiceVolume);
     }
 }

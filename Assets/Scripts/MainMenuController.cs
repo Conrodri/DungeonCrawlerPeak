@@ -138,7 +138,9 @@ public class MainMenuController : MonoBehaviour
         RectTransform bgRect = bg.rectTransform;
         bgRect.anchorMin = bgRect.anchorMax = new Vector2(0.5f, 0.5f);
         bgRect.pivot = new Vector2(0.5f, 0.5f);
-        bgRect.sizeDelta = new Vector2(420f, 340f);
+        // Taller than before (was 340) - room for the audio module below (2026-09-21 request:
+        // master/voice volume + an output-device shortcut) on top of the existing Touches/Retour.
+        bgRect.sizeDelta = new Vector2(420f, 460f);
 
         GameObject titleGO = new GameObject("Title", typeof(Text));
         titleGO.transform.SetParent(settingsPanel.transform, false);
@@ -154,42 +156,81 @@ public class MainMenuController : MonoBehaviour
         titleRect.anchoredPosition = new Vector2(0f, -20f);
         titleRect.sizeDelta = new Vector2(380f, 50f);
 
-        GameObject volumeLabelGO = new GameObject("VolumeLabel", typeof(Text));
-        volumeLabelGO.transform.SetParent(settingsPanel.transform, false);
-        Text volumeLabel = volumeLabelGO.GetComponent<Text>();
-        volumeLabel.text = "Volume";
-        volumeLabel.font = font;
-        volumeLabel.fontSize = 22;
-        volumeLabel.alignment = TextAnchor.MiddleLeft;
-        volumeLabel.color = Color.white;
-        RectTransform volumeLabelRect = volumeLabel.rectTransform;
-        volumeLabelRect.anchorMin = volumeLabelRect.anchorMax = new Vector2(0.5f, 1f);
-        volumeLabelRect.pivot = new Vector2(0.5f, 1f);
-        volumeLabelRect.anchoredPosition = new Vector2(-140f, -90f);
-        volumeLabelRect.sizeDelta = new Vector2(120f, 40f);
+        // Master volume - persisted (see AudioSettingsManager), not just AudioListener.volume for
+        // the current session like before.
+        BuildVolumeRow(settingsPanel.transform, font, "Volume general", -90f,
+            AudioSettingsManager.MasterVolume, v => AudioSettingsManager.MasterVolume = v);
 
-        // No music/SFX exists in the project yet - this at least wires AudioListener.volume for
-        // real (not a dead placeholder), ready for whenever a first sound is actually added.
-        GameObject sliderGO = new GameObject("VolumeSlider", typeof(Slider));
-        sliderGO.transform.SetParent(settingsPanel.transform, false);
+        // Voice volume - the only other audio channel that exists today (achievement/boss-intro AI
+        // narration, see AchievementVoice/BossIntroVoice) - kept separate from master so a player
+        // who wants the narration quieter (or off) doesn't have to also mute sfx/music once those
+        // exist.
+        BuildVolumeRow(settingsPanel.transform, font, "Volume voix", -140f,
+            AudioSettingsManager.VoiceVolume, v => AudioSettingsManager.VoiceVolume = v);
+
+        // No in-engine output-device picker: Unity's AudioSettings API has no device enumeration/
+        // selection on Standalone (confirmed against this project's own Editor - there is no such
+        // method to call). Windows' own Sound settings page is the actual place that choice lives,
+        // so this opens it directly rather than faking a dropdown that couldn't do anything.
+        GameObject deviceLabelGO = new GameObject("DeviceLabel", typeof(Text));
+        deviceLabelGO.transform.SetParent(settingsPanel.transform, false);
+        Text deviceLabel = deviceLabelGO.GetComponent<Text>();
+        deviceLabel.text = "Sortie audio : geree par Windows";
+        deviceLabel.font = font;
+        deviceLabel.fontSize = 18;
+        deviceLabel.alignment = TextAnchor.MiddleCenter;
+        deviceLabel.color = new Color(0.7f, 0.7f, 0.7f);
+        RectTransform deviceLabelRect = deviceLabel.rectTransform;
+        deviceLabelRect.anchorMin = deviceLabelRect.anchorMax = new Vector2(0.5f, 1f);
+        deviceLabelRect.pivot = new Vector2(0.5f, 1f);
+        deviceLabelRect.anchoredPosition = new Vector2(0f, -195f);
+        deviceLabelRect.sizeDelta = new Vector2(380f, 30f);
+
+        CreateButton(settingsPanel.transform, "Ouvrir les parametres son Windows", font, -250f, OnOpenWindowsSoundSettings);
+        RebindKeysUI rebindKeys = RebindKeysUI.Build(parent, font);
+        CreateButton(settingsPanel.transform, "Touches", font, -330f, rebindKeys.Open);
+        CreateButton(settingsPanel.transform, "Retour", font, -400f, () => settingsPanel.SetActive(false));
+
+        settingsPanel.SetActive(false);
+        return settingsPanel;
+    }
+
+    // One labeled slider row (used for master + voice volume above) - factored out since the two
+    // are otherwise identical apart from label/position/getter/setter.
+    static void BuildVolumeRow(Transform parent, Font font, string label, float y, float initialValue, UnityEngine.Events.UnityAction<float> onChanged)
+    {
+        GameObject labelGO = new GameObject(label.Replace(" ", "") + "Label", typeof(Text));
+        labelGO.transform.SetParent(parent, false);
+        Text labelText = labelGO.GetComponent<Text>();
+        labelText.text = label;
+        labelText.font = font;
+        labelText.fontSize = 22;
+        labelText.alignment = TextAnchor.MiddleLeft;
+        labelText.color = Color.white;
+        RectTransform labelRect = labelText.rectTransform;
+        labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 1f);
+        labelRect.pivot = new Vector2(0.5f, 1f);
+        labelRect.anchoredPosition = new Vector2(-140f, y);
+        labelRect.sizeDelta = new Vector2(120f, 40f);
+
+        GameObject sliderGO = new GameObject(label.Replace(" ", "") + "Slider", typeof(Slider));
+        sliderGO.transform.SetParent(parent, false);
         Slider slider = sliderGO.GetComponent<Slider>();
         RectTransform sliderRect = slider.GetComponent<RectTransform>();
         sliderRect.anchorMin = sliderRect.anchorMax = new Vector2(0.5f, 1f);
         sliderRect.pivot = new Vector2(0.5f, 1f);
-        sliderRect.anchoredPosition = new Vector2(60f, -90f);
+        sliderRect.anchoredPosition = new Vector2(60f, y);
         sliderRect.sizeDelta = new Vector2(160f, 20f);
         BuildSliderVisuals(slider);
         slider.minValue = 0f;
         slider.maxValue = 1f;
-        slider.value = AudioListener.volume;
-        slider.onValueChanged.AddListener(v => AudioListener.volume = v);
+        slider.value = initialValue;
+        slider.onValueChanged.AddListener(onChanged);
+    }
 
-        RebindKeysUI rebindKeys = RebindKeysUI.Build(parent, font);
-        CreateButton(settingsPanel.transform, "Touches", font, -170f, rebindKeys.Open);
-        CreateButton(settingsPanel.transform, "Retour", font, -250f, () => settingsPanel.SetActive(false));
-
-        settingsPanel.SetActive(false);
-        return settingsPanel;
+    static void OnOpenWindowsSoundSettings()
+    {
+        Application.OpenURL("ms-settings:sound");
     }
 
     public static void BuildSliderVisuals(Slider slider)
