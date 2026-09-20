@@ -3427,6 +3427,10 @@ public static class DungeonGenerator
         pauseGO.transform.SetParent(canvasParent, false);
         Image pauseBg = pauseGO.GetComponent<Image>();
         pauseBg.color = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        // Same fix as MainMenuController's own "Panel" background - see its comment (2026-09-21
+        // bug report). This one shares the exact same shape (a full-screen decorative backdrop
+        // behind its own SettingsPanel), so it's exposed to the identical raycast-priority issue.
+        pauseBg.raycastTarget = false;
         RectTransform pauseRect = pauseBg.rectTransform;
         pauseRect.anchorMin = Vector2.zero;
         pauseRect.anchorMax = Vector2.one;

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
@@ -15,6 +16,16 @@ public class MainMenuController : MonoBehaviour
     void Start()
     {
         ReturnToMenu();
+    }
+
+    // Unlike PauseMenuUI (which already closes its own settings panel on Escape - see its
+    // Update()), this menu had NO Escape handling at all until now (2026-09-21 bug report:
+    // "impossible de fermer le menu de son une fois ouvert") - the "Retour" button was the only
+    // way out. Kept as a safety net alongside that button rather than a replacement for it.
+    void Update()
+    {
+        if (settingsPanel == null || !settingsPanel.activeSelf) return;
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) settingsPanel.SetActive(false);
     }
 
     // Tears down any in-progress run and rebuilds the menu UI. Used both for the game's real entry
@@ -48,6 +59,14 @@ public class MainMenuController : MonoBehaviour
         panel.transform.SetParent(menuCanvas.transform, false);
         Image bg = panel.GetComponent<Image>();
         bg.color = new Color(0.05f, 0.05f, 0.06f, 0.97f);
+        // Purely decorative (no Button/pointer handling of its own) - left raycastTarget at its
+        // Image default of true, this full-screen background was silently winning the raycast
+        // over SettingsPanel once reactivated (2026-09-21 bug report: "impossible de fermer le
+        // menu de son une fois ouvert" - confirmed live: SettingsPanel's own CanvasRenderer.
+        // absoluteDepth was correctly higher, 12 vs 0, yet EventSystem.RaycastAll still returned
+        // only Panel - disabling Panel's raycastTarget here was the only thing that fixed it in
+        // testing). A non-interactive background never needs to intercept clicks anyway.
+        bg.raycastTarget = false;
         RectTransform bgRect = bg.rectTransform;
         bgRect.anchorMin = Vector2.zero;
         bgRect.anchorMax = Vector2.one;
