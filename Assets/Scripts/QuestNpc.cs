@@ -68,6 +68,7 @@ public class QuestNpc : MonoBehaviour
     {
         completed = true;
         RefreshText();
+        if (AchievementManager.Instance != null) AchievementManager.Instance.NotifyQuestCompleted();
         npc.options.Add(new DialogueOption
         {
             text = "Recuperer la recompense",

@@ -1835,6 +1835,66 @@ public static class DungeonGenerator
             if (pickedDefinition != null) pickupToast.Show("+" + pickedAmount + " " + pickedDefinition.DisplayName);
         };
 
+        // --- Achievement toast (top-center, hidden by default) + voice (2026-09-21 request) ---
+        GameObject achievementGO = new GameObject("AchievementToast", typeof(RectTransform), typeof(AchievementToastUI));
+        achievementGO.transform.SetParent(canvasGO.transform, false);
+
+        GameObject achievementBgGO = new GameObject("Bg", typeof(Image));
+        achievementBgGO.transform.SetParent(achievementGO.transform, false);
+        Image achievementBg = achievementBgGO.GetComponent<Image>();
+        achievementBg.color = new Color(0.08f, 0.07f, 0.03f, 0.85f);
+        RectTransform achievementBgRect = achievementBg.rectTransform;
+        achievementBgRect.anchorMin = new Vector2(0.5f, 1f);
+        achievementBgRect.anchorMax = new Vector2(0.5f, 1f);
+        achievementBgRect.pivot = new Vector2(0.5f, 1f);
+        achievementBgRect.anchoredPosition = new Vector2(0f, -20f);
+        achievementBgRect.sizeDelta = new Vector2(560f, 84f);
+
+        GameObject achievementTitleGO = new GameObject("Title", typeof(Text));
+        achievementTitleGO.transform.SetParent(achievementBgGO.transform, false);
+        Text achievementTitleText = achievementTitleGO.GetComponent<Text>();
+        achievementTitleText.font = uiFont;
+        achievementTitleText.fontSize = 26;
+        achievementTitleText.fontStyle = FontStyle.Bold;
+        achievementTitleText.alignment = TextAnchor.MiddleCenter;
+        achievementTitleText.color = new Color(0.95f, 0.85f, 0.3f);
+        RectTransform achievementTitleRect = achievementTitleText.rectTransform;
+        achievementTitleRect.anchorMin = new Vector2(0f, 1f);
+        achievementTitleRect.anchorMax = new Vector2(1f, 1f);
+        achievementTitleRect.pivot = new Vector2(0.5f, 1f);
+        achievementTitleRect.anchoredPosition = new Vector2(0f, -6f);
+        achievementTitleRect.sizeDelta = new Vector2(-20f, 34f);
+
+        GameObject achievementDescGO = new GameObject("Description", typeof(Text));
+        achievementDescGO.transform.SetParent(achievementBgGO.transform, false);
+        Text achievementDescText = achievementDescGO.GetComponent<Text>();
+        achievementDescText.font = uiFont;
+        achievementDescText.fontSize = 20;
+        achievementDescText.alignment = TextAnchor.MiddleCenter;
+        achievementDescText.color = Color.white;
+        RectTransform achievementDescRect = achievementDescText.rectTransform;
+        achievementDescRect.anchorMin = new Vector2(0f, 0f);
+        achievementDescRect.anchorMax = new Vector2(1f, 1f);
+        achievementDescRect.pivot = new Vector2(0.5f, 0.5f);
+        achievementDescRect.anchoredPosition = new Vector2(0f, -20f);
+        achievementDescRect.sizeDelta = new Vector2(-20f, -44f);
+        achievementBgGO.SetActive(false);
+
+        AchievementToastUI achievementToast = achievementGO.GetComponent<AchievementToastUI>();
+        achievementToast.root = achievementBgGO;
+        achievementToast.titleText = achievementTitleText;
+        achievementToast.descriptionText = achievementDescText;
+
+        GameObject achievementManagerGO = new GameObject("AchievementManager", typeof(AudioSource), typeof(AchievementVoice), typeof(AchievementManager));
+        achievementManagerGO.transform.SetParent(canvasGO.transform, false);
+        AchievementManager achievementManager = achievementManagerGO.GetComponent<AchievementManager>();
+        achievementManager.toast = achievementToast;
+        achievementManager.voice = achievementManagerGO.GetComponent<AchievementVoice>();
+
+        achievementManager.NotifyFloorReached(floor);
+        playerStats.OnExperienceChanged += (xp, xpToNext, level) => achievementManager.NotifyLevelReached(level);
+        playerInventory.OnItemPickedUp += achievementManager.NotifyItemPickedUp;
+
         if (roomCam != null)
         {
             RoomType? lastAnnouncedType = null;
