@@ -63,6 +63,18 @@ public class EnemyLimbs : MonoBehaviour, ILimbs
     public int TotalMaxHealth { get { int total = 0; foreach (int v in limbMaxHealth.Values) total += v; return total; } }
     public int TotalCurrentHealth { get { int total = 0; foreach (int v in limbHealth.Values) total += v; return total; } }
 
+    // Whether this creature's own layout even has this part at all (a Larve has no ArmLeft to
+    // break) - GetState below would otherwise read a part it never had as permanently Broken.
+    public bool HasPart(BodyPart part) => limbMaxHealth.ContainsKey(part);
+    public bool IsPartBroken(BodyPart part) => HasPart(part) && GetLimbHealth(part) <= 0;
+
+    // 2026-09-20 follow-up ("point 2": give broken monster limbs a real effect, not just cosmetic
+    // HP) - see EnemyController for how these feed movement/damage. Mirrors the player's own
+    // leg->speed / arm(weapon hand)->damage split (PlayerLimbs' class comment) rather than
+    // inventing a new mapping.
+    public bool AnyLegBroken => IsPartBroken(BodyPart.LegLeft) || IsPartBroken(BodyPart.LegRight);
+    public bool AnyArmBroken => IsPartBroken(BodyPart.ArmLeft) || IsPartBroken(BodyPart.ArmRight);
+
     public LimbState GetState(BodyPart part)
     {
         int hp = GetLimbHealth(part);

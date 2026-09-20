@@ -65,12 +65,24 @@ public class EnemyController : MonoBehaviour
     Vector2 staggerVelocity;
     float staggerEndTime = -999f;
 
+    // 2026-09-20 request ("point 2"): give a broken monster limb a real gameplay effect instead of
+    // just cosmetic HP - mirrors the player's own leg->speed / arm(weapon hand)->damage split (see
+    // PlayerLimbs' class comment). A flying species has no legs in its layout at all (see
+    // EnemyLimbLayout.Flyer) - its wings (ArmLeft/ArmRight) double as both its "legs" for movement
+    // AND its "hands" for damage, so a broken wing hits both instead of just one.
+    bool LegsImpaired => !isFlying && limbs != null && limbs.AnyLegBroken;
+    bool WingsImpaired => isFlying && limbs != null && limbs.AnyArmBroken;
+    bool HandsImpaired => limbs != null && limbs.AnyArmBroken;
+    float EffectiveMoveSpeed => (LegsImpaired || WingsImpaired) ? moveSpeed * 0.5f : moveSpeed;
+    int EffectiveContactDamage => HandsImpaired ? Mathf.Max(1, contactDamage / 2) : contactDamage;
+
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
     public event Action OnDied;
 
     Rigidbody2D rb;
     Health health;
+    EnemyLimbs limbs;
     CircleCollider2D bodyCollider;
     StatusIconDisplay statusIcons;
     Transform target;
@@ -86,6 +98,7 @@ public class EnemyController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         health = GetComponent<Health>();
+        limbs = GetComponent<EnemyLimbs>();
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
         statusIcons.height = 0.7f; // shorter reach than the player's default - enemies read smaller on screen
@@ -180,8 +193,8 @@ public class EnemyController : MonoBehaviour
 
         // Committed once started (no separation/steering blended in, same as the player's own
         // roll) - a straight line is the whole point, a curved "dash" would just look like a
-        // faster chase.
-        if (canRush && distanceToTarget >= RushMinRange && Time.time - lastRushTime >= rushCooldown)
+        // faster chase. WingsImpaired also blocks it outright - no gap-closing dash on a broken wing.
+        if (canRush && !WingsImpaired && distanceToTarget >= RushMinRange && Time.time - lastRushTime >= rushCooldown)
         {
             rushing = true;
             rushDirection = toTarget;
@@ -207,7 +220,7 @@ public class EnemyController : MonoBehaviour
 
         Vector2 moveDir = toTarget + separation * SeparationStrength;
         if (moveDir.sqrMagnitude > 0.0001f) moveDir.Normalize();
-        rb.linearVelocity = moveDir * moveSpeed;
+        rb.linearVelocity = moveDir * EffectiveMoveSpeed;
     }
 
     // Runs after Unity's physics step has already resolved this frame's collisions, so it catches
@@ -247,7 +260,7 @@ public class EnemyController : MonoBehaviour
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
 
-        targetHealth.TakeDamageFromEnemy(contactDamage, AttackSourceMapping.For(enemyType), rb.position);
+        targetHealth.TakeDamageFromEnemy(EffectiveContactDamage, AttackSourceMapping.For(enemyType), rb.position);
         lastHitTime = Time.time;
     }
 
