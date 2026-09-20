@@ -2358,19 +2358,21 @@ public static class DungeonGenerator
         // slow down leveling now that level-ups also grant attribute points to allocate (see
         // PlayerStats.AddExperience/AttributePointsPerLevel) - free levels were coming too easily.
         //
-        // maxHealth/contactDamage fully re-rebalanced 2026-09-20 ("revois le systeme de degats,
-        // normalise le sur les hp du joueur") - the 2026-09-15 pass below only bumped
-        // contactDamage, never each species' own maxHealth, which was left at pre-limb-rework
-        // numbers (1-4) while the player ballooned to 205 total HP (see PlayerLimbs.BaseMaxFor) -
-        // every regular mob still died in a single fist hit regardless of weapon. New target: a
-        // basic sword hit (see PlayerController.swordDamage) takes ~2 hits to drop a Larve, ~2 to
-        // drop a fragile ChauveSouris, ~5 to drop a tanky Zombie - see EnemyLimbLayout for how each
-        // species' total now splits across BodyParts (EnemyLimbs, same request).
+        // maxHealth/contactDamage fully re-rebalanced 2026-09-20, then maxHealth retuned again
+        // 2026-09-21 ("une chauve souris devrait mourrir en 3 coups sans arme, 1 ou 2 coup d'epee
+        // maximum") once real playtesting showed the 2026-09-20 numbers still took far more hits
+        // than intended - the real culprit was EnemyLimbLayout's part count (see its own comment:
+        // a coupon-collector tax on top of raw HP, independent of the number picked here), fixed
+        // there. These HP values now assume that fix: Larve/ChauveSouris are single-part blobs, so
+        // hits-to-kill is a plain ceil(HP/damage) - fist=6/sword=14 (PlayerController) against 18
+        // HP gives exactly 3 fist / 2 sword for ChauveSouris, 12 HP gives 2 fist / 1 sword for the
+        // even-weaker Larve. Zombie stays the tanky bruiser (4-part Grunt layout, some coupon-
+        // collector tax still intended) but was eased from 70 to 50 all the same.
         assets.enemyPresets = new RoomController.EnemyPresetEntry[]
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 70, contactDamage = 12, isFlying = false, xpReward = 2 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 24, contactDamage = 8, isFlying = true, xpReward = 1 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 16, contactDamage = 4, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 50, contactDamage = 12, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 18, contactDamage = 8, isFlying = true, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 12, contactDamage = 4, isFlying = false, xpReward = 1 },
         };
 
         return assets;

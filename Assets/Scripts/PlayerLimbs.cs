@@ -206,8 +206,9 @@ public class PlayerLimbs : MonoBehaviour, ILimbs
     }
 
     // Every explicit source below comes straight from the 2026-09-14 spec:
-    // - ChauveSouris (Rush + Morsure, both) -> always the head. Rush is a pure gap-closing dash
-    //   (see EnemyController.canRush) - no zone of its own was given, and the bat's whole identity
+    // - ChauveSouris (dash attack + Morsure, both) -> always the head. The dash (2026-09-21,
+    //   generalized to every monster - see EnemyController's Dash Attack state machine) is a pure
+    //   gap-closing/telegraphed lunge - no zone of its own was given, and the bat's whole identity
     //   was already "always the head", so it shares Morsure's zone rather than inventing a second.
     // - Zombie (Morsure + Griffure, same mechanical contact hit - see EnemyController.TryDamage)
     //   -> weighted 50% Torso / 25% each arm, exact split given by the user, never the head.

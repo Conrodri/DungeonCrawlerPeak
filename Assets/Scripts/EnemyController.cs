@@ -19,20 +19,30 @@ public class EnemyController : MonoBehaviour
     public EliteModifier modifier;
     public int xpReward = 1;
 
-    [Header("Rush (ChauveSouris only)")]
-    // Set true only for ChauveSouris in RoomController.SpawnEnemies - "Rush permet aux
-    // chauves-souris d'avancer en ligne comme la roulade du joueur" (2026-09-14 spec): a
-    // committed straight-line dash at boosted speed, same shape as PlayerController's roll
-    // (rollDirection/rollSpeed/rollDuration). Purely a movement/gap-closer - it doesn't change
-    // which BodyPart a landed hit targets (see AttackSourceMapping - ChauveSouris is always the
-    // head regardless of whether the hit connected mid-rush or during a normal chase).
-    public bool canRush;
-    public float rushSpeed = 8f;
-    public float rushDuration = 0.3f;
-    public float rushCooldown = 3f;
-    // Too close and there's no room to build up a meaningful dash - a rush that starts already
-    // adjacent to the target would just be a normal chase step with extra math.
-    const float RushMinRange = 2.5f;
+    [Header("Dash Attack (tous les monstres sans projectile)")]
+    // 2026-09-21 request: every regular melee monster (none of the 3 current species shoot
+    // projectiles - only bosses do) now uses the same telegraphed attack pattern instead of just
+    // walking into contact - "une fois a portee, un cast de 0.5 sec, dash sur quelques metres,
+    // puis une fois le CD revenu, le coup se relance". Generalizes what used to be ChauveSouris-
+    // only Rush (2026-09-14 spec) - the actual hit still lands through the existing contact-damage
+    // path (OnCollision.../TryDamage below) once the dash carries this enemy into the player; this
+    // block is purely the movement/telegraph state machine.
+    public float dashRange = 4f;
+    public float dashCastDuration = 0.5f;
+    public float dashSpeed = 9f;
+    public float dashDuration = 0.35f;
+    public float dashCooldown = 3f;
+    // Tints the sprite during the cast wind-up so the attack is actually telegraphed/dodgeable,
+    // not just an invisible timer - reverts the instant the dash itself starts.
+    static readonly Color DashCastTint = new Color(1f, 0.25f, 0.25f);
+
+    enum DashState { None, Casting, Dashing }
+    DashState dashState;
+    float dashStateEndTime;
+    Vector2 dashDirection;
+    float lastDashTime = -999f;
+    SpriteRenderer spriteRenderer;
+    Color baseColor;
 
     const float BobAmplitude = 0.15f;
     const float BobSpeed = 4f;
@@ -94,10 +104,6 @@ public class EnemyController : MonoBehaviour
     float lastHitTime = -999f;
     Rect? roomBounds;
     float activeAtTime;
-    bool rushing;
-    Vector2 rushDirection;
-    float rushEndTime;
-    float lastRushTime = -999f;
 
     void Awake()
     {
@@ -107,6 +113,8 @@ public class EnemyController : MonoBehaviour
         bodyCollider = GetComponent<CircleCollider2D>();
         statusIcons = GetComponent<StatusIconDisplay>();
         statusIcons.height = 0.7f; // shorter reach than the player's default - enemies read smaller on screen
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        baseColor = spriteRenderer.color;
         health.OnDeath += HandleDeath;
         health.OnDamagedFrom += HandleDamagedFrom;
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
@@ -161,6 +169,19 @@ public class EnemyController : MonoBehaviour
         if (badgeIcon != null) statusIcons.ShowIcon(EliteIconKey, badgeIcon);
     }
 
+    // Committed once started (no separation/steering blended in, same as the player's own roll) -
+    // a straight line is the whole point, a curved "dash" would just look like a faster chase.
+    // Aimed at wherever the target actually is NOW (cast just finished, not where they were when
+    // the cast started) so a player who sidesteps mid-telegraph isn't guaranteed to still get hit.
+    void BeginDash()
+    {
+        dashState = DashState.Dashing;
+        Vector2 dir = target != null ? (Vector2)target.position - rb.position : Vector2.up;
+        dashDirection = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector2.up;
+        dashStateEndTime = Time.time + dashDuration;
+        if (spriteRenderer != null) spriteRenderer.color = baseColor;
+    }
+
     void HandleDamagedFrom(Vector2 fromPosition)
     {
         Vector2 away = rb.position - fromPosition;
@@ -185,10 +206,21 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
-        if (rushing)
+        if (dashState == DashState.Casting)
         {
-            rb.linearVelocity = rushDirection * rushSpeed;
-            if (Time.time >= rushEndTime) rushing = false;
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= dashStateEndTime) BeginDash();
+            return;
+        }
+
+        if (dashState == DashState.Dashing)
+        {
+            rb.linearVelocity = dashDirection * dashSpeed;
+            if (Time.time >= dashStateEndTime)
+            {
+                dashState = DashState.None;
+                lastDashTime = Time.time;
+            }
             return;
         }
 
@@ -196,16 +228,14 @@ public class EnemyController : MonoBehaviour
         float distanceToTarget = toTarget.magnitude;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
 
-        // Committed once started (no separation/steering blended in, same as the player's own
-        // roll) - a straight line is the whole point, a curved "dash" would just look like a
-        // faster chase. WingsImpaired also blocks it outright - no gap-closing dash on a broken wing.
-        if (canRush && !WingsImpaired && distanceToTarget >= RushMinRange && Time.time - lastRushTime >= rushCooldown)
+        // WingsImpaired/LegsImpaired both block it outright too - no gap-closing dash on a broken
+        // wing or leg (see EffectiveMoveSpeed's own comment for why the same fields cover both).
+        if (distanceToTarget <= dashRange && !WingsImpaired && !LegsImpaired && Time.time - lastDashTime >= dashCooldown)
         {
-            rushing = true;
-            rushDirection = toTarget;
-            rushEndTime = Time.time + rushDuration;
-            lastRushTime = Time.time;
-            rb.linearVelocity = rushDirection * rushSpeed;
+            dashState = DashState.Casting;
+            dashStateEndTime = Time.time + dashCastDuration;
+            if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+            rb.linearVelocity = Vector2.zero;
             return;
         }
 

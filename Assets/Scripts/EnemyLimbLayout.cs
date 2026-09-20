@@ -2,20 +2,35 @@
 // de membre que le joueur, parfois different pour les slimes ou les mobs avec plus ou moins de
 // membres"). Reuses the player's own 6-part BodyPart enum rather than inventing new part types -
 // a creature with fewer limbs than the player just gets a subset of it.
+//
+// Part COUNT was retuned 2026-09-21 ("la vie de certains monstres sont beaucoup trop hautes...
+// une chauve souris devrait mourrir en 3 coups sans arme, 1 ou 2 coup d'epee maximum") - death
+// only happens once EVERY part in a creature's layout is separately brought to 0 (see
+// EnemyLimbs/Health.SetFromLimbs), and a hit only ever fully clears the ONE part it randomly
+// rolls onto (see EnemyLimbs.MitigateHit). With N parts and a weapon that already one-shots any
+// single part, the number of swings needed to actually finish the kill is a coupon-collector
+// problem (expected N*(1+1/2+...+1/N) swings, not close to N) - the old 4-part ChauveSouris
+// (Head/Torso/ArmLeft/ArmRight) averaged ~8 hits to clear regardless of its total HP number, way
+// more than the "3 fist / 1-2 sword" the request asks for. Fewer parts is the only lever that
+// actually controls that average, not total HP - see DungeonGenerator's assets.enemyPresets for
+// the matching HP retune.
 public static class EnemyLimbLayout
 {
-    static readonly BodyPart[] Humanoid = { BodyPart.Head, BodyPart.Torso, BodyPart.ArmLeft, BodyPart.ArmRight, BodyPart.LegLeft, BodyPart.LegRight };
-    // ChauveSouris flies and never touches the ground - no legs to target, ArmLeft/ArmRight stand
-    // in for its wings.
-    static readonly BodyPart[] Flyer = { BodyPart.Head, BodyPart.Torso, BodyPart.ArmLeft, BodyPart.ArmRight };
-    // Larve - a single-part blob, the "slime" case from the request: no separate limbs to target,
-    // every hit lands on its one Torso pool.
+    // Zombie only - the one species that keeps real limb variety, since its "shambling, slows
+    // down with a broken leg" identity is worth the extra swings a 4-part coupon-collector still
+    // costs (average ~8 hits) compared to the fragile mobs below. Legs kept (not arms) so
+    // EnemyController's broken-leg speed penalty is the one that actually fires for it - fits a
+    // zombie's limp far better than a weakened bite would.
+    static readonly BodyPart[] Grunt = { BodyPart.Head, BodyPart.Torso, BodyPart.LegLeft, BodyPart.LegRight };
+    // ChauveSouris and Larve - both explicitly called out as "should die fast" (glass-cannon
+    // flier, weak swarm unit) - a single-part blob means death is a deterministic ceil(HP/damage),
+    // no RNG tax from spreading HP across limbs that only fragment an already-small pool. Also
+    // literally the "slime" case from the original 2026-09-20 request.
     static readonly BodyPart[] Blob = { BodyPart.Torso };
 
     public static BodyPart[] For(EnemyType type) => type switch
     {
-        EnemyType.Zombie => Humanoid,
-        EnemyType.ChauveSouris => Flyer,
-        _ => Blob, // Larve
+        EnemyType.Zombie => Grunt,
+        _ => Blob, // ChauveSouris, Larve
     };
 }
