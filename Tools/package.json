@@ -1,0 +1,9 @@
+{
+  "name": "dungeoncrawlerpeak-voice-tools",
+  "private": true,
+  "type": "module",
+  "description": "Offline voice-clip generation for AchievementVoice/BossIntroVoice/TutorialVoice - see generate_all_voices.mjs.",
+  "dependencies": {
+    "msedge-tts": "^2.0.7"
+  }
+}
