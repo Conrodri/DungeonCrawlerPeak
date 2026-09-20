@@ -41,10 +41,23 @@ public class BossRoomController : MonoBehaviour
     public string dropItemId;
     public float dropChance;
     public int xpReward;
+    // Set in DungeonGenerator.SetupBossRoom - which of the 3 power tiers this room's boss is, so
+    // OnAnyBossDefeated below (and QuestNpc's boss-kill quests) can tell them apart.
+    public DungeonGenerator.BossTier tier;
 
     // Lets a BossKill-locked Staircase (see DungeonGenerator.SetupStaircase) unlock the moment
     // this floor's boss dies, without the staircase needing to poll anything itself.
     public event Action OnBossDefeated;
+
+    // Static, floor-independent signal for "a boss of this tier just died in a real fight" - used
+    // by QuestNpc's KillZoneBoss/KillVilleBoss/KillRegionBoss quest types (2026-09-21 request) so
+    // they don't need a reference to whichever specific BossRoomController this floor happens to
+    // have for their tier. Deliberately only fired from HandleBossDied below, never from Start()'s
+    // startDefeated/resumed-save branch - bossDefeatedThisFloor (see DungeonGenerator) only tracks
+    // "some boss died this floor" as a single flag, not per-tier, so firing it there too could mark
+    // an unrelated tier's quest complete. A quest asking for an already-dead tier on a resumed save
+    // is a known, narrow edge case left alone rather than building full per-tier save tracking for it.
+    public static event Action<DungeonGenerator.BossTier> OnAnyBossDefeated;
 
     bool defeated;
     bool healthBarBound;
@@ -124,6 +137,7 @@ public class BossRoomController : MonoBehaviour
 
         if (victoryBanner != null) victoryBanner.ShowVictory(bossName + " est vaincu !");
         OnBossDefeated?.Invoke();
+        OnAnyBossDefeated?.Invoke(tier);
     }
 
     void UpdateDoors()

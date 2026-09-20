@@ -80,6 +80,11 @@ public class EnemyController : MonoBehaviour
     // one that was simply despawned (e.g. on room reset).
     public event Action OnDied;
 
+    // Static, floor/room-independent signal for "any regular monster died in a real fight"
+    // (2026-09-21 request) - used by QuestNpc's KillMonsters quest type. Only fired from
+    // HandleDeath below, never from Despawn (a room reset/re-entry despawn isn't a kill).
+    public static event Action OnAnyEnemyDied;
+
     Rigidbody2D rb;
     Health health;
     EnemyLimbs limbs;
@@ -281,6 +286,7 @@ public class EnemyController : MonoBehaviour
 
         if (target != null) target.GetComponent<PlayerStats>()?.AddExperience(xpReward);
         OnDied?.Invoke();
+        OnAnyEnemyDied?.Invoke();
         Destroy(gameObject);
     }
 

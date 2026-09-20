@@ -437,6 +437,8 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
 
         if (outcome.curse) playerStats.ApplyCurse();
 
+        if (outcome.xpReward > 0 && playerStats != null) playerStats.AddExperience(outcome.xpReward);
+
         if (outcome.healAmount > 0 && playerHealth != null) playerHealth.Heal(outcome.healAmount);
 
         if (outcome.removesCursedItem)

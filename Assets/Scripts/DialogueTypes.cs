@@ -21,6 +21,9 @@ public class DialogueOutcome
     // consumable (e.g. a Restaurant dish, see DungeonGenerator.EatOption) that never touches the
     // inventory, unlike a real item's ItemDefinition.HealAmount consumed via PlayerController.UsePotion.
     public int healAmount;
+    // XP granted immediately on this outcome (2026-09-21 request: quest rewards, see QuestNpc) -
+    // 0 = no XP, same convention as healAmount above.
+    public int xpReward;
     // Opens AttributeAllocationUI - only meaningful on a Safe-room NPC (see DungeonGenerator.
     // SpawnTavernNpc). A dedicated panel rather than one DialogueOption per stat, since the
     // available-points count and each stat's live value need to update as points are spent, which

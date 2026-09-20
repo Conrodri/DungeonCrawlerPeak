@@ -1060,6 +1060,10 @@ public static class DungeonGenerator
                     Vector2 center = roomOrigin + new Vector2(RoomWidth / 2f, RoomHeight / 2f);
                     SpawnMerchantNpc(center, npcMerchantSprite, npcBadgeSprite, root.transform);
                     SpawnShopFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), center, shopCrateSprite, rugSprite, wallDecorSprite, root.transform);
+                    // The floor's one optional quest-giver (2026-09-21 request) - tucked in a free
+                    // corner of the Shop room, clear of both the crate/shelf cluster and the wall
+                    // decor around the Marchand (see SpawnShopFurniture).
+                    SpawnQuestNpc(center + new Vector2(-7f, -3f), npcStrangerSprite, npcBadgeSprite, root.transform, CurrentFloor);
                 }
 
                 if (kv.Value == RoomType.Stairs)
@@ -4850,6 +4854,126 @@ public static class DungeonGenerator
         };
     }
 
+    // Quest reward pools by difficulty (2026-09-21 request: "donnera un item en consequence" of
+    // the quest's difficulty) - subsets of ChestLootPool's own items, kept rarity-appropriate:
+    // difficulty 1 stays throwables/consumables (rarity 1), 2 moves up to basic gear (rarity 2), 3
+    // reaches the stat rings/utility gear (rarity 3). No ordinary item sits above rarity 3 today
+    // (ChestLootPool's own comment - boss trophies/CursedSword are earned, not handed out by a
+    // container) so difficulty 4 reuses tier 3's pool and leans on QuestXpReward's steeper curve
+    // instead to still feel like the biggest prize.
+    static readonly string[] QuestRewardPoolTier1 = { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Bomb, ItemIds.HealthPotion };
+    static readonly string[] QuestRewardPoolTier2 = { ItemIds.IronHelmet, ItemIds.LeatherPauldrons, ItemIds.CombatGloves, ItemIds.WalkingBoots, ItemIds.SimpleNecklace, ItemIds.LeatherBelt, ItemIds.LeatherKneepads, ItemIds.SimpleRing };
+    static readonly string[] QuestRewardPoolTier3 = { ItemIds.RingForce, ItemIds.RingDexterite, ItemIds.RingIntelligence, ItemIds.RingVitesse, ItemIds.RingConstitution, ItemIds.RingPortee, ItemIds.RingCharisme, ItemIds.RingEndurance, ItemIds.AntiHoleBoots, ItemIds.VisionGlasses };
+    // "echange de ressources (rapporte moi 2 bombes)" - a small, always-affordable-to-gather pool.
+    static readonly string[] QuestTurnInPool = { ItemIds.Bomb, ItemIds.Wood, ItemIds.Metal, ItemIds.Stone, ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton };
+
+    static string[] QuestRewardPoolFor(int difficulty) => difficulty switch
+    {
+        1 => QuestRewardPoolTier1,
+        2 => QuestRewardPoolTier2,
+        _ => QuestRewardPoolTier3, // 3 and 4
+    };
+
+    // Floor-scaled like every other XP reward in this file (see RoomController.SpawnEnemies'
+    // xpReward * floor) - this session's own numeric choice: difficulty 1 sits a bit above a
+    // regular kill's own reward, 4 (a Region boss contract) pays close to that boss's own kill XP
+    // again on top, since it demanded a full boss fight to even unlock.
+    static int QuestXpReward(int difficulty, int floor) => difficulty switch
+    {
+        1 => 8 * floor,
+        2 => 15 * floor,
+        3 => 25 * floor,
+        _ => 40 * floor,
+    };
+
+    static string QuestObjectiveText(QuestType type) => type switch
+    {
+        QuestType.KillMonsters => "J'ai besoin qu'on debarrasse ces couloirs de quelques monstres.",
+        QuestType.KillZoneBoss => "Le boss de quartier terrorise cette zone. Reglez-lui son compte.",
+        QuestType.KillVilleBoss => "Le boss de ville est une menace serieuse. Vous en sentez-vous capable ?",
+        _ => "Le boss de region... peu en reviennent. Relevez le defi et vous serez largement recompense.",
+    };
+
+    static string QuestCompletionMessage(QuestType type) => type switch
+    {
+        QuestType.KillMonsters => "Bon debarras. Voici votre du.",
+        QuestType.KillZoneBoss => "Le quartier vous doit une fiere chandelle.",
+        QuestType.KillVilleBoss => "Toute la ville va en parler.",
+        _ => "Un exploit dont peu peuvent se vanter. Bien joue.",
+    };
+
+    // The optional quest-giver (2026-09-21 request: "1 maximum par etage") - always placed in the
+    // Shop room alongside the Marchand rather than a whole new special-room type, to avoid eating
+    // further into the floor's Monster-room budget (see the comment on PlaceSpecialRoom's cell
+    // count). One of the 5 QuestType values is rolled uniformly every floor - a KillMonsters or
+    // TurnInItem quest is always completable that floor (regular monsters always spawn), and all 3
+    // boss tiers exist on every floor too (see BuildFloorAssetsPart2/GenerateLayout's bossTiers).
+    static void SpawnQuestNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent, int floor)
+    {
+        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable), typeof(QuestNpc));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.8f, 0.65f, 0.35f); // brass/parchment - a contracts board keeper
+        renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
+
+        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+
+        NpcInteractable npc = go.GetComponent<NpcInteractable>();
+        npc.npcName = "Chasseur de primes";
+
+        QuestType type = (QuestType)Random.Range(0, 5);
+        QuestNpc quest = go.GetComponent<QuestNpc>();
+        quest.type = type;
+
+        if (type == QuestType.TurnInItem)
+        {
+            string itemId = QuestTurnInPool[Random.Range(0, QuestTurnInPool.Length)];
+            int amount = Random.Range(2, 5);
+            ItemDefinition definition = ItemDatabase.Get(itemId);
+            string itemName = definition != null ? definition.DisplayName : itemId;
+
+            npc.greeting = "J'ai besoin de fournitures. Rapportez-moi " + amount + "x " + itemName + " et vous serez recompense.";
+            npc.options = new List<DialogueOption>
+            {
+                new DialogueOption
+                {
+                    text = "Rapporter " + amount + "x " + itemName,
+                    isPurchase = true,
+                    costItemId = itemId,
+                    costAmount = amount,
+                    checkStat = StatType.None,
+                    onSuccess = new DialogueOutcome
+                    {
+                        message = "Merci, exactement ce qu'il me fallait.",
+                        xpReward = QuestXpReward(1, floor),
+                        itemRewardPool = QuestRewardPoolTier1,
+                        npcDisappearsForever = true,
+                    },
+                },
+            };
+            return;
+        }
+
+        int difficulty = type switch
+        {
+            QuestType.KillMonsters => 1,
+            QuestType.KillZoneBoss => 2,
+            QuestType.KillVilleBoss => 3,
+            _ => 4, // KillRegionBoss
+        };
+        quest.difficulty = difficulty;
+        quest.targetCount = type == QuestType.KillMonsters ? Random.Range(3, 6) : 1;
+        quest.xpReward = QuestXpReward(difficulty, floor);
+        quest.rewardPool = QuestRewardPoolFor(difficulty);
+        quest.objectiveText = QuestObjectiveText(type);
+        quest.completionMessage = QuestCompletionMessage(type);
+        quest.RefreshText();
+    }
+
     static readonly string[] ShopRingIds =
     {
         ItemIds.RingForce, ItemIds.RingDexterite, ItemIds.RingIntelligence, ItemIds.RingVitesse,
@@ -5427,8 +5551,9 @@ public static class DungeonGenerator
 
     // A floor has 3 bosses now (explicit request) - one from each power tier, all the same
     // biome-themed family (see BossFamilyFor). Zone is an early, easy encounter; Region is the
-    // single farthest room on the floor and the real final fight.
-    enum BossTier { Zone, Ville, Region }
+    // single farthest room on the floor and the real final fight. Public (2026-09-21) so
+    // BossRoomController/QuestNpc can tell which tier a boss-kill quest needs.
+    public enum BossTier { Zone, Ville, Region }
 
     struct BossFamily
     {
@@ -5713,6 +5838,7 @@ public static class DungeonGenerator
         controller.dropItemId = family.dropItemId;
         controller.dropChance = stats.dropChance;
         controller.xpReward = stats.xpReward;
+        controller.tier = tier; // QuestNpc's boss-kill quests need to know which tier died (2026-09-21)
         // See the matching subscription in SetupMonsterRoom - keeps DungeonGenerator's live
         // tracking accurate even for a boss restored as already-dead (Start() re-fires this, see
         // BossRoomController), so a later re-save still reflects it.
