@@ -13,11 +13,12 @@ public static class MonsterLeveling
     // player at baseline because their old preset moveSpeed floats - 1.2/3.2/1.6 - were arbitrary
     // numbers unrelated to the player's own base(5)/Vitesse formula). See ApplyLevelStats below.
     public const float BaseSpeed = 5f;
-    // Dialed back from the 1:1 player parity above (2026-09-15 follow-up: "vitesse des mobs a 0.8
-    // au lieu de 1") - every monster/boss now moves at 80% of what its Vitesse stat would give an
-    // equivalent player, applied on top of BaseSpeed/MoveSpeedMultiplierFor rather than changing
-    // that shared formula itself (which the player's own MoveSpeedMultiplier still uses at 100%).
-    public const float MonsterSpeedScale = 0.8f;
+    // Dialed back from the 1:1 player parity above (2026-09-15: "vitesse des mobs a 0.8 au lieu de
+    // 1", then halved again 2026-09-21: "ralentis les monstres de moitie") - every monster/boss
+    // now moves at 40% of what its Vitesse stat would give an equivalent player, applied on top of
+    // BaseSpeed/MoveSpeedMultiplierFor rather than changing that shared formula itself (which the
+    // player's own MoveSpeedMultiplier still uses at 100%).
+    public const float MonsterSpeedScale = 0.4f;
 
 
     // Only 2 data points were given (floor 1: 1-5, floor 2: 10-15) with "et ainsi de suite" for
