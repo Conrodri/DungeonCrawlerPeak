@@ -10,6 +10,9 @@ public class TutorialNpc : MonoBehaviour, UIWindowStack.IWindow
 {
     public string npcName = "Le Guide";
     [TextArea] public string bodyText;
+    // Set by DungeonGenerator.SpawnTutorialNpc (2026-09-21 request) - reads bodyText aloud each
+    // time the panel opens, same text/voice pairing as AchievementToastUI/BossIntroUI.
+    public TutorialVoice voice;
 
     GameObject promptGO;
     GameObject panel;
@@ -94,6 +97,7 @@ public class TutorialNpc : MonoBehaviour, UIWindowStack.IWindow
         if (promptGO != null) promptGO.SetActive(false);
         if (panel != null) panel.SetActive(true);
         if (bodyLabel != null) bodyLabel.text = bodyText + "\n\n[E] Fermer";
+        if (voice != null) voice.Play();
     }
 
     public bool TryCloseFromStack()

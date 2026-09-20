@@ -3451,7 +3451,7 @@ public static class DungeonGenerator
 
     static void SpawnTutorialNpc(Vector2 position, Sprite sprite, Transform parent)
     {
-        GameObject go = new GameObject("TutorialGuide", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(TutorialNpc));
+        GameObject go = new GameObject("TutorialGuide", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(AudioSource), typeof(TutorialVoice), typeof(TutorialNpc));
         go.transform.SetParent(parent);
         go.transform.position = position;
 
@@ -3471,6 +3471,9 @@ public static class DungeonGenerator
             "explorant, d'autres exigent de battre un boss, d'actionner un levier ou d'attendre.\n\n" +
             "Combattez, pillez, equipez-vous, et descendez aussi loin que possible. " +
             "Le portail derriere moi vous mene au premier etage.";
+        // Reads the paragraph above aloud (2026-09-21 request: "pour la toute premiere game, lors
+        // du tuto... un speech explicatif du donjon par l'ia") - see Tools/generate_tutorial_voice.ps1.
+        npc.voice = go.GetComponent<TutorialVoice>();
     }
 
     // Rolls this floor's lock flavour and builds the physical staircase - the sole way down.
