@@ -215,7 +215,7 @@ public class EnemyController : MonoBehaviour
 
         if (dashState == DashState.Dashing)
         {
-            rb.linearVelocity = dashDirection * dashSpeed;
+            rb.linearVelocity = dashDirection * (LegsImpaired ? dashSpeed * 0.5f : dashSpeed);
             if (Time.time >= dashStateEndTime)
             {
                 dashState = DashState.None;
@@ -228,9 +228,14 @@ public class EnemyController : MonoBehaviour
         float distanceToTarget = toTarget.magnitude;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
 
-        // WingsImpaired/LegsImpaired both block it outright too - no gap-closing dash on a broken
-        // wing or leg (see EffectiveMoveSpeed's own comment for why the same fields cover both).
-        if (distanceToTarget <= dashRange && !WingsImpaired && !LegsImpaired && Time.time - lastDashTime >= dashCooldown)
+        // Only WingsImpaired blocks the dash outright - flight is literally required for a flying
+        // species' lunge. A broken leg used to do the same (real bug, 2026-09-21 report: "le
+        // zombie du tuto fait une fois l'attaque et ne la relance JAMAIS") - a Grunt-layout Zombie
+        // has 2 of its 4 parts as legs, each small enough for a single fist hit to break outright,
+        // so this was permanently disabling its only attack after one unlucky early hit instead of
+        // just slowing it down like the rest of the broken-leg penalty already does (see
+        // EffectiveMoveSpeed, and the Dashing branch above, which now halves dash speed too).
+        if (distanceToTarget <= dashRange && !WingsImpaired && Time.time - lastDashTime >= dashCooldown)
         {
             dashState = DashState.Casting;
             dashStateEndTime = Time.time + dashCastDuration;
