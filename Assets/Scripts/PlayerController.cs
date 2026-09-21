@@ -235,6 +235,10 @@ public class PlayerController : MonoBehaviour
     float lastSprintInjuryTime = -999f;
     bool HasBrokenLeg => limbs != null && (limbs.IsBroken(BodyPart.LegLeft) || limbs.IsBroken(BodyPart.LegRight));
     bool HasBrokenArm => limbs != null && (limbs.IsBroken(BodyPart.ArmLeft) || limbs.IsBroken(BodyPart.ArmRight));
+    // 2026-09-21 request: a broken weaponHand no longer blocks attacks/casts outright - it just
+    // halves their speed (double cooldown) instead. Checked against weaponHand specifically (not
+    // HasBrokenArm above), same as every gate that used to hard-block here.
+    float WeaponHandCooldownMultiplier => limbs != null && limbs.IsBroken(weaponHand) ? 2f : 1f;
 
     // 2026-09-21 request: "rajoute des debuff pour afficher une jambe cassee un bras casse" -
     // same shared Cross_Bright icon for both (see EnemyController's identical pattern for
@@ -607,8 +611,9 @@ public class PlayerController : MonoBehaviour
         weaponLocked = false;
     }
 
-    // Manual only, not automatic - a broken arm doesn't force-switch you, it just makes attacking
-    // useless until you either come here yourself or get the arm repaired (see PlayerLimbs).
+    // Manual only, not automatic - a broken arm doesn't force-switch you, it just halves your
+    // attack/cast speed until you either come here yourself or get the arm repaired (see
+    // PlayerLimbs, WeaponHandCooldownMultiplier).
     void SwitchWeaponHand()
     {
         weaponHand = weaponHand == BodyPart.ArmRight ? BodyPart.ArmLeft : BodyPart.ArmRight;
@@ -617,17 +622,13 @@ public class PlayerController : MonoBehaviour
 
     void TryAttack()
     {
-        // A broken weaponHand can't swing/aim at all, whatever weapon it's holding - see
-        // PlayerLimbs/LimbState and SwitchWeaponHand above.
-        if (limbs != null && limbs.IsBroken(weaponHand)) return;
-
         // Attack speed only affects physical weapons (Fist/Sword) - no equivalent bonus was
         // requested for the Staff's magic cooldown. Level 5 Melee (see PlayerSkills) speeds up the
         // same two weapons further on top of Dexterite's own AttackSpeedMultiplier.
         float meleeCooldownMultiplier = skills != null ? skills.MeleeCooldownMultiplier : 1f;
-        float cooldown = currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
+        float cooldown = (currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
             : currentWeapon == WeaponType.Sword ? swordCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
-            : staffCooldown;
+            : staffCooldown) * WeaponHandCooldownMultiplier;
 
         if (Time.time - lastAttackTime < cooldown) return;
 
@@ -1086,9 +1087,7 @@ public class PlayerController : MonoBehaviour
 
     void TryCastLightningOrb()
     {
-        // Casting still needs a working arm, same gate every other weapon action uses.
-        if (limbs != null && limbs.IsBroken(weaponHand)) return;
-        if (Time.time - lastLightningOrbTime < lightningOrbCooldown) return;
+        if (Time.time - lastLightningOrbTime < lightningOrbCooldown * WeaponHandCooldownMultiplier) return;
         if (mana == null || mana.currentMana < lightningOrbManaCost) return;
 
         mana.Drain(lightningOrbManaCost);
@@ -1139,8 +1138,7 @@ public class PlayerController : MonoBehaviour
 
     void TryCastFireball()
     {
-        if (limbs != null && limbs.IsBroken(weaponHand)) return;
-        if (Time.time - lastFireballTime < fireballCooldown) return;
+        if (Time.time - lastFireballTime < fireballCooldown * WeaponHandCooldownMultiplier) return;
         if (mana == null || mana.currentMana < fireballManaCost) return;
 
         mana.Drain(fireballManaCost);
@@ -1182,8 +1180,7 @@ public class PlayerController : MonoBehaviour
 
     void TryCastFireLine()
     {
-        if (limbs != null && limbs.IsBroken(weaponHand)) return;
-        if (Time.time - lastFireLineTime < fireLineCooldown) return;
+        if (Time.time - lastFireLineTime < fireLineCooldown * WeaponHandCooldownMultiplier) return;
         if (mana == null || mana.currentMana < fireLineManaCost) return;
 
         mana.Drain(fireLineManaCost);
