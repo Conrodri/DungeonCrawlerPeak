@@ -3140,6 +3140,14 @@ public static class DungeonGenerator
         Stamina playerStamina = player.GetComponent<Stamina>();
         Mana playerMana = player.GetComponent<Mana>();
 
+        // Bumped from the real game's 20 (2026-09-21 request, item spawner) - the loadout below
+        // already fills all 20 default slots on its own (several stacks split across 2 slots by
+        // their own maxStack), which left ItemSpawnerUI's "click to receive" silently discarding
+        // everything (see PlayerInventory.Add's own "lost" comment) the moment the room loaded.
+        // GrowSlotCount, not a plain field assignment - Awake() already ran synchronously when
+        // typeof(PlayerInventory) was added above and built `slots` off the default 20.
+        playerInventory.GrowSlotCount(40);
+
         // Starting loadout: a Sword already equipped (melee combos testable immediately) plus a
         // stack of everything else worth trying - thrown items on the hotbar, gear/rings left in
         // the inventory to equip by hand.
@@ -3489,6 +3497,73 @@ public static class DungeonGenerator
         // DamageNumberDisplay's own comment for why this never gets wired onto a real enemy.
         DamageNumberDisplay dummyDamageNumbers = dummyGO.AddComponent<DamageNumberDisplay>();
         dummyDamageNumbers.target = dummyHealth;
+
+        // --- Mob/item spawner tools (2026-09-21 request) - pick any monster or any item from a
+        // list and get it instantly, rather than waiting on real floor RNG/room recipes. Wired up
+        // only here, never on a real floor - see TrainingSpawnerUI.cs. ---
+        GameObject mobSpawnerGO = new GameObject("MobSpawnerUI", typeof(MobSpawnerUI));
+        mobSpawnerGO.transform.SetParent(canvasGO.transform, false);
+        MobSpawnerUI mobSpawner = mobSpawnerGO.GetComponent<MobSpawnerUI>();
+        mobSpawner.player = player.transform;
+        mobSpawner.presets = assets.enemyPresets;
+        mobSpawner.spawnParent = root.transform;
+
+        GameObject itemSpawnerGO = new GameObject("ItemSpawnerUI", typeof(ItemSpawnerUI));
+        itemSpawnerGO.transform.SetParent(canvasGO.transform, false);
+        ItemSpawnerUI itemSpawner = itemSpawnerGO.GetComponent<ItemSpawnerUI>();
+        itemSpawner.inventory = playerInventory;
+    }
+
+    // Builds one enemy exactly like RoomController.SpawnEnemies would, standalone - no
+    // RoomController/recipe/room-bounds needed since the training room is a single fixed space
+    // (see MobSpawnerUI). Targets the player immediately so a spawned mob starts acting right away,
+    // same as a real room once ArmEnemies fires.
+    public static void SpawnTrainingMob(EnemyType type, Vector2 position, Transform target, RoomController.EnemyPresetEntry[] presets, Transform parent)
+    {
+        RoomController.EnemyPresetEntry preset = presets[0];
+        foreach (RoomController.EnemyPresetEntry candidate in presets)
+        {
+            if (candidate.type == type) { preset = candidate; break; }
+        }
+
+        int floor = Mathf.Max(1, CurrentFloor);
+        int level = MonsterLeveling.RollLevel(floor);
+
+        GameObject enemy = new GameObject(type + " Niv." + level,
+            typeof(SpriteRenderer), typeof(Rigidbody2D), typeof(CircleCollider2D), typeof(Health), typeof(EnemyLimbs), typeof(StatusIconDisplay), typeof(EnemyController));
+        if (preset.isFlying) enemy.layer = FlyingLayer;
+        enemy.transform.SetParent(parent);
+        enemy.transform.position = position;
+
+        SpriteRenderer renderer = enemy.GetComponent<SpriteRenderer>();
+        renderer.sprite = preset.sprite;
+        renderer.sortingOrder = 0;
+        enemy.AddComponent<SpriteOutline>();
+
+        Rigidbody2D body = enemy.GetComponent<Rigidbody2D>();
+        body.gravityScale = 0f;
+        body.constraints = RigidbodyConstraints2D.FreezeRotation;
+        enemy.GetComponent<CircleCollider2D>().radius = 0.4f;
+
+        float scaledMoveSpeed = 0f;
+        int scaledContactDamage = preset.contactDamage;
+        MonsterLeveling.ApplyLevelStats(type, level, floor, ref scaledMoveSpeed, ref scaledContactDamage);
+
+        Health health = enemy.GetComponent<Health>();
+        health.maxHealth = preset.maxHealth + MonsterLeveling.ConstitutionBonusForFloor(floor);
+        health.currentHealth = health.maxHealth;
+
+        EnemyController controller = enemy.GetComponent<EnemyController>();
+        controller.enemyType = type;
+        controller.level = level;
+        controller.moveSpeed = scaledMoveSpeed;
+        controller.contactDamage = scaledContactDamage;
+        controller.isFlying = preset.isFlying;
+        controller.projectileSprite = preset.projectileSprite;
+        controller.xpReward = 0; // pas un vrai kill de floor, comme le punching ball
+
+        enemy.GetComponent<EnemyLimbs>().Configure(EnemyLimbLayout.For(type), health.maxHealth);
+        controller.SetTarget(target);
     }
 
     // PauseMenuUI lives on its OWN always-active GameObject, separate from the visual panel it

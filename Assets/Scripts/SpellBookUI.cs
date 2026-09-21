@@ -1,16 +1,26 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Grimoire des sorts, toggled with K - same shape as CharacterSheetUI (read-only recap panel,
-// pushed on UIWindowStack). Only one spell exists today (Orbe de Foudre, see PlayerController) but
-// this is where every future spell gets listed, each with its own key/cout/degats/cooldown.
+// Grimoire des sorts, toggled with K - same shape as CharacterSheetUI (a recap panel, pushed on
+// UIWindowStack), plus a row of clickable spell chips (2026-09-21 request: "sorts... ajoutable a
+// la barre depuis l'interface des sorts") - clicking a spell here adds it to the first empty
+// PlayerController.spellSlots slot, or removes it if it's already on the bar. Every spell the
+// player knows is listed (see KnownSpellIds) - there's no "unlock" system today, so this is
+// currently all 3 spells that exist (SpellIds), always.
 public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
 {
+    static readonly string[] KnownSpellIds = { SpellIds.LightningOrb, SpellIds.Fireball, SpellIds.FireLine };
+    static readonly string[] KnownSpellNames = { "Orbe de Foudre", "Boule de Feu", "Ligne de Feu" };
+
+    static readonly Color ChipOnBarColor = new Color(1f, 0.85f, 0.2f, 0.9f);
+    static readonly Color ChipOffBarColor = new Color(1f, 1f, 1f, 0.15f);
+
     public PlayerController controller;
     public Mana mana;
     public PlayerStats stats;
 
     GameObject panel;
+    Image[] chipBackgrounds;
     Text bodyText;
     Text closeHintText;
     bool isOpen;
@@ -58,6 +68,44 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
         titleRect.anchoredPosition = new Vector2(0f, -70f);
         titleRect.sizeDelta = new Vector2(800f, 70f);
 
+        // --- Spell chips: click to add/remove from the bar (PlayerController.spellSlots) ---
+        Font chipFont = Font.CreateDynamicFontFromOSFont("Arial", 18);
+        chipBackgrounds = new Image[KnownSpellIds.Length];
+        float chipWidth = 220f;
+        float chipSpacing = 16f;
+        float chipsTotalWidth = KnownSpellIds.Length * chipWidth + (KnownSpellIds.Length - 1) * chipSpacing;
+        for (int i = 0; i < KnownSpellIds.Length; i++)
+        {
+            string spellId = KnownSpellIds[i];
+            GameObject chipGO = new GameObject("SpellChip" + i, typeof(Image));
+            chipGO.transform.SetParent(panel.transform, false);
+            Image chipBg = chipGO.GetComponent<Image>();
+            chipBackgrounds[i] = chipBg;
+            RectTransform chipRect = chipBg.rectTransform;
+            chipRect.anchorMin = chipRect.anchorMax = new Vector2(0.5f, 1f);
+            chipRect.pivot = new Vector2(0.5f, 1f);
+            float x = -chipsTotalWidth / 2f + i * (chipWidth + chipSpacing) + chipWidth / 2f;
+            chipRect.anchoredPosition = new Vector2(x, -150f);
+            chipRect.sizeDelta = new Vector2(chipWidth, 44f);
+
+            GameObject chipLabelGO = new GameObject("Label", typeof(Text));
+            chipLabelGO.transform.SetParent(chipGO.transform, false);
+            Text chipLabel = chipLabelGO.GetComponent<Text>();
+            chipLabel.text = KnownSpellNames[i];
+            chipLabel.font = chipFont;
+            chipLabel.fontSize = 18;
+            chipLabel.alignment = TextAnchor.MiddleCenter;
+            chipLabel.color = Color.white;
+            chipLabel.raycastTarget = false;
+            RectTransform chipLabelRect = chipLabel.rectTransform;
+            chipLabelRect.anchorMin = Vector2.zero;
+            chipLabelRect.anchorMax = Vector2.one;
+            chipLabelRect.offsetMin = Vector2.zero;
+            chipLabelRect.offsetMax = Vector2.zero;
+
+            chipGO.AddComponent<SimpleClickButton>().onClick = () => ToggleSpellOnBar(spellId);
+        }
+
         GameObject bodyGO = new GameObject("Body", typeof(Text));
         bodyGO.transform.SetParent(panel.transform, false);
         bodyText = bodyGO.GetComponent<Text>();
@@ -69,7 +117,7 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
         RectTransform bodyRect = bodyText.rectTransform;
         bodyRect.anchorMin = bodyRect.anchorMax = new Vector2(0.5f, 1f);
         bodyRect.pivot = new Vector2(0.5f, 1f);
-        bodyRect.anchoredPosition = new Vector2(0f, -160f);
+        bodyRect.anchoredPosition = new Vector2(0f, -220f);
         bodyRect.sizeDelta = new Vector2(760f, 720f);
 
         GameObject closeGO = new GameObject("CloseHint", typeof(Text));
@@ -129,19 +177,19 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
             int burnDamage = Mathf.RoundToInt(controller.burnDamagePerTick * magicMultiplier);
 
             text +=
-                "Orbe de Foudre [" + KeyBindings.Label(GameAction.Spell1) + "]\n" +
+                "Orbe de Foudre [" + SlotKeyLabel(SpellIds.LightningOrb) + "]\n" +
                 "Cout : " + controller.lightningOrbManaCost + " mana\n" +
                 "Degats : " + lightningDamage + " (rebondit sur les ennemis a moins de " + controller.lightningOrbChainRadius.ToString("0.#") + "m de l'impact)\n" +
                 "Portee : " + controller.lightningOrbRange.ToString("0.#") + "\n" +
                 "Recharge : " + controller.lightningOrbCooldown.ToString("0.#") + "s\n\n" +
 
-                "Boule de Feu [" + KeyBindings.Label(GameAction.Spell2) + "]\n" +
+                "Boule de Feu [" + SlotKeyLabel(SpellIds.Fireball) + "]\n" +
                 "Cout : " + controller.fireballManaCost + " mana\n" +
                 "Degats : " + fireballDamage + " (grossit " + controller.fireballChargeDuration.ToString("0.#") + "s avant de partir)\n" +
                 "Portee : " + controller.fireballRange.ToString("0.#") + "\n" +
                 "Recharge : " + controller.fireballCooldown.ToString("0.#") + "s\n\n" +
 
-                "Ligne de Feu [" + KeyBindings.Label(GameAction.Spell3) + "]\n" +
+                "Ligne de Feu [" + SlotKeyLabel(SpellIds.FireLine) + "]\n" +
                 "Cout : " + controller.fireLineManaCost + " mana\n" +
                 "Laisse une trainee de feu pendant " + controller.fireLineLifetime.ToString("0.#") + "s\n" +
                 "Brulure : " + burnDamage + " degats/" + controller.burnTickInterval.ToString("0.#") + "s pendant " + controller.burnDuration.ToString("0.#") + "s (se renouvelle tant que la cible reste dans le feu)\n" +
@@ -154,5 +202,55 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
         }
 
         bodyText.text = text;
+
+        if (chipBackgrounds != null)
+        {
+            for (int i = 0; i < KnownSpellIds.Length; i++)
+            {
+                bool onBar = controller != null && System.Array.IndexOf(controller.spellSlots, KnownSpellIds[i]) >= 0;
+                chipBackgrounds[i].color = onBar ? ChipOnBarColor : ChipOffBarColor;
+            }
+        }
+    }
+
+    // A spell's key label now depends on WHICH bar slot it's been clicked into (any spell can sit
+    // in any of the 5 slots, or none) - "non assigne" when it isn't on the bar at all.
+    static readonly GameAction[] SlotActions = { GameAction.Spell1, GameAction.Spell2, GameAction.Spell3, GameAction.Spell4, GameAction.Spell5 };
+
+    string SlotKeyLabel(string spellId)
+    {
+        if (controller == null) return "non assigne";
+        for (int i = 0; i < controller.spellSlots.Length; i++)
+        {
+            if (controller.spellSlots[i] == spellId) return KeyBindings.Label(SlotActions[i]);
+        }
+        return "non assigne";
+    }
+
+    // Click a chip: already on the bar -> remove it; otherwise drop it into the first empty slot
+    // (or do nothing if all 5 are full - no eviction, the player un-slots something first).
+    void ToggleSpellOnBar(string spellId)
+    {
+        if (controller == null) return;
+
+        for (int i = 0; i < controller.spellSlots.Length; i++)
+        {
+            if (controller.spellSlots[i] == spellId)
+            {
+                controller.spellSlots[i] = null;
+                Refresh();
+                return;
+            }
+        }
+
+        for (int i = 0; i < controller.spellSlots.Length; i++)
+        {
+            if (string.IsNullOrEmpty(controller.spellSlots[i]))
+            {
+                controller.spellSlots[i] = spellId;
+                Refresh();
+                return;
+            }
+        }
     }
 }

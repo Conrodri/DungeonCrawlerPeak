@@ -27,6 +27,17 @@ public class PlayerInventory : MonoBehaviour
 
     public InventorySlot GetSlot(int index) => slots[index];
 
+    // A GameObject built via `new GameObject(name, typeof(...))` runs each component's Awake()
+    // synchronously as soon as it's added (unlike Start(), which is deferred) - so a caller that
+    // grabs this component afterward and just assigns slotCount is too late, Awake() already
+    // built `slots` off the OLD value. Training room item spawner (2026-09-21) needs more than
+    // the default 20 slots; this grows the already-populated list instead of relying on Awake().
+    public void GrowSlotCount(int newSlotCount)
+    {
+        while (slots.Count < newSlotCount) slots.Add(new InventorySlot());
+        slotCount = newSlotCount;
+    }
+
     // Always consumes the pickup, even if every matching stack is already full - any amount that
     // still doesn't fit once every slot is full or occupied by another item is simply lost.
     public void Add(string itemId, int amount)
