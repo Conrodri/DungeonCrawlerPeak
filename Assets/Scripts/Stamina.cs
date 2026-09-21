@@ -21,6 +21,7 @@ public class Stamina : MonoBehaviour
     // ApplySlow/ApplyHaste, just for regen speed instead of move speed.
     float regenBuffMultiplier = 1f;
     float regenBuffEndTime = -999f;
+    public float RegenBuffEndTime => regenBuffEndTime;
 
     void Awake()
     {

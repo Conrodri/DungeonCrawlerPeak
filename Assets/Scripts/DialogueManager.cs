@@ -130,7 +130,9 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
 
         if (!TryPayCost(option, out int cost, out bool isGold))
         {
-            bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
+            bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)."
+                : IsMultiCost(option) ? "Materiaux insuffisants."
+                : "Materiaux insuffisants (" + cost + " requis).";
             return;
         }
 
@@ -191,9 +193,10 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
             priceText.fontStyle = FontStyle.Bold;
             priceText.alignment = TextAnchor.LowerRight;
             priceText.color = affordable ? new Color(0.95f, 0.85f, 0.3f) : new Color(0.75f, 0.35f, 0.3f);
-            bool isGold = option.costItemId == ItemIds.Gold;
-            int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
-            priceText.text = cost + (isGold ? "o" : "x");
+            bool isGold = !IsMultiCost(option) && option.costItemId == ItemIds.Gold;
+            int cost = IsMultiCost(option) ? option.costItemIds.Length
+                : isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
+            priceText.text = IsMultiCost(option) ? cost + "+" : cost + (isGold ? "o" : "x");
             RectTransform priceRect = priceText.rectTransform;
             priceRect.anchorMin = Vector2.zero;
             priceRect.anchorMax = Vector2.one;
@@ -214,6 +217,15 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
     // has committed by clicking/pressing the option).
     bool TryPeekAfford(DialogueOption option)
     {
+        if (IsMultiCost(option))
+        {
+            for (int i = 0; i < option.costItemIds.Length; i++)
+            {
+                if (playerInventory.GetCount(option.costItemIds[i]) < option.costAmounts[i]) return false;
+            }
+            return true;
+        }
+
         bool isGold = option.costItemId == ItemIds.Gold;
         int cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
         return playerInventory.GetCount(option.costItemId) >= cost;
@@ -288,17 +300,27 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
     {
         if (option.costItemIds != null && option.costItemIds.Length > 0)
         {
-            // All-or-nothing: check every ingredient is available before removing any of them, so
-            // a recipe missing its 3rd ingredient never partially consumes the first two.
+            // All-or-nothing: aggregate by item id first (a recipe could list the same ingredient
+            // twice) and check the combined amount - plus the cursed-item guard - against real
+            // stock before removing anything, so a recipe missing an ingredient (or needing more of
+            // one than is actually available) never partially consumes the rest. RemoveAmount itself
+            // re-checks count/curse atomically, so once every aggregate passes here the removals
+            // below cannot fail.
             isGold = false;
             cost = 0; // no single number applies here - IsMultiCost below picks the right message
+            Dictionary<string, int> needed = new Dictionary<string, int>();
             for (int i = 0; i < option.costItemIds.Length; i++)
             {
-                if (playerInventory.GetCount(option.costItemIds[i]) < option.costAmounts[i]) return false;
+                string itemId = option.costItemIds[i];
+                needed[itemId] = needed.TryGetValue(itemId, out int existing) ? existing + option.costAmounts[i] : option.costAmounts[i];
             }
-            for (int i = 0; i < option.costItemIds.Length; i++)
+            foreach (KeyValuePair<string, int> entry in needed)
             {
-                playerInventory.RemoveAmount(option.costItemIds[i], option.costAmounts[i]);
+                if (entry.Key == playerInventory.CursedItemId || playerInventory.GetCount(entry.Key) < entry.Value) return false;
+            }
+            foreach (KeyValuePair<string, int> entry in needed)
+            {
+                if (!playerInventory.RemoveAmount(entry.Key, entry.Value)) return false;
             }
             return true;
         }

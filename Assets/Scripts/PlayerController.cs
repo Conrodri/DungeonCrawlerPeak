@@ -834,7 +834,7 @@ public class PlayerController : MonoBehaviour
         {
             stamina.ApplyRegenBuff(definition.StaminaRegenBuffMultiplier, definition.StaminaRegenBuffDuration);
             if (statusIcons != null && adrenalineBuffIcon != null)
-                statusIcons.ShowIcon(AdrenalineBuffIconKey, adrenalineBuffIcon, definition.StaminaRegenBuffDuration);
+                statusIcons.ShowIcon(AdrenalineBuffIconKey, adrenalineBuffIcon, stamina.RegenBuffEndTime - Time.time);
         }
     }
 
