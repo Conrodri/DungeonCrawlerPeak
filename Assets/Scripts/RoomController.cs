@@ -28,6 +28,9 @@ public class RoomController : MonoBehaviour
         public int contactDamage;
         public bool isFlying;
         public int xpReward;
+        // Only set for a species with a ranged attack (Sorcier today - see
+        // EnemyController.FireSpell) - null/unused for every melee species.
+        public Sprite projectileSprite;
     }
 
     public Vector2Int gridPos;
@@ -205,6 +208,7 @@ public class RoomController : MonoBehaviour
             controller.moveSpeed = scaledMoveSpeed;
             controller.contactDamage = scaledContactDamage;
             controller.isFlying = preset.isFlying;
+            controller.projectileSprite = preset.projectileSprite;
             // Floor-scaled (see DungeonGenerator.RegionBossXpFor) - a flat reward regardless of
             // floor couldn't keep pace with a per-floor XP budget that grows several times over
             // from one floor to the next.

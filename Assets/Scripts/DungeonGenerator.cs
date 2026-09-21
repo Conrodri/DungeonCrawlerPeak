@@ -230,6 +230,22 @@ public static class DungeonGenerator
         "  X    X  ",
         "  X    X  ",
     };
+    // Robed humanoid with a pointed hat and a staff held to its side - "sorciers" (2026-09-21
+    // request, "mobs type sorcier"). Deliberately reads as a caster, not a brawler, next to the
+    // Grunt/Blob melee silhouettes above.
+    static readonly string[] SorcierMask =
+    {
+        "   XX     ",
+        "  XXXXX   ",
+        " XXXXXXX  ",
+        "  XXXX  X ",
+        " XXXXXX X ",
+        "XXXXXXXX X",
+        "XXXXXXXX X",
+        "XXXXXXXXX ",
+        "XX XXXX X ",
+        "X   XX   X",
+    };
     static readonly string[] AnacondaMask =
     {
         "XXXX      ",
@@ -2362,6 +2378,8 @@ public static class DungeonGenerator
         Sprite momieSprite = CreateMaskedSprite("Assets/Art/Enemies/Momie.png", MomieMask, new Color(0.82f, 0.76f, 0.6f));
         Sprite sanglierSprite = CreateMaskedSprite("Assets/Art/Enemies/Sanglier.png", SanglierMask, new Color(0.32f, 0.2f, 0.12f));
         Sprite skinwalkerSprite = CreateMaskedSprite("Assets/Art/Enemies/Skinwalker.png", SkinwalkerMask, new Color(0.3f, 0.24f, 0.34f));
+        Sprite sorcierSprite = CreateMaskedSprite("Assets/Art/Enemies/Sorcier.png", SorcierMask, new Color(0.35f, 0.15f, 0.5f));
+        Sprite sorcierProjectileSprite = CreateCircleSprite("Assets/Art/Fx/SorcierProjectile.png", new Color(0.55f, 0.85f, 0.95f));
         assets.bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         assets.bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
@@ -2430,6 +2448,10 @@ public static class DungeonGenerator
             new RoomController.EnemyPresetEntry { type = EnemyType.Momie, sprite = momieSprite, maxHealth = 55, contactDamage = 13, isFlying = false, xpReward = 2 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Sanglier, sprite = sanglierSprite, maxHealth = 20, contactDamage = 10, isFlying = false, xpReward = 1 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Skinwalker, sprite = skinwalkerSprite, maxHealth = 24, contactDamage = 14, isFlying = false, xpReward = 2 },
+            // Sorcier (2026-09-21, "mobs type sorcier avec une ia fuyarde") - low HP/contact damage,
+            // a fragile Blob like ChauveSouris/Larve (see EnemyLimbLayout), since its real threat is
+            // the ranged spell (EnemyController.sorcierProjectileDamage below), not melee.
+            new RoomController.EnemyPresetEntry { type = EnemyType.Sorcier, sprite = sorcierSprite, maxHealth = 16, contactDamage = 5, isFlying = false, xpReward = 2, projectileSprite = sorcierProjectileSprite },
         };
 
         return assets;
@@ -4651,16 +4673,6 @@ public static class DungeonGenerator
         {
             new DialogueOption
             {
-                text = "Allouer mes points d'attribut",
-                checkStat = StatType.None,
-                onSuccess = new DialogueOutcome
-                {
-                    message = "Vous prenez un moment pour repartir vos progres.",
-                    opensAttributeAllocation = true,
-                },
-            },
-            new DialogueOption
-            {
                 text = "Demander des conseils",
                 checkStat = StatType.None,
                 onSuccess = new DialogueOutcome
@@ -4790,6 +4802,7 @@ public static class DungeonGenerator
         // a gated room type, its doors are always centered (see IsGatedRoomType).
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnAttributeBoard(roomOrigin, roomSize, wallDecorSprite, parent);
     }
 
     static void SpawnTableCluster(Vector2 pos, Sprite woodSprite, Sprite rugSprite, Transform parent)
@@ -4826,6 +4839,27 @@ public static class DungeonGenerator
         bed.playerStamina = playerStamina;
         bed.playerController = playerController;
         bed.playerEquipment = playerEquipment;
+    }
+
+    // A wall-mounted attribute-allocation board (see AttributeBoard.cs) - present in every Safe
+    // room variant (Tavern/Restaurant/Arcade), not just the Tavernier's, so points can be spent
+    // regardless of which Safe room the player finds first (2026-09-21). Placed on the bottom
+    // wall, mirroring the top wall's paintings (same 5-unit clearance from a centered door's
+    // 2-unit gap, see SpawnTavernFurniture's note) so the two never collide.
+    static void SpawnAttributeBoard(Vector2 roomOrigin, Vector2 roomSize, Sprite wallDecorSprite, Transform parent)
+    {
+        Vector2 pos = roomOrigin + new Vector2(roomSize.x / 2f - 5f, 1.3f);
+        GameObject go = new GameObject("AttributeBoard", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(AttributeBoard));
+        go.transform.SetParent(parent);
+        go.transform.position = pos;
+        go.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = wallDecorSprite;
+        renderer.color = new Color(0.85f, 0.75f, 0.5f); // parchment/board tone, distinct from the plain WallDecor paintings
+        renderer.sortingOrder = 1;
+
+        go.GetComponent<CircleCollider2D>().radius = 1.2f;
     }
 
     // The second Safe room's NPC (see restaurantCell in GenerateLayout) - serves food eaten on the
@@ -4872,6 +4906,7 @@ public static class DungeonGenerator
 
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnAttributeBoard(roomOrigin, roomSize, wallDecorSprite, parent);
     }
 
     // The third Safe room's NPC (see arcadeCell in GenerateLayout) - 3 coin-operated "machines",
@@ -4926,6 +4961,7 @@ public static class DungeonGenerator
 
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f - 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
         SpawnProp("WallDecor", roomOrigin + new Vector2(roomSize.x / 2f + 5f, roomSize.y - 1.3f), wallDecorSprite, parent, new Vector2(0.8f, 0.8f), 0f, 1, false);
+        SpawnAttributeBoard(roomOrigin, roomSize, wallDecorSprite, parent);
     }
 
     // Ingredients found ONLY in the Flower Garden variant (see SafeRoomVariant/ItemIds.Mushroom) -
@@ -5666,6 +5702,11 @@ public static class DungeonGenerator
         new[] { EnemyType.Momie, EnemyType.Skinwalker, EnemyType.Larve, EnemyType.Larve },
         new[] { EnemyType.Sanglier, EnemyType.Sanglier, EnemyType.Zombie },
         new[] { EnemyType.Skinwalker, EnemyType.Sanglier, EnemyType.ChauveSouris, EnemyType.Larve },
+        // Sorcier (2026-09-21) - always mixed with melee escorts rather than alone, so its flee AI
+        // actually has something to kite away from while the escort closes in.
+        new[] { EnemyType.Sorcier, EnemyType.Zombie, EnemyType.Zombie },
+        new[] { EnemyType.Sorcier, EnemyType.Sorcier, EnemyType.Larve },
+        new[] { EnemyType.Sorcier, EnemyType.Skinwalker, EnemyType.Larve },
     };
     static readonly SpawnFormation[] EncounterPatternFormation =
     {
@@ -5673,6 +5714,7 @@ public static class DungeonGenerator
         SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered,
         SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Corners,
         SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Corners, SpawnFormation.Scattered,
+        SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered,
     };
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,

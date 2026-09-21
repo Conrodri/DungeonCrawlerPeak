@@ -77,11 +77,13 @@ public class PlayerController : MonoBehaviour
     // Recharge before the NEXT swing can start (2026-09-16 request: originally 0.25, shorter than
     // swordSwingDuration below, so a new swing could start before the previous one's visual
     // finished - corrected same day to 0.75, longer than swordSwingDuration, so each swing's sweep
-    // always plays out fully before the next one can begin).
-    public float swordCooldown = 0.75f;
+    // always plays out fully before the next one can begin. 2026-09-21 report: 0.75 roots the
+    // player for too long between swings - cut to 0.45, alongside swordSwingDuration below, kept
+    // just under it so the "sweep finishes before the next swing" invariant still holds).
+    public float swordCooldown = 0.45f;
     // How long the semi-circular swing's visual sweep takes to play out (see SwordSwingVisual) -
     // purely cosmetic, not tied to swordCooldown or attackLockEndTime.
-    public float swordSwingDuration = 0.5f;
+    public float swordSwingDuration = 0.35f;
     // Half-angle of the swing arc on EACH side of aimDirection - 90 = a full semi-circle in front
     // of the player, matching the "semi circulaire" request exactly.
     public float swordArcHalfDegrees = 90f;

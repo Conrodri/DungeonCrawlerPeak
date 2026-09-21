@@ -69,6 +69,11 @@ public static class MonsterLeveling
     // DungeonGenerator's assets.enemyPresets) - Momie shares Zombie's tanky/slow band outright
     // (same undead-shambler archetype); Sanglier is a fast charger (close to ChauveSouris' band,
     // a touch less extreme); Skinwalker sits as the agile mid-point between Larve and ChauveSouris.
+    // Sorcier (same day, "ia fuyarde") is deliberately the weakest Force band of any species - its
+    // threat is the ranged spell (EnemyController.sorcierProjectileDamage, a flat preset number,
+    // not Force-scaled) not melee, and low Force keeps its contactDamage negligible if a player
+    // does catch it. Vitesse sits with Skinwalker's band - fast enough to actually keep distance
+    // while kiting, not fast enough to be unhittable.
     static StatRange RangeFor(EnemyType type) => type switch
     {
         EnemyType.Zombie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
@@ -76,6 +81,7 @@ public static class MonsterLeveling
         EnemyType.Momie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
         EnemyType.Sanglier => new StatRange { forceMin = 2, forceMax = 6, vitesseMin = 25, vitesseMax = 45 },
         EnemyType.Skinwalker => new StatRange { forceMin = 3, forceMax = 7, vitesseMin = 10, vitesseMax = 30 },
+        EnemyType.Sorcier => new StatRange { forceMin = 1, forceMax = 3, vitesseMin = 10, vitesseMax = 30 },
         _ => new StatRange { forceMin = 1, forceMax = 3, vitesseMin = -10, vitesseMax = 10 }, // Larve
     };
 

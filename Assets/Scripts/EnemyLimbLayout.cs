@@ -35,6 +35,6 @@ public static class EnemyLimbLayout
     {
         EnemyType.Zombie => Grunt,
         EnemyType.Momie => Grunt,
-        _ => Blob, // ChauveSouris, Larve, Sanglier, Skinwalker
+        _ => Blob, // ChauveSouris, Larve, Sanglier, Skinwalker, Sorcier
     };
 }

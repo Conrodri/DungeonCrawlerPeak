@@ -19,14 +19,16 @@ public class EnemyController : MonoBehaviour
     public EliteModifier modifier;
     public int xpReward = 1;
 
-    [Header("Dash Attack (tous les monstres sans projectile)")]
+    [Header("Dash Attack (tous les monstres melee sans projectile, sauf Zombie - voir Claw)")]
     // 2026-09-21 request: every regular melee monster (none of the 3 current species shoot
     // projectiles - only bosses do) now uses the same telegraphed attack pattern instead of just
     // walking into contact - "une fois a portee, un cast de 0.5 sec, dash sur quelques metres,
     // puis une fois le CD revenu, le coup se relance". Generalizes what used to be ChauveSouris-
     // only Rush (2026-09-14 spec) - the actual hit still lands through the existing contact-damage
     // path (OnCollision.../TryDamage below) once the dash carries this enemy into the player; this
-    // block is purely the movement/telegraph state machine.
+    // block is purely the movement/telegraph state machine. Same-day follow-up request replaced
+    // this with a claw attack for Zombie specifically (see UsesClaw/TryClawHit below) - every other
+    // species still uses this dash.
     public float dashRange = 4f;
     public float dashCastDuration = 0.5f;
     public float dashSpeed = 9f;
@@ -43,6 +45,41 @@ public class EnemyController : MonoBehaviour
     float lastDashTime = -999f;
     SpriteRenderer spriteRenderer;
     Color baseColor;
+
+    [Header("Claw Attack (Zombie uniquement, remplace le Dash)")]
+    // 2026-09-21 request: "le coup d'epee nous bloque trop longtemps, ajoute un coup de griffe sur
+    // les zombies qui remplacera le dash" - unlike the dash above, a claw never moves the zombie:
+    // it roots in place for the windup (same "un monstre ne peut pas lancer une attaque en
+    // marchant" rule), then deals its damage directly at the end of the windup instead of relying
+    // on the dash's "movement carries it into contact" trick - a stationary attack has nothing else
+    // to land the hit through. Re-checks range at the moment it lands (see TryClawHit) so a player
+    // who steps back mid-windup can still dodge it, same spirit as BeginDash's fresh re-aim.
+    public float clawRange = 1.6f;
+    public float clawCastDuration = 0.4f;
+    public float clawCooldown = 1.4f;
+
+    enum ClawState { None, Casting }
+    ClawState clawState;
+    float clawStateEndTime;
+    float lastClawTime = -999f;
+    bool UsesClaw => enemyType == EnemyType.Zombie;
+
+    [Header("Sort a distance + IA fuyarde (Sorcier uniquement)")]
+    // 2026-09-21 request: a ranged, kiting caster - the only regular monster that fires a
+    // projectile (see FireSpell/Projectile.cs, same pooled system bosses already use) and the only
+    // one whose default movement isn't "always chase" (see the IsSorcier branch in FixedUpdate).
+    public Sprite projectileSprite;
+    public float sorcierRange = 6f;
+    public float sorcierCastDuration = 0.5f;
+    public float sorcierCooldown = 2.5f;
+    public float sorcierProjectileSpeed = 7f;
+    public int sorcierProjectileDamage = 9;
+
+    enum SpellState { None, Casting }
+    SpellState spellState;
+    float spellStateEndTime;
+    float lastSpellTime = -999f;
+    bool IsSorcier => enemyType == EnemyType.Sorcier;
 
     const float BobAmplitude = 0.15f;
     const float BobSpeed = 4f;
@@ -198,6 +235,54 @@ public class EnemyController : MonoBehaviour
         if (spriteRenderer != null) spriteRenderer.color = baseColor;
     }
 
+    // A stationary attack has no "the movement itself lands the hit" trick to lean on like
+    // BeginDash - it deals its damage directly here. Re-checked against clawRange (with a small
+    // forgiveness margin, matching a real swipe's reach) at the moment the windup ends rather than
+    // when it started, so backing off mid-windup still dodges it.
+    void TryClawHit()
+    {
+        if (target == null) return;
+        float dist = ((Vector2)target.position - rb.position).magnitude;
+        if (dist > clawRange + 0.3f) return;
+
+        Health targetHealth = target.GetComponent<Health>();
+        if (targetHealth == null) return;
+        targetHealth.TakeDamageFromEnemy(EffectiveContactDamage, AttackSourceMapping.For(enemyType), rb.position);
+    }
+
+    // Re-aims at the target's current position at cast end rather than the direction locked in
+    // when the cast started, same "don't reward standing still through the windup" philosophy as
+    // BeginDash and TryClawHit above. Mirrors BossController.LaunchProjectile's setup exactly - the
+    // same pooled Projectile system, just a different caster.
+    void FireSpell()
+    {
+        if (target == null) return;
+        Vector2 toTargetNow = (Vector2)target.position - rb.position;
+        Vector2 dir = toTargetNow.sqrMagnitude > 0.0001f ? toTargetNow.normalized : Vector2.up;
+
+        GameObject go = ProjectilePool.Get();
+        go.name = "SorcierProjectile";
+        go.transform.position = rb.position + dir * 0.6f;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = projectileSprite;
+        renderer.sortingOrder = 0;
+
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
+        body.gravityScale = 0f;
+
+        CircleCollider2D collider = go.GetComponent<CircleCollider2D>();
+        collider.radius = 0.15f;
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        projectile.IgnoreCollisionWith(bodyCollider);
+        projectile.damage = sorcierProjectileDamage;
+        projectile.speed = sorcierProjectileSpeed;
+        projectile.maxDistance = sorcierRange + 3f;
+        projectile.ignoreTag = ""; // doit pouvoir toucher le joueur, contrairement a un jet du joueur
+        projectile.Launch(dir);
+    }
+
     void UpdateLimbDebuffIcons()
     {
         if (statusIcons == null) return;
@@ -240,6 +325,32 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
+        if (clawState == ClawState.Casting)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= clawStateEndTime)
+            {
+                clawState = ClawState.None;
+                lastClawTime = Time.time;
+                TryClawHit();
+                if (spriteRenderer != null) spriteRenderer.color = baseColor;
+            }
+            return;
+        }
+
+        if (spellState == SpellState.Casting)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= spellStateEndTime)
+            {
+                spellState = SpellState.None;
+                lastSpellTime = Time.time;
+                FireSpell();
+                if (spriteRenderer != null) spriteRenderer.color = baseColor;
+            }
+            return;
+        }
+
         if (dashState == DashState.Casting)
         {
             rb.linearVelocity = Vector2.zero;
@@ -262,6 +373,49 @@ public class EnemyController : MonoBehaviour
         float distanceToTarget = toTarget.magnitude;
         if (toTarget.sqrMagnitude > 0.0001f) toTarget.Normalize();
 
+        if (IsSorcier)
+        {
+            // 2026-09-21 request: "IA fuyarde, tirent des qu'ils peuvent une fois a portee,
+            // s'eloignent si je m'approche et qu'ils n'ont pas leur sort de dispo, se rapprochent
+            // si ils ont leur sort de dispo" - sorcierRange does double duty as both the max cast
+            // distance and the "player is close enough to worry about" flee trigger, since the
+            // request only ever describes a single threshold ("a portee" / "je me rapproche").
+            bool spellReady = Time.time - lastSpellTime >= sorcierCooldown;
+            if (spellReady && distanceToTarget <= sorcierRange)
+            {
+                spellState = SpellState.Casting;
+                spellStateEndTime = Time.time + sorcierCastDuration;
+                if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+                rb.linearVelocity = Vector2.zero;
+                return;
+            }
+
+            Vector2 sorcierMoveDir;
+            if (spellReady) sorcierMoveDir = toTarget; // ready but out of range - close the gap
+            else if (distanceToTarget <= sorcierRange) sorcierMoveDir = -toTarget; // reloading and threatened - kite away
+            else
+            {
+                rb.linearVelocity = Vector2.zero; // reloading and safe - no reason to move either way
+                return;
+            }
+
+            sorcierMoveDir += ComputeSeparation() * SeparationStrength;
+            if (sorcierMoveDir.sqrMagnitude > 0.0001f) sorcierMoveDir.Normalize();
+            rb.linearVelocity = sorcierMoveDir * EffectiveMoveSpeed;
+            return;
+        }
+
+        if (UsesClaw)
+        {
+            if (distanceToTarget <= clawRange && Time.time - lastClawTime >= clawCooldown)
+            {
+                clawState = ClawState.Casting;
+                clawStateEndTime = Time.time + clawCastDuration;
+                if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+                rb.linearVelocity = Vector2.zero;
+                return;
+            }
+        }
         // Only WingsImpaired blocks the dash outright - flight is literally required for a flying
         // species' lunge. A broken leg used to do the same (real bug, 2026-09-21 report: "le
         // zombie du tuto fait une fois l'attaque et ne la relance JAMAIS") - a Grunt-layout Zombie
@@ -269,7 +423,7 @@ public class EnemyController : MonoBehaviour
         // so this was permanently disabling its only attack after one unlucky early hit instead of
         // just slowing it down like the rest of the broken-leg penalty already does (see
         // EffectiveMoveSpeed, and the Dashing branch above, which now halves dash speed too).
-        if (distanceToTarget <= dashRange && !WingsImpaired && Time.time - lastDashTime >= dashCooldown)
+        else if (distanceToTarget <= dashRange && !WingsImpaired && Time.time - lastDashTime >= dashCooldown)
         {
             dashState = DashState.Casting;
             dashStateEndTime = Time.time + dashCastDuration;
@@ -278,6 +432,17 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
+        Vector2 moveDir = toTarget + ComputeSeparation() * SeparationStrength;
+        if (moveDir.sqrMagnitude > 0.0001f) moveDir.Normalize();
+        rb.linearVelocity = moveDir * EffectiveMoveSpeed;
+    }
+
+    // Pushes this enemy away from any other enemy within SeparationRadius, blended into whatever
+    // direction it's already moving in (chase, flee, or approach-to-cast) so a pack never converges
+    // into a single overlapping stack (see the class-level SeparationRadius/SeparationStrength
+    // comment). Shared by the default chase movement and the Sorcier's flee/approach movement.
+    Vector2 ComputeSeparation()
+    {
         Vector2 separation = Vector2.zero;
         int hitCount = Physics2D.OverlapCircleNonAlloc(rb.position, SeparationRadius, SeparationBuffer);
         for (int i = 0; i < hitCount; i++)
@@ -291,10 +456,7 @@ public class EnemyController : MonoBehaviour
             float dist = away.magnitude;
             if (dist > 0.001f) separation += away / dist / dist; // stronger the closer they are
         }
-
-        Vector2 moveDir = toTarget + separation * SeparationStrength;
-        if (moveDir.sqrMagnitude > 0.0001f) moveDir.Normalize();
-        rb.linearVelocity = moveDir * EffectiveMoveSpeed;
+        return separation;
     }
 
     // Runs after Unity's physics step has already resolved this frame's collisions, so it catches
