@@ -24,6 +24,11 @@ public class ItemDefinition
     // must also be set (EquipmentSlot = Weapon) for the normal drag-to-equip flow to accept it.
     public bool IsWeapon;
     public PlayerController.WeaponType Weapon;
+    // Whether a plain click on this item in the inventory grid arms/throws it (see
+    // InventorySlotUI.OnPointerClick) - used to be inferred from Category == Throwable, but
+    // Category is now a pure UI filter bucket (2026-09-21, see ItemCategory), so this is now its
+    // own explicit flag, same pattern as IsWeapon/IsEquipment above.
+    public bool IsThrowable;
     public bool IsTrap;
     // 0 = not a potion; otherwise using it from the hotbar heals this much instead of throwing it.
     public int HealAmount;

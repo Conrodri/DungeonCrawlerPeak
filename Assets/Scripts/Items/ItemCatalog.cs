@@ -23,6 +23,7 @@ public class ItemCatalog : MonoBehaviour
         public PlayerController.WeaponType cursedWeaponType;
         public bool isWeapon;
         public PlayerController.WeaponType weaponType;
+        public bool isThrowable;
         public bool isTrap;
         public int healAmount;
         public bool isEquipment;
@@ -55,6 +56,7 @@ public class ItemCatalog : MonoBehaviour
                 CursedWeaponType = entry.cursedWeaponType,
                 IsWeapon = entry.isWeapon,
                 Weapon = entry.weaponType,
+                IsThrowable = entry.isThrowable,
                 IsTrap = entry.isTrap,
                 HealAmount = entry.healAmount,
                 IsEquipment = entry.isEquipment,

@@ -2505,18 +2505,18 @@ public static class DungeonGenerator
         // ItemDatabase when the game is actually played later, without DungeonBootstrap running.
         ItemDatabase.Clear();
         itemEntries = new List<ItemCatalog.Entry>();
-        RegisterItem(itemEntries, ItemIds.Gold, "Or", ItemCategory.Currency, 100, goldSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Shuriken, "Shuriken", ItemCategory.Throwable, 10, shurikenSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Throwable, 10, caillouSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Throwable, 10, batonSprite, rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Throwable, 10, bombSprite, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Gold, "Or", ItemCategory.Autre, 100, goldSprite, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Shuriken, "Shuriken", ItemCategory.Consommable, 10, shurikenSprite, isThrowable: true, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Caillou, "Caillou", ItemCategory.Consommable, 10, caillouSprite, isThrowable: true, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Baton, "Baton", ItemCategory.Consommable, 10, batonSprite, isThrowable: true, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Bomb, "Bombe", ItemCategory.Consommable, 10, bombSprite, isThrowable: true, rarity: 2);
 
         Sprite swordItemSprite = swordPickupSprite;
         Sprite staffItemSprite = staffPickupSprite;
-        RegisterItem(itemEntries, ItemIds.Sword, "Epee", ItemCategory.Weapon, 1, swordItemSprite,
+        RegisterItem(itemEntries, ItemIds.Sword, "Epee", ItemCategory.Equipement, 1, swordItemSprite,
             "Une epee standard, equilibree.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
             isWeapon: true, weaponType: PlayerController.WeaponType.Sword, maxDurability: 40, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Weapon, 1, staffItemSprite,
+        RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Equipement, 1, staffItemSprite,
             "Un baton qui canalise des projectiles magiques.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
             isWeapon: true, weaponType: PlayerController.WeaponType.Staff, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
 
@@ -2525,47 +2525,49 @@ public static class DungeonGenerator
         Sprite anvilSprite = CreateMaskedSprite("Assets/Art/Items/Anvil.png", AnvilMask, new Color(0.2f, 0.2f, 0.22f));
         Sprite cursedSwordSprite = CreateMaskedSprite("Assets/Art/Items/CursedSword.png", CursedSwordMask, new Color(0.35f, 0.1f, 0.4f));
         Sprite trapSackSprite = CreateMaskedSprite("Assets/Art/Items/TrapSack.png", TrapSackMask, new Color(0.5f, 0.4f, 0.3f));
-        RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Misc, 1, anvilSprite,
+        RegisterItem(itemEntries, ItemIds.Anvil, "Enclume", ItemCategory.Autre, 1, anvilSprite,
             "Une lourde enclume de forgeron.", weight: 5, rarity: 2);
         // "L'Epee Maudite du Soldat Dechu" - one specific cursed weapon (not a generic label; a
         // future cursed item can be named however it likes, curse status is never spelled out in
         // its own text, see ItemInspectManager). Always crits (+50% damage) but a swing that
         // connects with nothing costs 10% of max HP - see PlayerController.MeleeAttack.
-        RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite du Soldat Dechu", ItemCategory.Weapon, 1, cursedSwordSprite,
+        RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite du Soldat Dechu", ItemCategory.Equipement, 1, cursedSwordSprite,
             "Une lame ancienne. Une presence malveillante semble y sommeiller.",
             isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword,
             maxDurability: 40, material: MaterialType.Metal, rarity: 6);
-        RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Misc, 1, trapSackSprite,
+        RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Consommable, 1, trapSackSprite,
             "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true, rarity: 2);
 
         Sprite potionSprite = CreateCircleSprite("Assets/Art/Items/Potion.png", new Color(0.8f, 0.15f, 0.35f));
-        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Misc, 5, potionSprite,
+        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Consommable, 5, potionSprite,
             "Restaure un peu de vie.", healAmount: 3, rarity: 1);
 
         Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipment, 1, cerberusCollarSprite,
+        RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipement, 1, cerberusCollarSprite,
             "Un collier de bronze encore chaud, arrache au Cerbere. Un trophee de votre victoire.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, rarity: 5);
 
         // The other 6 boss family trophies (see BossFamilyFor) - plain collectible drops, not
-        // equipment (only the Cerberus Collar was singled out for that earlier).
+        // equipment (only the Cerberus Collar was singled out for that earlier). No other use yet
+        // (no quest/crafting system consumes them) - ObjetDeQuete fits a pure proof-of-victory
+        // collectible better than Ressource (2026-09-21 inventory categories request).
         Sprite anacondaScaleSprite = CreateCircleSprite("Assets/Art/Items/AnacondaScale.png", new Color(0.2f, 0.55f, 0.2f));
-        RegisterItem(itemEntries, ItemIds.AnacondaScale, "Ecaille d'Anaconda Royale", ItemCategory.Misc, 1, anacondaScaleSprite,
+        RegisterItem(itemEntries, ItemIds.AnacondaScale, "Ecaille d'Anaconda Royale", ItemCategory.ObjetDeQuete, 1, anacondaScaleSprite,
             "Une ecaille massive, encore luisante. Un trophee de votre victoire.", rarity: 5);
         Sprite entHeartshardSprite = CreateCircleSprite("Assets/Art/Items/EntHeartshard.png", new Color(0.35f, 0.28f, 0.12f));
-        RegisterItem(itemEntries, ItemIds.EntHeartshard, "Eclat de Coeur d'Ent", ItemCategory.Misc, 1, entHeartshardSprite,
+        RegisterItem(itemEntries, ItemIds.EntHeartshard, "Eclat de Coeur d'Ent", ItemCategory.ObjetDeQuete, 1, entHeartshardSprite,
             "Un fragment de bois anime, encore chaud de seve. Un trophee de votre victoire.", rarity: 5);
         Sprite golemCoreSprite = CreateCircleSprite("Assets/Art/Items/GolemCore.png", new Color(0.55f, 0.56f, 0.6f));
-        RegisterItem(itemEntries, ItemIds.GolemCore, "Noyau du Golem d'Acier", ItemCategory.Misc, 1, golemCoreSprite,
+        RegisterItem(itemEntries, ItemIds.GolemCore, "Noyau du Golem d'Acier", ItemCategory.ObjetDeQuete, 1, golemCoreSprite,
             "Le noyau qui animait un golem de fer et d'acier. Un trophee de votre victoire.", rarity: 5);
         Sprite krakenTentacleSprite = CreateCircleSprite("Assets/Art/Items/KrakenTentacle.png", new Color(0.1f, 0.25f, 0.45f));
-        RegisterItem(itemEntries, ItemIds.KrakenTentacle, "Tentacule Petrifiee du Kraken", ItemCategory.Misc, 1, krakenTentacleSprite,
+        RegisterItem(itemEntries, ItemIds.KrakenTentacle, "Tentacule Petrifiee du Kraken", ItemCategory.ObjetDeQuete, 1, krakenTentacleSprite,
             "Une ventouse geante, figee net. Un trophee de votre victoire.", rarity: 5);
         Sprite eagleCogSprite = CreateCircleSprite("Assets/Art/Items/EagleCog.png", new Color(0.75f, 0.7f, 0.55f));
-        RegisterItem(itemEntries, ItemIds.EagleCog, "Rouage de l'Aigle Mecanique", ItemCategory.Misc, 1, eagleCogSprite,
+        RegisterItem(itemEntries, ItemIds.EagleCog, "Rouage de l'Aigle Mecanique", ItemCategory.ObjetDeQuete, 1, eagleCogSprite,
             "Un rouage dore, encore tiede des mecanismes de l'aigle. Un trophee de votre victoire.", rarity: 5);
         Sprite wandererFragmentSprite = CreateCircleSprite("Assets/Art/Items/WandererFragment.png", new Color(0.65f, 0.6f, 0.25f));
-        RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.Misc, 1, wandererFragmentSprite,
+        RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.ObjetDeQuete, 1, wandererFragmentSprite,
             "Un morceau de moquette jaune, etrangement lourd. Un trophee de votre victoire.", rarity: 5);
 
         // Crafting materials - guaranteed drops from the matching decor material (see
@@ -2574,25 +2576,25 @@ public static class DungeonGenerator
         Sprite woodMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Wood.png", WoodMask, new Color(0.55f, 0.4f, 0.25f));
         Sprite metalMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Metal.png", MetalMask, new Color(0.5f, 0.53f, 0.58f));
         Sprite stoneMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Stone.png", StoneMask, new Color(0.42f, 0.4f, 0.38f));
-        RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Misc, 20, woodMaterialSprite, "Du bois recupere sur des debris.", rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Misc, 20, metalMaterialSprite, "Du metal recupere sur des debris.", rarity: 1);
-        RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Misc, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Wood, "Bois", ItemCategory.Ressource, 20, woodMaterialSprite, "Du bois recupere sur des debris.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Metal, "Metal", ItemCategory.Ressource, 20, metalMaterialSprite, "Du metal recupere sur des debris.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Stone, "Pierre", ItemCategory.Ressource, 20, stoneMaterialSprite, "De la pierre recuperee sur un bloc.", rarity: 1);
 
         // Corpse-only material (see CorpseLoot.cs) - no destructible-decor source, only found on
         // NPC-type bodies.
         Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
-        RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Misc, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Ressource, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.", rarity: 1);
 
         // Flora (see DecorType.Flower) - crafting-only ingredients, no heal/effect of their own,
         // spent at the Table de Craft for a Potion de Soin (see SpawnCraftingTable).
         Sprite flowerRedSprite = CreateCircleSprite("Assets/Art/Items/FlowerRed.png", new Color(0.85f, 0.15f, 0.25f));
-        RegisterItem(itemEntries, ItemIds.FlowerRed, "Fleur Ecarlate", ItemCategory.Misc, 20, flowerRedSprite, "Une fleur aux petales rouge vif.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.FlowerRed, "Fleur Ecarlate", ItemCategory.Ressource, 20, flowerRedSprite, "Une fleur aux petales rouge vif.", rarity: 1);
         Sprite flowerBlueSprite = CreateCircleSprite("Assets/Art/Items/FlowerBlue.png", new Color(0.25f, 0.4f, 0.85f));
-        RegisterItem(itemEntries, ItemIds.FlowerBlue, "Fleur Azur", ItemCategory.Misc, 20, flowerBlueSprite, "Une fleur bleue au parfum leger.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.FlowerBlue, "Fleur Azur", ItemCategory.Ressource, 20, flowerBlueSprite, "Une fleur bleue au parfum leger.", rarity: 1);
         Sprite herbSprite = CreateCircleSprite("Assets/Art/Items/Herb.png", new Color(0.3f, 0.65f, 0.3f));
-        RegisterItem(itemEntries, ItemIds.Herb, "Herbe Argentee", ItemCategory.Misc, 20, herbSprite, "Une touffe d'herbe aux reflets argentes.", rarity: 1);
+        RegisterItem(itemEntries, ItemIds.Herb, "Herbe Argentee", ItemCategory.Ressource, 20, herbSprite, "Une touffe d'herbe aux reflets argentes.", rarity: 1);
         Sprite mushroomSprite = CreateCircleSprite("Assets/Art/Items/Mushroom.png", new Color(0.8f, 0.65f, 0.2f));
-        RegisterItem(itemEntries, ItemIds.Mushroom, "Champignon Dore", ItemCategory.Misc, 20, mushroomSprite, "Un champignon a la teinte doree.", rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Mushroom, "Champignon Dore", ItemCategory.Ressource, 20, mushroomSprite, "Un champignon a la teinte doree.", rarity: 2);
 
         // Equipment - one plain protective piece per slot (see EquipmentSlotType/PlayerEquipment),
         // sold at the Shop. Each grants +1 armor on the body part(s) its slot maps to (see
@@ -2609,28 +2611,28 @@ public static class DungeonGenerator
         Sprite leatherBeltSprite = CreateMaskedSprite("Assets/Art/Items/LeatherBelt.png", BeltMask, new Color(0.4f, 0.28f, 0.16f));
         Sprite leatherKneepadsSprite = CreateMaskedSprite("Assets/Art/Items/LeatherKneepads.png", KneepadsMask, new Color(0.42f, 0.3f, 0.17f));
         Sprite simpleRingSprite = CreateCircleSprite("Assets/Art/Items/SimpleRing.png", new Color(0.85f, 0.8f, 0.4f));
-        RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipment, 1, ironHelmetSprite,
+        RegisterItem(itemEntries, ItemIds.IronHelmet, "Casque de Fer", ItemCategory.Equipement, 1, ironHelmetSprite,
             "Protege la tete (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, armorValue: 1,
             maxDurability: 40, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipment, 1, leatherPauldronsSprite,
+        RegisterItem(itemEntries, ItemIds.LeatherPauldrons, "Epaulieres de Cuir", ItemCategory.Equipement, 1, leatherPauldronsSprite,
             "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 1,
             maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipment, 1, combatGlovesSprite,
+        RegisterItem(itemEntries, ItemIds.CombatGloves, "Gants de Combat", ItemCategory.Equipement, 1, combatGlovesSprite,
             "Protege les bras (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 1,
             maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipment, 1, walkingBootsSprite,
+        RegisterItem(itemEntries, ItemIds.WalkingBoots, "Bottes de Marche", ItemCategory.Equipement, 1, walkingBootsSprite,
             "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 1,
             maxDurability: 30, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipment, 1, simpleNecklaceSprite,
+        RegisterItem(itemEntries, ItemIds.SimpleNecklace, "Collier Simple", ItemCategory.Equipement, 1, simpleNecklaceSprite,
             "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 1,
             maxDurability: 15, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipment, 1, leatherBeltSprite,
+        RegisterItem(itemEntries, ItemIds.LeatherBelt, "Ceinture de Cuir", ItemCategory.Equipement, 1, leatherBeltSprite,
             "Protege le torse (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Belt, armorValue: 1,
             maxDurability: 20, material: MaterialType.Tissu, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipment, 1, leatherKneepadsSprite,
+        RegisterItem(itemEntries, ItemIds.LeatherKneepads, "Genouilleres de Cuir", ItemCategory.Equipement, 1, leatherKneepadsSprite,
             "Protege les jambes (+1 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Knees, armorValue: 1,
             maxDurability: 30, material: MaterialType.Metal, rarity: 2);
-        RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipment, 1, simpleRingSprite,
+        RegisterItem(itemEntries, ItemIds.SimpleRing, "Anneau Simple", ItemCategory.Equipement, 1, simpleRingSprite,
             "Se porte a n'importe quel doigt (+1 Endurance).", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft,
             ringBonusStat: StatType.Endurance, rarity: 2);
 
@@ -2651,17 +2653,17 @@ public static class DungeonGenerator
         foreach (var ring in ringDefs)
         {
             Sprite ringSprite = CreateCircleSprite("Assets/Art/Items/" + ring.id + ".png", ring.color);
-            RegisterItem(itemEntries, ring.id, ring.name, ItemCategory.Equipment, 1, ringSprite,
+            RegisterItem(itemEntries, ring.id, ring.name, ItemCategory.Equipement, 1, ringSprite,
                 "+1 " + ring.stat + " tant qu'il est equipe.", isEquipment: true,
                 equipmentSlot: EquipmentSlotType.RingLeft, ringBonusStat: ring.stat, rarity: 3);
         }
 
         Sprite antiHoleBootsSprite = CreateMaskedSprite("Assets/Art/Items/AntiHoleBoots.png", AntiHoleBootsMask, new Color(0.35f, 0.28f, 0.15f));
-        RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipment, 1, antiHoleBootsSprite,
+        RegisterItem(itemEntries, ItemIds.AntiHoleBoots, "Bottes Anti-Trous", ItemCategory.Equipement, 1, antiHoleBootsSprite,
             "Immunise contre le ralentissement des trous au sol.", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, rarity: 3);
 
         Sprite visionGlassesSprite = CreateMaskedSprite("Assets/Art/Items/VisionGlasses.png", GlassesMask, new Color(0.5f, 0.7f, 0.85f));
-        RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipment, 1, visionGlassesSprite,
+        RegisterItem(itemEntries, ItemIds.VisionGlasses, "Lunettes de Vision", ItemCategory.Equipement, 1, visionGlassesSprite,
             "Revele les murs dissimulant une salle secrete.", isEquipment: true, equipmentSlot: EquipmentSlotType.Head, rarity: 3);
 
         assets.doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
@@ -4545,7 +4547,7 @@ public static class DungeonGenerator
     static void RegisterItem(List<ItemCatalog.Entry> entries, string id, string displayName, ItemCategory category, int maxStack, Sprite icon,
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
         PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isWeapon = false,
-        PlayerController.WeaponType weaponType = PlayerController.WeaponType.Fist, bool isTrap = false, int healAmount = 0,
+        PlayerController.WeaponType weaponType = PlayerController.WeaponType.Fist, bool isThrowable = false, bool isTrap = false, int healAmount = 0,
         bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0,
         int maxDurability = 0, MaterialType material = MaterialType.None, int rarity = ItemRarity.Min)
     {
@@ -4561,7 +4563,7 @@ public static class DungeonGenerator
         {
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Rarity = rarity, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
-            CursedWeaponType = cursedWeaponType, IsWeapon = isWeapon, Weapon = weaponType, IsTrap = isTrap, HealAmount = healAmount,
+            CursedWeaponType = cursedWeaponType, IsWeapon = isWeapon, Weapon = weaponType, IsThrowable = isThrowable, IsTrap = isTrap, HealAmount = healAmount,
             IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue,
             MaxDurability = maxDurability, Material = material
         });
@@ -4569,7 +4571,7 @@ public static class DungeonGenerator
         {
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, rarity = rarity, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
-            cursedWeaponType = cursedWeaponType, isWeapon = isWeapon, weaponType = weaponType, isTrap = isTrap, healAmount = healAmount,
+            cursedWeaponType = cursedWeaponType, isWeapon = isWeapon, weaponType = weaponType, isThrowable = isThrowable, isTrap = isTrap, healAmount = healAmount,
             isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue,
             maxDurability = maxDurability, material = material
         });

@@ -30,6 +30,26 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
     GameObject panel;
     Image[] slotImages;
     Text[] slotTexts;
+    RectTransform[] slotRects;
+
+    // Inventory filter tabs (2026-09-21 request: "des categories, pour trier les items... Tout,
+    // equippements, consommables, ressources, objets de quete, autres") - null means "Tout" (no
+    // filter). A slot whose item doesn't match the active tab is hidden and skipped when packing
+    // the remaining ones back into the grid - see LayoutSlots.
+    static readonly (ItemCategory? category, string label)[] CategoryTabs =
+    {
+        (null, "Tout"),
+        (ItemCategory.Equipement, "Equipements"),
+        (ItemCategory.Consommable, "Consommables"),
+        (ItemCategory.Ressource, "Ressources"),
+        (ItemCategory.ObjetDeQuete, "Objets de quete"),
+        (ItemCategory.Autre, "Autres"),
+    };
+    static readonly Color TabActiveColor = new Color(1f, 0.85f, 0.2f, 0.9f);
+    static readonly Color TabInactiveColor = new Color(1f, 1f, 1f, 0.15f);
+
+    ItemCategory? currentFilter;
+    Image[] tabBackgrounds;
 
     // Equipment panel bookkeeping - single slots keyed by type, rings keyed by (type, hand index).
     readonly Dictionary<EquipmentSlotType, Image> equipmentImages = new Dictionary<EquipmentSlotType, Image>();
@@ -45,6 +65,7 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
     void Start()
     {
         BuildPanel();
+        BuildCategoryTabs();
         BuildEquipmentPanel();
         BuildLimbSilhouette();
         if (inventory != null) inventory.OnInventoryChanged += Refresh;
@@ -115,6 +136,7 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
 
         slotImages = new Image[slotCount];
         slotTexts = new Text[slotCount];
+        slotRects = new RectTransform[slotCount];
 
         float totalWidth = (columns - 1) * spacing;
         float totalHeight = (rows - 1) * spacing;
@@ -131,9 +153,12 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
             slotImages[i] = img;
 
             RectTransform rt = img.rectTransform;
+            slotRects[i] = rt;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            // Shifted left of center to leave room for the equipment panel on the right.
+            // Shifted left of center to leave room for the equipment panel on the right. Overwritten
+            // every Refresh() by LayoutSlots (see below) once a category filter can hide/reflow
+            // slots - this initial placement only matters before the first Refresh() runs.
             rt.anchoredPosition = new Vector2(col * spacing - totalWidth / 2f - 220f, totalHeight / 2f - row * spacing);
             rt.sizeDelta = new Vector2(slotSize, slotSize);
 
@@ -159,6 +184,71 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
 
             slotTexts[i] = text;
         }
+    }
+
+    // Sidebar of filter tabs to the left of the inventory grid (see CategoryTabs/currentFilter) -
+    // same clickable-Image+SimpleClickButton pattern as SpellBookUI's chip row.
+    void BuildCategoryTabs()
+    {
+        Font font = Font.CreateDynamicFontFromOSFont("Arial", fontSize - 8);
+        float tabWidth = 150f;
+        float tabHeight = 32f;
+        float tabSpacing = 6f;
+        float tabX = -460f; // left of the grid's leftmost slot (see BuildPanel's -220f offset)
+        float totalTabsHeight = CategoryTabs.Length * tabHeight + (CategoryTabs.Length - 1) * tabSpacing;
+
+        tabBackgrounds = new Image[CategoryTabs.Length];
+
+        for (int i = 0; i < CategoryTabs.Length; i++)
+        {
+            ItemCategory? category = CategoryTabs[i].category;
+            string label = CategoryTabs[i].label;
+
+            GameObject tabGO = new GameObject("Tab_" + label.Replace(" ", ""), typeof(Image));
+            tabGO.transform.SetParent(panel.transform, false);
+            Image bg = tabGO.GetComponent<Image>();
+            tabBackgrounds[i] = bg;
+            RectTransform rt = bg.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            float y = totalTabsHeight / 2f - i * (tabHeight + tabSpacing) - tabHeight / 2f;
+            rt.anchoredPosition = new Vector2(tabX, y);
+            rt.sizeDelta = new Vector2(tabWidth, tabHeight);
+
+            GameObject labelGO = new GameObject("Label", typeof(Text));
+            labelGO.transform.SetParent(tabGO.transform, false);
+            Text labelText = labelGO.GetComponent<Text>();
+            labelText.text = label;
+            labelText.font = font;
+            labelText.fontSize = fontSize - 8;
+            labelText.alignment = TextAnchor.MiddleCenter;
+            labelText.color = Color.white;
+            labelText.raycastTarget = false;
+            RectTransform labelRt = labelText.rectTransform;
+            labelRt.anchorMin = Vector2.zero;
+            labelRt.anchorMax = Vector2.one;
+            labelRt.offsetMin = Vector2.zero;
+            labelRt.offsetMax = Vector2.zero;
+
+            tabGO.AddComponent<SimpleClickButton>().onClick = () => SetFilter(category);
+        }
+    }
+
+    void SetFilter(ItemCategory? category)
+    {
+        currentFilter = category;
+        Refresh();
+    }
+
+    // Tout (null) always matches; an empty slot has no category, so it only shows on Tout - a
+    // specific tab only ever displays slots actually holding a matching item.
+    bool SlotMatchesFilter(int index)
+    {
+        if (currentFilter == null) return true;
+        InventorySlot slot = inventory.GetSlot(index);
+        if (slot.IsEmpty) return false;
+        ItemDefinition definition = ItemDatabase.Get(slot.itemId);
+        return definition != null && definition.Category == currentFilter.Value;
     }
 
     // A paperdoll silhouette to the right of the inventory grid, instead of a flat top-to-bottom
@@ -337,13 +427,44 @@ public class InventoryUI : MonoBehaviour, UIWindowStack.IWindow
     {
         if (inventory != null)
         {
+            // Only slots that pass the active filter are shown - packed sequentially into the
+            // same column/row grid math BuildPanel used for the full, unfiltered inventory. Slot
+            // identity (slotUI.index) never changes, only its screen position and visibility -
+            // drag/drop and click-to-use keep working exactly as before.
+            int visibleCount = 0;
             for (int i = 0; i < slotImages.Length; i++)
             {
+                if (SlotMatchesFilter(i)) visibleCount++;
+            }
+            int rows = Mathf.Max(1, Mathf.CeilToInt(visibleCount / (float)columns));
+            float totalWidth = (columns - 1) * spacing;
+            float totalHeight = (rows - 1) * spacing;
+
+            int visibleIndex = 0;
+            for (int i = 0; i < slotImages.Length; i++)
+            {
+                bool visible = SlotMatchesFilter(i);
+                slotImages[i].gameObject.SetActive(visible);
+                if (!visible) continue;
+
                 InventorySlot slot = inventory.GetSlot(i);
                 ItemDefinition definition = !slot.IsEmpty ? ItemDatabase.Get(slot.itemId) : null;
                 slotImages[i].sprite = definition != null ? definition.Icon : null;
                 slotImages[i].color = definition != null ? Color.white : new Color(1f, 1f, 1f, 0.15f);
                 slotTexts[i].text = definition != null ? slot.count.ToString() : "";
+
+                int col = visibleIndex % columns;
+                int row = visibleIndex / columns;
+                slotRects[i].anchoredPosition = new Vector2(col * spacing - totalWidth / 2f - 220f, totalHeight / 2f - row * spacing);
+                visibleIndex++;
+            }
+        }
+
+        if (tabBackgrounds != null)
+        {
+            for (int i = 0; i < CategoryTabs.Length; i++)
+            {
+                tabBackgrounds[i].color = CategoryTabs[i].category == currentFilter ? TabActiveColor : TabInactiveColor;
             }
         }
 
