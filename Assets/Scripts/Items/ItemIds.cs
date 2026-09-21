@@ -65,4 +65,30 @@ public static class ItemIds
     public const string KrakenTentacle = "kraken_tentacle";
     public const string EagleCog = "eagle_cog";
     public const string WandererFragment = "wanderer_fragment";
+
+    // Boss crafting-material drops (see DungeonGenerator.BossFamilyFor.resourceDropIds) - 3 per
+    // family, "griffe, peau, aile, oeil, poils, crocs" per body part that fits the creature
+    // (2026-09-21 request: "du craft de potions ou equipement" - no recipe uses these yet, this is
+    // just the drop itself).
+    public const string CerbereClaw = "cerbere_claw";
+    public const string CerbereFang = "cerbere_fang";
+    public const string CerbereFur = "cerbere_fur";
+    public const string AnacondaFang = "anaconda_fang";
+    public const string AnacondaEye = "anaconda_eye";
+    public const string AnacondaSkin = "anaconda_skin";
+    public const string EntBark = "ent_bark";
+    public const string EntRoot = "ent_root";
+    public const string EntSap = "ent_sap";
+    public const string GolemPlate = "golem_plate";
+    public const string GolemRivet = "golem_rivet";
+    public const string GolemCable = "golem_cable";
+    public const string KrakenEye = "kraken_eye";
+    public const string KrakenSucker = "kraken_sucker";
+    public const string KrakenInk = "kraken_ink";
+    public const string AigleFeather = "aigle_feather";
+    public const string AigleTalon = "aigle_talon";
+    public const string AigleSensor = "aigle_sensor";
+    public const string ArpenteurShadow = "arpenteur_shadow";
+    public const string ArpenteurDust = "arpenteur_dust";
+    public const string ArpenteurEcho = "arpenteur_echo";
 }

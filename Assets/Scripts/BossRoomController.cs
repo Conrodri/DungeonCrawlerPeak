@@ -41,6 +41,12 @@ public class BossRoomController : MonoBehaviour
     // (Zone/Ville/Region) instead of 1, each a different power level of the same biome family.
     public string dropItemId;
     public float dropChance;
+    // 3 crafting materials themed to this boss family (griffe/peau/aile/oeil/poils/crocs etc., see
+    // DungeonGenerator.BossFamilyFor) - 2026-09-21 request: "des drops de ressources sur les boss
+    // aussi... qui serviront pour du craft de potions ou equipement". Each rolls independently
+    // against the same dropChance as the family trophy above, so a Region kill (dropChance 1f)
+    // reliably drops all 3 while a Zone kill (1/3) usually gets one or none.
+    public string[] resourceDropIds = new string[0];
     public int xpReward;
     // Set in DungeonGenerator.SetupBossRoom - which of the 3 power tiers this room's boss is, so
     // OnAnyBossDefeated below (and QuestNpc's boss-kill quests) can tell them apart.
@@ -193,6 +199,10 @@ public class BossRoomController : MonoBehaviour
         // separate ground pickup.
         var loot = CorpseLoot.Generate(isNpc: false, guaranteed: true);
         if (!string.IsNullOrEmpty(dropItemId) && UnityEngine.Random.value < dropChance) loot.Add((dropItemId, 1));
+        foreach (string resourceId in resourceDropIds)
+        {
+            if (!string.IsNullOrEmpty(resourceId) && UnityEngine.Random.value < dropChance) loot.Add((resourceId, 1));
+        }
         PlayerInventory playerInventory = player != null ? player.GetComponent<PlayerInventory>() : null;
         GameObject corpse = Corpse.SpawnAt(dropPos, "Depouille de " + bossName, loot, boss.GetComponent<SpriteRenderer>().sprite, playerInventory);
         // Same parent as the boss itself (DungeonRoot) - see the matching comment in

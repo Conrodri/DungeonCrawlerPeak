@@ -2570,6 +2570,80 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.WandererFragment, "Fragment de l'Arpenteur", ItemCategory.ObjetDeQuete, 1, wandererFragmentSprite,
             "Un morceau de moquette jaune, etrangement lourd. Un trophee de votre victoire.", rarity: 5);
 
+        // Boss crafting materials - 3 per family (see BossFamilyFor.resourceDropIds), destined for
+        // future potion/equipment recipes (2026-09-21 request, none exist yet). Stack like any
+        // other Ressource material (20, rarity 3 - rarer than plain gathered materials since only
+        // a boss drops them, but well below the family trophy's own rarity 5).
+        RegisterItem(itemEntries, ItemIds.CerbereClaw, "Griffe de Cerbere", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/CerbereClaw.png", new Color(0.15f, 0.13f, 0.13f)),
+            "Une griffe massive, encore acree.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.CerbereFang, "Croc de Cerbere", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/CerbereFang.png", new Color(0.9f, 0.88f, 0.8f)),
+            "Un croc long comme l'avant-bras, encore tranchant.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.CerbereFur, "Poils de Cerbere", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/CerbereFur.png", new Color(0.25f, 0.18f, 0.15f)),
+            "Une touffe de poils rugueux, encore chauds.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.AnacondaFang, "Croc d'Anaconda", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AnacondaFang.png", new Color(0.92f, 0.9f, 0.82f)),
+            "Un croc recourbe, encore charge de venin.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.AnacondaEye, "Oeil d'Anaconda", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AnacondaEye.png", new Color(0.85f, 0.75f, 0.15f)),
+            "Un oeil reptilien a la pupille verticale.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.AnacondaSkin, "Peau d'Anaconda", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AnacondaSkin.png", new Color(0.25f, 0.5f, 0.22f)),
+            "Un morceau de peau epaisse et souple.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.EntBark, "Ecorce d'Ent", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/EntBark.png", new Color(0.32f, 0.24f, 0.14f)),
+            "Un fragment d'ecorce dure comme la pierre.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.EntRoot, "Racine d'Ent", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/EntRoot.png", new Color(0.45f, 0.35f, 0.2f)),
+            "Une racine noueuse, encore fraiche.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.EntSap, "Seve d'Ent", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/EntSap.png", new Color(0.75f, 0.55f, 0.15f)),
+            "Une seve doree et poisseuse, tiede au toucher.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.GolemPlate, "Plaque d'Acier du Golem", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/GolemPlate.png", new Color(0.55f, 0.56f, 0.6f)),
+            "Une plaque de blindage arrachee au golem.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.GolemRivet, "Rivet Rouille du Golem", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/GolemRivet.png", new Color(0.5f, 0.3f, 0.15f)),
+            "Un gros rivet couvert de rouille.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.GolemCable, "Cable Effiloche du Golem", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/GolemCable.png", new Color(0.2f, 0.2f, 0.22f)),
+            "Un cable metallique effiloche, encore sous tension.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.KrakenEye, "Oeil de Kraken", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/KrakenEye.png", new Color(0.85f, 0.35f, 0.2f)),
+            "Un oeil globuleux de la taille d'un poing.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.KrakenSucker, "Ventouse de Kraken", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/KrakenSucker.png", new Color(0.55f, 0.25f, 0.3f)),
+            "Une ventouse geante, encore visqueuse.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.KrakenInk, "Encre de Kraken", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/KrakenInk.png", new Color(0.08f, 0.08f, 0.12f)),
+            "Une fiole d'encre noire et epaisse.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.AigleFeather, "Plume d'Acier de l'Aigle", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AigleFeather.png", new Color(0.8f, 0.78f, 0.7f)),
+            "Une plume metallique, aiguisee sur les bords.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.AigleTalon, "Serre d'Acier de l'Aigle", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AigleTalon.png", new Color(0.6f, 0.62f, 0.65f)),
+            "Une serre articulee, toujours aussi acree.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.AigleSensor, "Capteur Optique de l'Aigle", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/AigleSensor.png", new Color(0.2f, 0.7f, 0.85f)),
+            "Une lentille optique qui luit encore faiblement.", rarity: 3);
+
+        RegisterItem(itemEntries, ItemIds.ArpenteurShadow, "Lambeau d'Ombre de l'Arpenteur", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/ArpenteurShadow.png", new Color(0.15f, 0.13f, 0.18f)),
+            "Un lambeau d'ombre qui refuse de se dissiper.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.ArpenteurDust, "Poussiere Jaune de l'Arpenteur", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/ArpenteurDust.png", new Color(0.75f, 0.68f, 0.2f)),
+            "Une poussiere jaunatre a l'odeur de moquette.", rarity: 3);
+        RegisterItem(itemEntries, ItemIds.ArpenteurEcho, "Echo Silencieux de l'Arpenteur", ItemCategory.Ressource, 20,
+            CreateCircleSprite("Assets/Art/Items/ArpenteurEcho.png", new Color(0.55f, 0.5f, 0.6f)),
+            "Un echo fige qui ne fait plus aucun bruit.", rarity: 3);
+
         // Crafting materials - guaranteed drops from the matching decor material (see
         // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
         // crafting table (SpawnCraftingTable).
@@ -5893,6 +5967,9 @@ public static class DungeonGenerator
         public string zoneName, villeName, regionName;
         public Color color;
         public string dropItemId;
+        // 3 crafting-material drops themed to this family (2026-09-21 request) - separate from
+        // dropItemId above, which stays the single unique "trophy" collectible.
+        public string[] resourceDropIds;
         public string[] mask;
         // Boss-intro cutscene content (2026-09-21 request) - introKey names the voice clip folder
         // entry (see BossRoomController.introVoiceKey/Tools/generate_boss_intro_voices.ps1),
@@ -5922,20 +5999,28 @@ public static class DungeonGenerator
     static BossFamily BossFamilyFor(Biome biome) => biome switch
     {
         Biome.Jungle => new BossFamily { zoneName = "Jeune Anaconda", villeName = "Anaconda Royale", regionName = "Anaconda Primordiale", color = new Color(0.2f, 0.55f, 0.15f), dropItemId = ItemIds.AnacondaScale, mask = AnacondaMask,
+            resourceDropIds = new[] { ItemIds.AnacondaFang, ItemIds.AnacondaEye, ItemIds.AnacondaSkin },
             introKey = "jungle", introDescription = "Ce serpent gigantesque rode dans les frondaisons depuis des siecles, digerant lentement tout ce qui a eu le malheur de croiser sa route. Il vient de sentir une nouvelle proie approcher, et il en a apres VOUS." },
         Biome.Forest => new BossFamily { zoneName = "Sapling Enrage", villeName = "Ent Corrompu", regionName = "Ent Ancien, Coeur de la Foret", color = new Color(0.35f, 0.28f, 0.12f), dropItemId = ItemIds.EntHeartshard, mask = EntMask,
+            resourceDropIds = new[] { ItemIds.EntBark, ItemIds.EntRoot, ItemIds.EntSap },
             introKey = "forest", introDescription = "Autrefois gardien paisible de cette foret, cet arbre anime a vu trop d'aventuriers pietiner ses racines sans jamais s'excuser. Sa patience est epuisee, et il en a apres VOUS." },
         Biome.City => new BossFamily { zoneName = "Automate Rouille", villeName = "Golem d'Acier", regionName = "Golem d'Acier, Gardien de la Cite", color = new Color(0.55f, 0.56f, 0.6f), dropItemId = ItemIds.GolemCore, mask = GolemMask,
+            resourceDropIds = new[] { ItemIds.GolemPlate, ItemIds.GolemRivet, ItemIds.GolemCable },
             introKey = "city", introDescription = "Assemble a partir des ruines d'une cite oubliee, ce golem de fer et de rouille ne connait qu'un seul ordre : proteger ce territoire de tout intrus. Ses capteurs viennent de vous reperer, et il en a apres VOUS." },
         Biome.Beach => new BossFamily { zoneName = "Calmar Geant", villeName = "Kraken Echoue", regionName = "Kraken des Abysses", color = new Color(0.1f, 0.25f, 0.45f), dropItemId = ItemIds.KrakenTentacle, mask = KrakenMask,
+            resourceDropIds = new[] { ItemIds.KrakenEye, ItemIds.KrakenSucker, ItemIds.KrakenInk },
             introKey = "beach", introDescription = "Echoue sur ce rivage il y a bien longtemps, ce monstre des profondeurs n'a jamais cesse de chercher un chemin vers l'ocean, brisant tout ce qui se trouve sur son passage. Il vient de decider que VOUS feriez un bon obstacle a eliminer." },
         Biome.Cave => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask,
+            resourceDropIds = new[] { ItemIds.CerbereClaw, ItemIds.CerbereFang, ItemIds.CerbereFur },
             introKey = "cave", introDescription = "Ce chien des enfers s'est egare depuis que son maitre l'a laisse faire mumuse avec les ossements des enfers. Il semblerait bien qu'il soit ici maintenant, et qu'il en ait apres VOUS." },
         Biome.SkyCastle => new BossFamily { zoneName = "Aiglon Mecanique", villeName = "Aigle Royal Mecanique", regionName = "Rex Aquila, Seigneur des Cieux", color = new Color(0.75f, 0.7f, 0.55f), dropItemId = ItemIds.EagleCog, mask = AigleMask,
+            resourceDropIds = new[] { ItemIds.AigleFeather, ItemIds.AigleTalon, ItemIds.AigleSensor },
             introKey = "skycastle", introDescription = "Construit par une civilisation disparue pour veiller sur les cieux, cet aigle mecanique patrouille encore ces ruines flottantes des siecles plus tard. Ses circuits viennent de designer une nouvelle cible, et il en a apres VOUS." },
         Biome.Backrooms => new BossFamily { zoneName = "Ombre Errante", villeName = "L'Arpenteur", regionName = "L'Arpenteur, Ancien des Couloirs", color = new Color(0.65f, 0.6f, 0.25f), dropItemId = ItemIds.WandererFragment, mask = ArpenteurMask,
+            resourceDropIds = new[] { ItemIds.ArpenteurShadow, ItemIds.ArpenteurDust, ItemIds.ArpenteurEcho },
             introKey = "backrooms", introDescription = "Personne ne sait depuis combien de temps cette silhouette erre dans ces couloirs identiques, ni si elle a jamais ete humaine. Elle vient de s'arreter de marcher pour la premiere fois depuis des annees, et elle en a apres VOUS." },
         _ => new BossFamily { zoneName = "Chiot du Cerbere", villeName = "Cerbere", regionName = "Cerbere, Gardien des Enfers", color = new Color(0.15f, 0.1f, 0.1f), dropItemId = ItemIds.CerberusCollar, mask = CerbereMask,
+            resourceDropIds = new[] { ItemIds.CerbereClaw, ItemIds.CerbereFang, ItemIds.CerbereFur },
             introKey = "cave", introDescription = "Ce chien des enfers s'est egare depuis que son maitre l'a laisse faire mumuse avec les ossements des enfers. Il semblerait bien qu'il soit ici maintenant, et qu'il en ait apres VOUS." },
     };
 
@@ -6199,6 +6284,7 @@ public static class DungeonGenerator
         controller.introDescription = family.introDescription;
         controller.introVoiceKey = family.introKey + "_" + tier.ToString().ToLowerInvariant();
         controller.dropItemId = family.dropItemId;
+        controller.resourceDropIds = family.resourceDropIds;
         controller.dropChance = stats.dropChance;
         controller.xpReward = stats.xpReward;
         controller.tier = tier; // QuestNpc's boss-kill quests need to know which tier died (2026-09-21)
