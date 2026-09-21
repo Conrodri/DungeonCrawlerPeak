@@ -86,6 +86,17 @@ public class EnemyController : MonoBehaviour
     float EffectiveMoveSpeed => (LegsImpaired || WingsImpaired) ? moveSpeed * 0.5f : moveSpeed;
     int EffectiveContactDamage => HandsImpaired ? Mathf.Max(1, contactDamage / 2) : contactDamage;
 
+    // 2026-09-21 request: "rajoute des debuff pour afficher une jambe cassee un bras casse ou une
+    // aile cassee" - same shared Cross_Bright icon PlayerController uses for its own leg/arm case,
+    // told apart by tint (see IconPack - no dedicated limb-icon art exists). Wing gets its own key/
+    // tint since a flying species' broken-arm state (WingsImpaired) reads as "wing", not "arm".
+    const string BrokenLegIconKey = "BrokenLeg";
+    const string BrokenArmIconKey = "BrokenArm";
+    const string BrokenWingIconKey = "BrokenWing";
+    static readonly Color BrokenLegTint = new Color(1f, 0.55f, 0.15f);
+    static readonly Color BrokenArmTint = new Color(0.9f, 0.85f, 0.2f);
+    static readonly Color BrokenWingTint = new Color(0.4f, 0.8f, 0.95f);
+
     // Fired right before the GameObject is destroyed, so a room can tell this enemy apart from
     // one that was simply despawned (e.g. on room reset).
     public event Action OnDied;
@@ -117,6 +128,11 @@ public class EnemyController : MonoBehaviour
         baseColor = spriteRenderer.color;
         health.OnDeath += HandleDeath;
         health.OnDamagedFrom += HandleDamagedFrom;
+        // Configure() (called right after this by RoomController.SpawnEnemies) fires OnLimbsChanged
+        // itself once the limb pools are actually populated, so no need to call this once up front
+        // here the way PlayerController does for a restored save - an enemy never persists across
+        // saves/floors to begin with.
+        if (limbs != null) limbs.OnLimbsChanged += UpdateLimbDebuffIcons;
         // Extra tunneling guard: relentless FixedUpdate-driven velocity pressed against a
         // tilemap CompositeCollider2D can otherwise creep through a corner over many frames.
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -180,6 +196,24 @@ public class EnemyController : MonoBehaviour
         dashDirection = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector2.up;
         dashStateEndTime = Time.time + dashDuration;
         if (spriteRenderer != null) spriteRenderer.color = baseColor;
+    }
+
+    void UpdateLimbDebuffIcons()
+    {
+        if (statusIcons == null) return;
+        Sprite crossIcon = IconPack.Get("Cross_Bright");
+        if (crossIcon == null) return;
+
+        if (LegsImpaired) statusIcons.ShowIcon(BrokenLegIconKey, crossIcon, tint: BrokenLegTint);
+        else statusIcons.HideIcon(BrokenLegIconKey);
+
+        if (WingsImpaired) statusIcons.ShowIcon(BrokenWingIconKey, crossIcon, tint: BrokenWingTint);
+        else statusIcons.HideIcon(BrokenWingIconKey);
+
+        // Only a non-flying species reads its own broken-arm state as "arm" - a flying one already
+        // shows it as WingsImpaired above, same underlying limbs.AnyArmBroken either way.
+        if (HandsImpaired && !isFlying) statusIcons.ShowIcon(BrokenArmIconKey, crossIcon, tint: BrokenArmTint);
+        else statusIcons.HideIcon(BrokenArmIconKey);
     }
 
     void HandleDamagedFrom(Vector2 fromPosition)

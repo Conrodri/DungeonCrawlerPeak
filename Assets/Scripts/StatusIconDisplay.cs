@@ -20,7 +20,11 @@ public class StatusIconDisplay : MonoBehaviour
 
     readonly Dictionary<string, ActiveIcon> icons = new Dictionary<string, ActiveIcon>();
 
-    public void ShowIcon(string key, Sprite sprite, float duration = -1f)
+    // `tint` only applies the first time this key is shown (an icon's color doesn't change across
+    // repeated ShowIcon calls, e.g. a refreshed duration) - null keeps the sprite's own color, same
+    // as every call site before 2026-09-21 (PlayerController/EnemyController's broken-limb debuffs,
+    // which reuse the same icon for leg/arm/wing and tell them apart by color instead).
+    public void ShowIcon(string key, Sprite sprite, float duration = -1f, Color? tint = null)
     {
         if (!icons.TryGetValue(key, out ActiveIcon active))
         {
@@ -31,6 +35,7 @@ public class StatusIconDisplay : MonoBehaviour
             SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
             renderer.sprite = sprite;
             renderer.sortingOrder = 2;
+            if (tint.HasValue) renderer.color = tint.Value;
 
             active = new ActiveIcon { go = go };
             icons[key] = active;

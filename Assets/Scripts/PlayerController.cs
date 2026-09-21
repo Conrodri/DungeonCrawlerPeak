@@ -232,6 +232,15 @@ public class PlayerController : MonoBehaviour
     const float SprintInjuryInterval = 1f;
     float lastSprintInjuryTime = -999f;
     bool HasBrokenLeg => limbs != null && (limbs.IsBroken(BodyPart.LegLeft) || limbs.IsBroken(BodyPart.LegRight));
+    bool HasBrokenArm => limbs != null && (limbs.IsBroken(BodyPart.ArmLeft) || limbs.IsBroken(BodyPart.ArmRight));
+
+    // 2026-09-21 request: "rajoute des debuff pour afficher une jambe cassee un bras casse" -
+    // same shared Cross_Bright icon for both (see EnemyController's identical pattern for
+    // monsters), told apart by tint since there's no dedicated limb-icon art (see IconPack).
+    const string BrokenLegIconKey = "BrokenLeg";
+    const string BrokenArmIconKey = "BrokenArm";
+    static readonly Color BrokenLegTint = new Color(1f, 0.55f, 0.15f);
+    static readonly Color BrokenArmTint = new Color(0.9f, 0.85f, 0.2f);
 
     void Awake()
     {
@@ -252,10 +261,28 @@ public class PlayerController : MonoBehaviour
         statusIcons = GetComponent<StatusIconDisplay>();
         health.OnDeath += HandleDeath;
         health.OnDamagedFrom += HandleDamagedFrom;
+        if (limbs != null)
+        {
+            limbs.OnLimbsChanged += UpdateLimbDebuffIcons;
+            UpdateLimbDebuffIcons(); // covers a restored save that loads in with a limb already broken
+        }
 
         spellSlots[0] = SpellIds.LightningOrb;
         spellSlots[1] = SpellIds.Fireball;
         spellSlots[2] = SpellIds.FireLine;
+    }
+
+    void UpdateLimbDebuffIcons()
+    {
+        if (statusIcons == null) return;
+        Sprite crossIcon = IconPack.Get("Cross_Bright");
+        if (crossIcon == null) return;
+
+        if (HasBrokenLeg) statusIcons.ShowIcon(BrokenLegIconKey, crossIcon, tint: BrokenLegTint);
+        else statusIcons.HideIcon(BrokenLegIconKey);
+
+        if (HasBrokenArm) statusIcons.ShowIcon(BrokenArmIconKey, crossIcon, tint: BrokenArmTint);
+        else statusIcons.HideIcon(BrokenArmIconKey);
     }
 
     void HandleDamagedFrom(Vector2 fromPosition)
