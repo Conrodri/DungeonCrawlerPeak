@@ -65,10 +65,17 @@ public static class MonsterLeveling
     // rolled on floor 1 (t below is relative to the current floor's own range, not the dungeon's
     // deepest floor - see ApplyLevelStats) - so even Zombie's "strong" end must stay well short of
     // one-shotting a fresh player.
+    // Momie/Sanglier/Skinwalker added 2026-09-21 alongside their own preset entries (see
+    // DungeonGenerator's assets.enemyPresets) - Momie shares Zombie's tanky/slow band outright
+    // (same undead-shambler archetype); Sanglier is a fast charger (close to ChauveSouris' band,
+    // a touch less extreme); Skinwalker sits as the agile mid-point between Larve and ChauveSouris.
     static StatRange RangeFor(EnemyType type) => type switch
     {
         EnemyType.Zombie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
         EnemyType.ChauveSouris => new StatRange { forceMin = 2, forceMax = 5, vitesseMin = 30, vitesseMax = 50 },
+        EnemyType.Momie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
+        EnemyType.Sanglier => new StatRange { forceMin = 2, forceMax = 6, vitesseMin = 25, vitesseMax = 45 },
+        EnemyType.Skinwalker => new StatRange { forceMin = 3, forceMax = 7, vitesseMin = 10, vitesseMax = 30 },
         _ => new StatRange { forceMin = 1, forceMax = 3, vitesseMin = -10, vitesseMax = 10 }, // Larve
     };
 

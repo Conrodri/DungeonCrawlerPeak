@@ -188,6 +188,48 @@ public static class DungeonGenerator
         "XXXXXXXXXX",
         " XXXXXXXX ",
     };
+    // Bulkier and more tapered than ZombieMask - bandaged arms held close to the body instead of
+    // out, legs wrapped together into two narrow stripes (2026-09-21 request: "rajoute quelques
+    // mobs, momies...").
+    static readonly string[] MomieMask =
+    {
+        "  XXXXXX  ",
+        " XXXXXXXX ",
+        " XXXXXXXX ",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        " XXXXXXXX ",
+        " XX    XX ",
+        " XX    XX ",
+        " XX    XX ",
+    };
+    // Low, wide quadruped body with a tapered snout at front and 4 short legs - "sangliers".
+    static readonly string[] SanglierMask =
+    {
+        "    XXXX  ",
+        "  XXXXXXXX",
+        " XXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XXXXXXXXXX",
+        "XX  XX  XX",
+        "XX  XX  XX",
+    };
+    // Hunched humanoid with a jagged/antlered head silhouette and long gangly limbs - "skinwalkers".
+    static readonly string[] SkinwalkerMask =
+    {
+        " X  X  X  ",
+        " XXXXXXX  ",
+        "  XXXXX   ",
+        "  XXXXX   ",
+        " XXXXXXX  ",
+        "XXXXXXXXX ",
+        "X X    X X",
+        "X X    X X",
+        "  X    X  ",
+        "  X    X  ",
+    };
     static readonly string[] AnacondaMask =
     {
         "XXXX      ",
@@ -661,7 +703,7 @@ public static class DungeonGenerator
         // me suis tape 5 fois 3 chauves souris") - a 30% chance of the WHOLE floor going
         // single-species was very likely what that report actually hit, on top of
         // EncounterPatterns itself being thin (see its own comment, expanded same request).
-        EnemyType? floorTheme = Random.value < 0.12f ? (EnemyType?)(EnemyType)Random.Range(0, 3) : null;
+        EnemyType? floorTheme = Random.value < 0.12f ? (EnemyType?)(EnemyType)Random.Range(0, 6) : null;
 
         BuildFloorAssetsPart2(assets, out List<ItemCatalog.Entry> itemEntries);
         Sprite shopMarker = assets.shopMarker;
@@ -2317,6 +2359,9 @@ public static class DungeonGenerator
         Sprite zombieSprite = CreateMaskedSprite("Assets/Art/Enemies/Zombie.png", ZombieMask, new Color(0.25f, 0.4f, 0.2f));
         Sprite chauveSourisSprite = CreateMaskedSprite("Assets/Art/Enemies/ChauveSouris.png", ChauveSourisMask, new Color(0.3f, 0.15f, 0.35f));
         Sprite larveSprite = CreateMaskedSprite("Assets/Art/Enemies/Larve.png", LarveMask, new Color(0.8f, 0.85f, 0.5f));
+        Sprite momieSprite = CreateMaskedSprite("Assets/Art/Enemies/Momie.png", MomieMask, new Color(0.82f, 0.76f, 0.6f));
+        Sprite sanglierSprite = CreateMaskedSprite("Assets/Art/Enemies/Sanglier.png", SanglierMask, new Color(0.32f, 0.2f, 0.12f));
+        Sprite skinwalkerSprite = CreateMaskedSprite("Assets/Art/Enemies/Skinwalker.png", SkinwalkerMask, new Color(0.3f, 0.24f, 0.34f));
         assets.bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         assets.bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
@@ -2372,11 +2417,19 @@ public static class DungeonGenerator
         // HP gives exactly 3 fist / 2 sword for ChauveSouris, 12 HP gives 2 fist / 1 sword for the
         // even-weaker Larve. Zombie stays the tanky bruiser (4-part Grunt layout, some coupon-
         // collector tax still intended) but was eased from 70 to 50 all the same.
+        // Momie/Sanglier/Skinwalker added 2026-09-21 alongside the above ("on a pas assez de
+        // monstres differents... rajoute quelques mobs") - same ceil(HP/damage) reasoning per their
+        // own EnemyLimbLayout entry. Momie shares Zombie's 4-part Grunt (tanky undead shambler,
+        // slightly beefier - 55 vs 50); Sanglier/Skinwalker are single-part Blobs like ChauveSouris/
+        // Larve (fast charger, eerie hard-hitting predator) so their hit count stays deterministic.
         assets.enemyPresets = new RoomController.EnemyPresetEntry[]
         {
             new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 50, contactDamage = 12, isFlying = false, xpReward = 2 },
             new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 18, contactDamage = 8, isFlying = true, xpReward = 1 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 12, contactDamage = 4, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Momie, sprite = momieSprite, maxHealth = 55, contactDamage = 13, isFlying = false, xpReward = 2 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Sanglier, sprite = sanglierSprite, maxHealth = 20, contactDamage = 10, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Skinwalker, sprite = skinwalkerSprite, maxHealth = 24, contactDamage = 14, isFlying = false, xpReward = 2 },
         };
 
         return assets;
@@ -5590,10 +5643,11 @@ public static class DungeonGenerator
     enum SpawnFormation { Scattered, Corners, CenterSquare }
 
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
-    // paired 1:1 with EncounterPatternFormation. Expanded from 4 to 10 (2026-09-21 report: "on a
-    // pas assez de monstres differents") - only 2 of the original 4 mixed species at all, so
-    // rooms read as repetitive even before accounting for floorTheme's own effect (see its
-    // comment, also toned down same request). Now only 2 of 10 are single-species.
+    // paired 1:1 with EncounterPatternFormation. Expanded from 4 to 10 to 16 across two 2026-09-21
+    // reports ("on a pas assez de monstres differents", then "rajoute quelques mobs" adding Momie/
+    // Sanglier/Skinwalker to the roster - see EnemyType) - every new species gets woven into at
+    // least 2-3 mixed patterns rather than just appended as its own solo triple, so variety keeps
+    // scaling with the roster instead of just adding more ways to see the same old 3.
     static readonly EnemyType[][] EncounterPatterns =
     {
         new[] { EnemyType.Zombie, EnemyType.Zombie, EnemyType.Zombie },
@@ -5606,12 +5660,19 @@ public static class DungeonGenerator
         new[] { EnemyType.Zombie, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve },
         new[] { EnemyType.ChauveSouris, EnemyType.Zombie, EnemyType.ChauveSouris, EnemyType.Larve },
         new[] { EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.ChauveSouris },
+        new[] { EnemyType.Momie, EnemyType.Momie, EnemyType.Zombie },
+        new[] { EnemyType.Sanglier, EnemyType.Sanglier, EnemyType.Sanglier, EnemyType.Larve },
+        new[] { EnemyType.Skinwalker, EnemyType.Skinwalker, EnemyType.ChauveSouris },
+        new[] { EnemyType.Momie, EnemyType.Skinwalker, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.Sanglier, EnemyType.Sanglier, EnemyType.Zombie },
+        new[] { EnemyType.Skinwalker, EnemyType.Sanglier, EnemyType.ChauveSouris, EnemyType.Larve },
     };
     static readonly SpawnFormation[] EncounterPatternFormation =
     {
         SpawnFormation.Corners, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.CenterSquare,
         SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered,
-        SpawnFormation.Scattered, SpawnFormation.Scattered,
+        SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Corners,
+        SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Corners, SpawnFormation.Scattered,
     };
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,

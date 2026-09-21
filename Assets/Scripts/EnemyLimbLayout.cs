@@ -16,21 +16,25 @@
 // the matching HP retune.
 public static class EnemyLimbLayout
 {
-    // Zombie only - the one species that keeps real limb variety, since its "shambling, slows
-    // down with a broken leg" identity is worth the extra swings a 4-part coupon-collector still
-    // costs (average ~8 hits) compared to the fragile mobs below. Legs kept (not arms) so
+    // Zombie/Momie - the two species that keep real limb variety, since a "shambling, slows down
+    // with a broken leg" identity is worth the extra swings a 4-part coupon-collector still costs
+    // (average ~8 hits) compared to the fragile mobs below. Legs kept (not arms) so
     // EnemyController's broken-leg speed penalty is the one that actually fires for it - fits a
-    // zombie's limp far better than a weakened bite would.
+    // shambler's limp far better than a weakened bite would. Momie (2026-09-21) reuses this
+    // outright rather than a near-duplicate layout - same undead-tank archetype as Zombie.
     static readonly BodyPart[] Grunt = { BodyPart.Head, BodyPart.Torso, BodyPart.LegLeft, BodyPart.LegRight };
-    // ChauveSouris and Larve - both explicitly called out as "should die fast" (glass-cannon
-    // flier, weak swarm unit) - a single-part blob means death is a deterministic ceil(HP/damage),
-    // no RNG tax from spreading HP across limbs that only fragment an already-small pool. Also
-    // literally the "slime" case from the original 2026-09-20 request.
+    // ChauveSouris/Larve (fragile flier, weak swarm unit) and Sanglier/Skinwalker (2026-09-21 -
+    // charging animal, eerie fast predator: neither has player-style limbs to speak of, and both
+    // are meant to die in a predictable handful of hits, not survive a coupon-collector grind) - a
+    // single-part blob means death is a deterministic ceil(HP/damage), no RNG tax from spreading HP
+    // across limbs that only fragment an already-small pool. Also literally the "slime" case from
+    // the original 2026-09-20 request.
     static readonly BodyPart[] Blob = { BodyPart.Torso };
 
     public static BodyPart[] For(EnemyType type) => type switch
     {
         EnemyType.Zombie => Grunt,
-        _ => Blob, // ChauveSouris, Larve
+        EnemyType.Momie => Grunt,
+        _ => Blob, // ChauveSouris, Larve, Sanglier, Skinwalker
     };
 }
