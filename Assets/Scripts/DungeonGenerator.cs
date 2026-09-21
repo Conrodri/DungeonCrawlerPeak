@@ -656,8 +656,12 @@ public static class DungeonGenerator
         RoomController.EnemyPresetEntry[] enemyPresets = assets.enemyPresets;
 
         // A whole floor sometimes commits to a single creature type, so every Monster room draws
-        // from it instead of picking its own encounter pattern.
-        EnemyType? floorTheme = Random.value < 0.3f ? (EnemyType?)(EnemyType)Random.Range(0, 3) : null;
+        // from it instead of picking its own encounter pattern. Dropped from 0.3 to 0.12
+        // (2026-09-21 report: "on a pas assez de monstres differents, j'ai ouvert 5 portes et je
+        // me suis tape 5 fois 3 chauves souris") - a 30% chance of the WHOLE floor going
+        // single-species was very likely what that report actually hit, on top of
+        // EncounterPatterns itself being thin (see its own comment, expanded same request).
+        EnemyType? floorTheme = Random.value < 0.12f ? (EnemyType?)(EnemyType)Random.Range(0, 3) : null;
 
         BuildFloorAssetsPart2(assets, out List<ItemCatalog.Entry> itemEntries);
         Sprite shopMarker = assets.shopMarker;
@@ -5586,17 +5590,28 @@ public static class DungeonGenerator
     enum SpawnFormation { Scattered, Corners, CenterSquare }
 
     // Encounter compositions a Monster room can roll (used unless a floor-wide theme is active) -
-    // paired 1:1 with EncounterPatternFormation.
+    // paired 1:1 with EncounterPatternFormation. Expanded from 4 to 10 (2026-09-21 report: "on a
+    // pas assez de monstres differents") - only 2 of the original 4 mixed species at all, so
+    // rooms read as repetitive even before accounting for floorTheme's own effect (see its
+    // comment, also toned down same request). Now only 2 of 10 are single-species.
     static readonly EnemyType[][] EncounterPatterns =
     {
         new[] { EnemyType.Zombie, EnemyType.Zombie, EnemyType.Zombie },
         new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.ChauveSouris },
         new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.Zombie },
         new[] { EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.Zombie, EnemyType.Zombie, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.ChauveSouris, EnemyType.ChauveSouris, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.Zombie, EnemyType.ChauveSouris, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.Zombie, EnemyType.Larve, EnemyType.Larve, EnemyType.Larve },
+        new[] { EnemyType.ChauveSouris, EnemyType.Zombie, EnemyType.ChauveSouris, EnemyType.Larve },
+        new[] { EnemyType.Larve, EnemyType.Larve, EnemyType.Larve, EnemyType.ChauveSouris },
     };
     static readonly SpawnFormation[] EncounterPatternFormation =
     {
         SpawnFormation.Corners, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.CenterSquare,
+        SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered, SpawnFormation.Scattered,
+        SpawnFormation.Scattered, SpawnFormation.Scattered,
     };
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
