@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Opened from the Tavernier NPC (see DialogueOutcome.opensAttributeAllocation) - lets the player
-// spend PlayerStats.unspentAttributePoints one at a time on any of the 8 stats. A dedicated panel
+// Opened from the wall-mounted AttributeBoard present in every Safe room (see AttributeBoard.cs) -
+// lets the player spend PlayerStats.unspentAttributePoints one at a time on any of the 8 stats. A dedicated panel
 // rather than a DialogueOption per stat: the remaining-points count and each stat's current value
 // need to update live as points are spent, which a static option list (built once at floor
 // generation) can't reflect.
