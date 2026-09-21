@@ -91,4 +91,24 @@ public static class ItemIds
     public const string ArpenteurShadow = "arpenteur_shadow";
     public const string ArpenteurDust = "arpenteur_dust";
     public const string ArpenteurEcho = "arpenteur_echo";
+
+    // New potions (2026-09-21 request: Table d'Alchimie) - HealthPotion above is repurposed as the
+    // "Petite" tier (healAmount bumped 3->20) rather than duplicated.
+    public const string GreaterHealthPotion = "greater_health_potion";
+    public const string SpeedPotion = "speed_potion";
+    public const string AdrenalinePotion = "adrenaline_potion";
+
+    // Generic crafting ingredient (Table de Craft) - not tied to any one biome/boss.
+    public const string Corde = "corde";
+
+    // Boss equipment crafts (2026-09-21 request: "met des craft de boss, par exemple la patoune de
+    // cerbere... tu vois le style") - one themed equipment piece per boss family, built from that
+    // family's resourceDropIds above plus a generic ingredient (Sword/Corde/etc).
+    public const string CerberePaw = "cerbere_paw";
+    public const string AnacondaFangDagger = "anaconda_fang_dagger";
+    public const string EntBarkPauldrons = "ent_bark_pauldrons";
+    public const string GolemPlateGauntlets = "golem_plate_gauntlets";
+    public const string KrakenInkNecklace = "kraken_ink_necklace";
+    public const string AigleFeatherBoots = "aigle_feather_boots";
+    public const string ArpenteurShadowRing = "arpenteur_shadow_ring";
 }

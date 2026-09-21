@@ -32,6 +32,15 @@ public class ItemDefinition
     public bool IsTrap;
     // 0 = not a potion; otherwise using it from the hotbar heals this much instead of throwing it.
     public int HealAmount;
+    // Timed buffs (2026-09-21 request: Potion de Vitesse/Adrenaline) - 0 multiplier = no effect.
+    // Applied together with HealAmount above if more than one is set (nothing does today, but
+    // nothing stops a future potion combining them). See PlayerController.UsePotionItem.
+    public float SpeedBuffMultiplier;
+    public float SpeedBuffDuration;
+    public float StaminaRegenBuffMultiplier;
+    public float StaminaRegenBuffDuration;
+    // Whether this item is a "potion" for click-to-use/UseItem purposes - any of the effects above.
+    public bool IsPotion => HealAmount > 0 || SpeedBuffMultiplier > 0f || StaminaRegenBuffMultiplier > 0f;
     // No Nullable<EquipmentSlotType> here, same reason as CursedWeaponType above - a plain bool
     // flag next to a non-nullable default value survives Unity's serialization; Nullable doesn't.
     public bool IsEquipment;

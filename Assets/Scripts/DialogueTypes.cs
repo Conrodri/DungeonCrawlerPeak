@@ -51,6 +51,12 @@ public class DialogueOption
     public string purchaseItemId;
     public string costItemId = ItemIds.Gold;
     public int costAmount;
+    // Multi-ingredient recipe (2026-09-21 request: boss equipment/potion crafts needing several
+    // different materials at once) - when set (non-null, non-empty), DialogueManager.TryPayCost
+    // checks/spends ALL of these instead of the single costItemId/costAmount pair above, which
+    // stays as the simple single-ingredient case every other purchase option still uses.
+    public string[] costItemIds;
+    public int[] costAmounts;
     // Set at runtime when an Important-tier check fails - the option stays listed but can't be
     // chosen again, instead of the whole conversation ending. Persists on this instance, so it
     // stays disabled if the player leaves and re-opens the same NPC's dialogue later.

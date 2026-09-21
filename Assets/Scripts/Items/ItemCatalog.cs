@@ -26,6 +26,10 @@ public class ItemCatalog : MonoBehaviour
         public bool isThrowable;
         public bool isTrap;
         public int healAmount;
+        public float speedBuffMultiplier;
+        public float speedBuffDuration;
+        public float staminaRegenBuffMultiplier;
+        public float staminaRegenBuffDuration;
         public bool isEquipment;
         public EquipmentSlotType equipmentSlot;
         public StatType ringBonusStat;
@@ -59,6 +63,10 @@ public class ItemCatalog : MonoBehaviour
                 IsThrowable = entry.isThrowable,
                 IsTrap = entry.isTrap,
                 HealAmount = entry.healAmount,
+                SpeedBuffMultiplier = entry.speedBuffMultiplier,
+                SpeedBuffDuration = entry.speedBuffDuration,
+                StaminaRegenBuffMultiplier = entry.staminaRegenBuffMultiplier,
+                StaminaRegenBuffDuration = entry.staminaRegenBuffDuration,
                 IsEquipment = entry.isEquipment,
                 EquipmentSlot = entry.equipmentSlot,
                 RingBonusStat = entry.ringBonusStat,

@@ -221,6 +221,10 @@ public class PlayerController : MonoBehaviour
     // ApplyMovementDebuff below.
     float slowMultiplier = 1f;
     float slowEndTime = -999f;
+    // Potion de Vitesse (2026-09-21 request) - same "strongest wins, duration extends" pattern as
+    // slowMultiplier above, just multiplying speed UP instead of down. See ApplyHaste/UsePotionItem.
+    float hasteMultiplier = 1f;
+    float hasteEndTime = -999f;
     bool isDead;
     bool isSprinting;
     bool isRolling;
@@ -468,6 +472,7 @@ public class PlayerController : MonoBehaviour
         // of sprinting on it also costing health (see Update's sprint block).
         if (HasBrokenLeg) speedMultiplier *= 0.5f;
         if (Time.time < slowEndTime) speedMultiplier *= slowMultiplier;
+        if (Time.time < hasteEndTime) speedMultiplier *= hasteMultiplier;
         rb.linearVelocity = isDead ? Vector2.zero : moveInput * moveSpeed * speedMultiplier;
     }
 
@@ -506,6 +511,21 @@ public class PlayerController : MonoBehaviour
     {
         if (Time.time >= slowEndTime || multiplier < slowMultiplier) slowMultiplier = multiplier;
         slowEndTime = Mathf.Max(slowEndTime, Time.time + duration);
+    }
+
+    const string SpeedBuffIconKey = "SpeedBuff";
+    public Sprite speedBuffIcon;
+    const string AdrenalineBuffIconKey = "AdrenalineBuff";
+    public Sprite adrenalineBuffIcon;
+
+    // Potion de Vitesse (2026-09-21 request) - mirror of ApplySlow above, just multiplying UP:
+    // takes the strongest active haste and the longer remaining duration.
+    public void ApplyHaste(float multiplier, float duration)
+    {
+        if (Time.time >= hasteEndTime || multiplier > hasteMultiplier) hasteMultiplier = multiplier;
+        hasteEndTime = Mathf.Max(hasteEndTime, Time.time + duration);
+        if (statusIcons != null && speedBuffIcon != null)
+            statusIcons.ShowIcon(SpeedBuffIconKey, speedBuffIcon, hasteEndTime - Time.time);
     }
 
     const string MovementDebuffIconKey = "MovementDebuff";
@@ -716,9 +736,9 @@ public class PlayerController : MonoBehaviour
         }
 
         ItemDefinition definition = ItemDatabase.Get(itemId);
-        if (definition != null && definition.HealAmount > 0)
+        if (definition != null && definition.IsPotion)
         {
-            UsePotion(itemId, definition.HealAmount);
+            UsePotionItem(itemId, definition);
             return;
         }
 
@@ -798,14 +818,24 @@ public class PlayerController : MonoBehaviour
         else if (spellId == SpellIds.FireLine) TryCastFireLine();
     }
 
-    void UsePotion(string itemId, int healAmount)
+    // Applies whichever effects this potion actually has (see ItemDefinition.IsPotion) - a plain
+    // heal, a timed speed buff, a timed stamina-regen buff, or several at once, nothing stops a
+    // future potion combining them.
+    void UsePotionItem(string itemId, ItemDefinition definition)
     {
         float cooldown = throwCooldown / stats.AttackSpeedMultiplier;
         if (Time.time - lastThrowTime < cooldown) return;
         if (!inventory.TryConsume(itemId)) return;
 
         lastThrowTime = Time.time;
-        health.Heal(healAmount);
+        if (definition.HealAmount > 0) health.Heal(definition.HealAmount);
+        if (definition.SpeedBuffMultiplier > 0f) ApplyHaste(definition.SpeedBuffMultiplier, definition.SpeedBuffDuration);
+        if (definition.StaminaRegenBuffMultiplier > 0f)
+        {
+            stamina.ApplyRegenBuff(definition.StaminaRegenBuffMultiplier, definition.StaminaRegenBuffDuration);
+            if (statusIcons != null && adrenalineBuffIcon != null)
+                statusIcons.ShowIcon(AdrenalineBuffIconKey, adrenalineBuffIcon, definition.StaminaRegenBuffDuration);
+        }
     }
 
     void TryThrow(string itemId)

@@ -734,6 +734,7 @@ public static class DungeonGenerator
         Sprite stairsCageSprite = assets.stairsCageSprite;
         Sprite leverSprite = assets.leverSprite;
         Sprite craftingTableSprite = assets.craftingTableSprite;
+        Sprite alchemyTableSprite = assets.alchemyTableSprite;
         Sprite projectileSprite = assets.projectileSprite;
         Sprite fistVisualSprite = assets.fistVisualSprite;
         Sprite swordVisualSprite = assets.swordVisualSprite;
@@ -984,6 +985,8 @@ public static class DungeonGenerator
         playerController.fireLineSprite = fireLineSprite;
         playerController.burnIconSprite = burnIconSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
+        playerController.speedBuffIcon = LoadIconPackSprite("Thunder_Bright");
+        playerController.adrenalineBuffIcon = LoadIconPackSprite("Potion02_Bright");
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
         PlayerSkills playerSkills = player.GetComponent<PlayerSkills>();
@@ -1111,6 +1114,7 @@ public static class DungeonGenerator
                     {
                         SpawnTavernNpc(npcPos, npcElderSprite, npcBadgeSprite, root.transform);
                         SpawnCraftingTable(center + new Vector2(-2f, 0f), craftingTableSprite, npcBadgeSprite, root.transform);
+                        SpawnAlchemyTable(center + new Vector2(2f, 0f), alchemyTableSprite, npcBadgeSprite, root.transform);
                         SpawnTavernFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform,
                             playerHealth, playerLimbs, playerInventory, playerStats, playerStamina, playerController, playerEquipment);
                     }
@@ -2477,6 +2481,9 @@ public static class DungeonGenerator
         // ordinary scenery, on top of the distinct LeverMask shape above.
         assets.leverSprite = CreateMaskedSprite("Assets/Art/Decor/Lever.png", LeverMask, new Color(0.85f, 0.7f, 0.15f));
         assets.craftingTableSprite = CreateSolidSprite("Assets/Art/Decor/CraftingTable.png", new Color(0.45f, 0.32f, 0.2f));
+        // Distinct teal-green from the crafting table's wood-brown (2026-09-21 request: separate
+        // Table d'Alchimie for consumables vs Table de Craft for equipment).
+        assets.alchemyTableSprite = CreateSolidSprite("Assets/Art/Decor/AlchemyTable.png", new Color(0.25f, 0.55f, 0.45f));
 
         assets.projectileSprite = CreateCircleSprite("Assets/Art/Projectile.png", new Color(0.6f, 0.85f, 0.95f));
         Sprite swordPickupSprite = CreateMaskedSprite("Assets/Art/Items/Sword.png", SwordMask, new Color(0.75f, 0.78f, 0.82f));
@@ -2539,8 +2546,20 @@ public static class DungeonGenerator
             "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true, rarity: 2);
 
         Sprite potionSprite = CreateCircleSprite("Assets/Art/Items/Potion.png", new Color(0.8f, 0.15f, 0.35f));
-        RegisterItem(itemEntries, ItemIds.HealthPotion, "Potion de Soin", ItemCategory.Consommable, 5, potionSprite,
-            "Restaure un peu de vie.", healAmount: 3, rarity: 1);
+        RegisterItem(itemEntries, ItemIds.HealthPotion, "Petite Potion de Vie", ItemCategory.Consommable, 5, potionSprite,
+            "Restaure 20 PV.", healAmount: 20, rarity: 1);
+
+        // New potions (2026-09-21 request: Table d'Alchimie) - each a plain reskin of the potion
+        // silhouette, distinguished by tint like the boss materials above.
+        Sprite greaterPotionSprite = CreateCircleSprite("Assets/Art/Items/GreaterPotion.png", new Color(0.85f, 0.1f, 0.15f));
+        RegisterItem(itemEntries, ItemIds.GreaterHealthPotion, "Grande Potion de Vie", ItemCategory.Consommable, 5, greaterPotionSprite,
+            "Restaure 50 PV.", healAmount: 50, rarity: 2);
+        Sprite speedPotionSprite = CreateCircleSprite("Assets/Art/Items/SpeedPotion.png", new Color(0.15f, 0.75f, 0.85f));
+        RegisterItem(itemEntries, ItemIds.SpeedPotion, "Potion de Vitesse", ItemCategory.Consommable, 5, speedPotionSprite,
+            "Augmente la vitesse de deplacement de 10% pendant 2 minutes.", speedBuffMultiplier: 1.1f, speedBuffDuration: 120f, rarity: 2);
+        Sprite adrenalinePotionSprite = CreateCircleSprite("Assets/Art/Items/AdrenalinePotion.png", new Color(0.9f, 0.55f, 0.1f));
+        RegisterItem(itemEntries, ItemIds.AdrenalinePotion, "Potion d'Adrenaline", ItemCategory.Consommable, 5, adrenalinePotionSprite,
+            "Double la vitesse de recuperation d'endurance pendant 2 minutes.", staminaRegenBuffMultiplier: 2f, staminaRegenBuffDuration: 120f, rarity: 2);
 
         Sprite cerberusCollarSprite = CreateMaskedSprite("Assets/Art/Items/CerberusCollar.png", CerberusCollarMask, new Color(0.75f, 0.6f, 0.15f));
         RegisterItem(itemEntries, ItemIds.CerberusCollar, "Collier Infernal du Cerbere", ItemCategory.Equipement, 1, cerberusCollarSprite,
@@ -2644,6 +2663,42 @@ public static class DungeonGenerator
             CreateCircleSprite("Assets/Art/Items/ArpenteurEcho.png", new Color(0.55f, 0.5f, 0.6f)),
             "Un echo fige qui ne fait plus aucun bruit.", rarity: 3);
 
+        // Boss equipment crafts (2026-09-21 request: "met des craft de boss, par exemple la patoune
+        // de cerbere... tu vois le style") - one themed piece per family, built at the Table de
+        // Craft from that family's resourceDropIds plus a base equipment item (see
+        // SpawnCraftingTable). Rarity 4 - above a plain shop ring/armor piece (2-3), below a boss's
+        // own unique trophy (5).
+        RegisterItem(itemEntries, ItemIds.CerberePaw, "Patoune de Cerbere", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/CerberePaw.png", new Color(0.2f, 0.15f, 0.13f)),
+            "Une patte griffue montee sur une garde, aussi tranchante qu'une lame.",
+            isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon, isWeapon: true, weaponType: PlayerController.WeaponType.Sword,
+            maxDurability: 50, material: MaterialType.Metal, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.AnacondaFangDagger, "Dague Crochet d'Anaconda", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/AnacondaFangDagger.png", new Color(0.3f, 0.55f, 0.25f)),
+            "Un crochet venimeux monte en dague, toujours suintant.",
+            isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon, isWeapon: true, weaponType: PlayerController.WeaponType.Sword,
+            maxDurability: 50, material: MaterialType.Metal, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.EntBarkPauldrons, "Epaulieres d'Ecorce d'Ent", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/EntBarkPauldrons.png", new Color(0.35f, 0.26f, 0.15f)),
+            "Protege le torse (+2 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 2,
+            maxDurability: 30, material: MaterialType.Bois, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.GolemPlateGauntlets, "Gantelets de Plaque du Golem", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/GolemPlateGauntlets.png", new Color(0.5f, 0.52f, 0.56f)),
+            "Protege les bras (+2 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Gloves, armorValue: 2,
+            maxDurability: 30, material: MaterialType.Metal, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.KrakenInkNecklace, "Collier d'Encre du Kraken", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/KrakenInkNecklace.png", new Color(0.1f, 0.1f, 0.15f)),
+            "Protege le torse (+2 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Neck, armorValue: 2,
+            maxDurability: 20, material: MaterialType.Tissu, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.AigleFeatherBoots, "Bottes de Plume d'Acier", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/AigleFeatherBoots.png", new Color(0.75f, 0.73f, 0.68f)),
+            "Protege les jambes (+2 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Boots, armorValue: 2,
+            maxDurability: 40, material: MaterialType.Metal, rarity: 4);
+        RegisterItem(itemEntries, ItemIds.ArpenteurShadowRing, "Anneau d'Ombre de l'Arpenteur", ItemCategory.Equipement, 1,
+            CreateCircleSprite("Assets/Art/Items/ArpenteurShadowRing.png", new Color(0.2f, 0.18f, 0.25f)),
+            "Se porte a n'importe quel doigt (+1 Dexterite).", isEquipment: true, equipmentSlot: EquipmentSlotType.RingLeft,
+            ringBonusStat: StatType.Dexterite, rarity: 4);
+
         // Crafting materials - guaranteed drops from the matching decor material (see
         // SpawnRoomDecor/DestructibleObject.guaranteedDropItemId), spent at the Safe room's
         // crafting table (SpawnCraftingTable).
@@ -2658,6 +2713,11 @@ public static class DungeonGenerator
         // NPC-type bodies.
         Sprite clothMaterialSprite = CreateMaskedSprite("Assets/Art/Items/Cloth.png", ClothMask, new Color(0.75f, 0.7f, 0.55f));
         RegisterItem(itemEntries, ItemIds.Cloth, "Tissu", ItemCategory.Ressource, 20, clothMaterialSprite, "Un morceau de tissu recupere sur une depouille.", rarity: 1);
+
+        // Generic crafting ingredient (2026-09-21 request: Table de Craft) - made from Tissu, not
+        // tied to any biome/boss, used by several boss-equipment recipes below.
+        Sprite cordeSprite = CreateMaskedSprite("Assets/Art/Items/Corde.png", ClothMask, new Color(0.65f, 0.5f, 0.3f));
+        RegisterItem(itemEntries, ItemIds.Corde, "Corde", ItemCategory.Ressource, 20, cordeSprite, "Une corde solide, tressee a partir de tissu.", rarity: 1);
 
         // Flora (see DecorType.Flower) - crafting-only ingredients, no heal/effect of their own,
         // spent at the Table de Craft for a Potion de Soin (see SpawnCraftingTable).
@@ -3202,6 +3262,8 @@ public static class DungeonGenerator
         playerController.fireLineSprite = assets.fireLineSprite;
         playerController.burnIconSprite = assets.burnIconSprite;
         playerController.movementDebuffIcon = LoadIconPackSprite("Padlock01_Bright");
+        playerController.speedBuffIcon = LoadIconPackSprite("Thunder_Bright");
+        playerController.adrenalineBuffIcon = LoadIconPackSprite("Potion02_Bright");
 
         PlayerInventory playerInventory = player.GetComponent<PlayerInventory>();
         PlayerEquipment playerEquipment = player.GetComponent<PlayerEquipment>();
@@ -4622,6 +4684,7 @@ public static class DungeonGenerator
         string description = "", int weight = 0, bool isCursed = false, bool hasCursedWeapon = false,
         PlayerController.WeaponType cursedWeaponType = PlayerController.WeaponType.Fist, bool isWeapon = false,
         PlayerController.WeaponType weaponType = PlayerController.WeaponType.Fist, bool isThrowable = false, bool isTrap = false, int healAmount = 0,
+        float speedBuffMultiplier = 0f, float speedBuffDuration = 0f, float staminaRegenBuffMultiplier = 0f, float staminaRegenBuffDuration = 0f,
         bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0,
         int maxDurability = 0, MaterialType material = MaterialType.None, int rarity = ItemRarity.Min)
     {
@@ -4638,6 +4701,8 @@ public static class DungeonGenerator
             Id = id, DisplayName = displayName, Category = category, MaxStack = maxStack, Icon = icon,
             Description = description, Rarity = rarity, Weight = weight, IsCursed = isCursed, HasCursedWeapon = hasCursedWeapon,
             CursedWeaponType = cursedWeaponType, IsWeapon = isWeapon, Weapon = weaponType, IsThrowable = isThrowable, IsTrap = isTrap, HealAmount = healAmount,
+            SpeedBuffMultiplier = speedBuffMultiplier, SpeedBuffDuration = speedBuffDuration,
+            StaminaRegenBuffMultiplier = staminaRegenBuffMultiplier, StaminaRegenBuffDuration = staminaRegenBuffDuration,
             IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue,
             MaxDurability = maxDurability, Material = material
         });
@@ -4646,6 +4711,8 @@ public static class DungeonGenerator
             id = id, displayName = displayName, category = category, maxStack = maxStack, icon = icon,
             description = description, rarity = rarity, weight = weight, isCursed = isCursed, hasCursedWeapon = hasCursedWeapon,
             cursedWeaponType = cursedWeaponType, isWeapon = isWeapon, weaponType = weaponType, isThrowable = isThrowable, isTrap = isTrap, healAmount = healAmount,
+            speedBuffMultiplier = speedBuffMultiplier, speedBuffDuration = speedBuffDuration,
+            staminaRegenBuffMultiplier = staminaRegenBuffMultiplier, staminaRegenBuffDuration = staminaRegenBuffDuration,
             isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue,
             maxDurability = maxDurability, material = material
         });
@@ -4859,7 +4926,109 @@ public static class DungeonGenerator
 
         NpcInteractable table = go.GetComponent<NpcInteractable>();
         table.npcName = "Table de Craft";
-        table.greeting = "Des materiaux et des outils sont poses ici.";
+        table.greeting = "Des materiaux et des outils pour l'equipement sont poses ici.";
+        table.options = new List<DialogueOption>
+        {
+            new DialogueOption
+            {
+                text = "Fabriquer une Corde (2 Tissu)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.Corde,
+                costItemId = ItemIds.Cloth,
+                costAmount = 2,
+            },
+            // Boss equipment crafts (2026-09-21 request: "la patoune de cerbere, une epee, une
+            // griffe de cerbere et de la corde") - one per family, each a base equipment item plus
+            // that family's own resourceDropIds (see BossFamilyFor) plus a generic ingredient.
+            new DialogueOption
+            {
+                text = "Fabriquer une Patoune de Cerbere (1 Epee, 1 Griffe de Cerbere, 1 Corde)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.CerberePaw,
+                costItemIds = new[] { ItemIds.Sword, ItemIds.CerbereClaw, ItemIds.Corde },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer une Dague Crochet d'Anaconda (1 Epee, 1 Croc d'Anaconda, 1 Peau d'Anaconda)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.AnacondaFangDagger,
+                costItemIds = new[] { ItemIds.Sword, ItemIds.AnacondaFang, ItemIds.AnacondaSkin },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer des Epaulieres d'Ecorce d'Ent (1 Epaulieres de Cuir, 1 Ecorce d'Ent, 1 Seve d'Ent)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.EntBarkPauldrons,
+                costItemIds = new[] { ItemIds.LeatherPauldrons, ItemIds.EntBark, ItemIds.EntSap },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer des Gantelets de Plaque du Golem (1 Gants de Combat, 1 Plaque du Golem, 1 Rivet du Golem)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.GolemPlateGauntlets,
+                costItemIds = new[] { ItemIds.CombatGloves, ItemIds.GolemPlate, ItemIds.GolemRivet },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer un Collier d'Encre du Kraken (1 Collier Simple, 1 Encre de Kraken, 1 Oeil de Kraken)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.KrakenInkNecklace,
+                costItemIds = new[] { ItemIds.SimpleNecklace, ItemIds.KrakenInk, ItemIds.KrakenEye },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer des Bottes de Plume d'Acier (1 Bottes de Marche, 1 Plume de l'Aigle, 1 Serre de l'Aigle)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.AigleFeatherBoots,
+                costItemIds = new[] { ItemIds.WalkingBoots, ItemIds.AigleFeather, ItemIds.AigleTalon },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Fabriquer un Anneau d'Ombre de l'Arpenteur (1 Anneau Simple, 1 Ombre de l'Arpenteur, 1 Poussiere de l'Arpenteur)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.ArpenteurShadowRing,
+                costItemIds = new[] { ItemIds.SimpleRing, ItemIds.ArpenteurShadow, ItemIds.ArpenteurDust },
+                costAmounts = new[] { 1, 1, 1 },
+            },
+            new DialogueOption
+            {
+                text = "Reparer / demonter mon equipement",
+                checkStat = StatType.None,
+                onSuccess = new DialogueOutcome
+                {
+                    message = "Vous etalez votre equipement sur la table.",
+                    opensRepairPanel = true,
+                },
+            },
+        };
+    }
+
+    // Consumables-only counterpart to SpawnCraftingTable above (2026-09-21 request: "une table
+    // d'alchimie (pour les consommables) et une table de craft (pour les equippements)") - holds
+    // every throwable/potion recipe that used to live on the crafting table, plus the 3 new
+    // potions. Capped at 8 options (see HandleOptionInput's 9-key limit).
+    static void SpawnAlchemyTable(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
+    {
+        GameObject go = new GameObject("AlchemyTable", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 0;
+        AddNpcBadge(go, badgeSprite);
+
+        go.GetComponent<CircleCollider2D>().radius = 1.2f;
+
+        NpcInteractable table = go.GetComponent<NpcInteractable>();
+        table.npcName = "Table d'Alchimie";
+        table.greeting = "Fioles, herbes et ingredients sont poses ici.";
         table.options = new List<DialogueOption>
         {
             new DialogueOption
@@ -4886,11 +5055,12 @@ public static class DungeonGenerator
                 costItemId = ItemIds.Metal,
                 costAmount = 2,
             },
-            // 4 different flowers, each its own recipe for the same Potion de Soin (see
-            // DecorType.Flower) - variety in what you gather, not in what comes out.
+            // 2 flower variants for the same Petite Potion de Vie (see DecorType.Flower) - trimmed
+            // from the old 4-variant list to make room for the 3 new potions below within the
+            // 9-option cap.
             new DialogueOption
             {
-                text = "Fabriquer une Potion de Soin (2 Fleur Ecarlate)",
+                text = "Fabriquer une Petite Potion de Vie (2 Fleur Ecarlate)",
                 isPurchase = true,
                 purchaseItemId = ItemIds.HealthPotion,
                 costItemId = ItemIds.FlowerRed,
@@ -4898,15 +5068,7 @@ public static class DungeonGenerator
             },
             new DialogueOption
             {
-                text = "Fabriquer une Potion de Soin (2 Fleur Azur)",
-                isPurchase = true,
-                purchaseItemId = ItemIds.HealthPotion,
-                costItemId = ItemIds.FlowerBlue,
-                costAmount = 2,
-            },
-            new DialogueOption
-            {
-                text = "Fabriquer une Potion de Soin (2 Herbe Argentee)",
+                text = "Fabriquer une Petite Potion de Vie (2 Herbe Argentee)",
                 isPurchase = true,
                 purchaseItemId = ItemIds.HealthPotion,
                 costItemId = ItemIds.Herb,
@@ -4914,21 +5076,28 @@ public static class DungeonGenerator
             },
             new DialogueOption
             {
-                text = "Fabriquer une Potion de Soin (2 Champignon Dore)",
+                text = "Fabriquer une Grande Potion de Vie (2 Petite Potion de Vie, 1 Griffe de Cerbere)",
                 isPurchase = true,
-                purchaseItemId = ItemIds.HealthPotion,
-                costItemId = ItemIds.Mushroom,
-                costAmount = 2,
+                purchaseItemId = ItemIds.GreaterHealthPotion,
+                costItemIds = new[] { ItemIds.HealthPotion, ItemIds.CerbereClaw },
+                costAmounts = new[] { 2, 1 },
+            },
+            // Explicit request: "la potion de vitesse necessite un champignon dore et d'autres compos".
+            new DialogueOption
+            {
+                text = "Fabriquer une Potion de Vitesse (1 Champignon Dore, 2 Fleur Azur)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.SpeedPotion,
+                costItemIds = new[] { ItemIds.Mushroom, ItemIds.FlowerBlue },
+                costAmounts = new[] { 1, 2 },
             },
             new DialogueOption
             {
-                text = "Reparer / demonter mon equipement",
-                checkStat = StatType.None,
-                onSuccess = new DialogueOutcome
-                {
-                    message = "Vous etalez votre equipement sur la table.",
-                    opensRepairPanel = true,
-                },
+                text = "Fabriquer une Potion d'Adrenaline (2 Herbe Argentee, 1 Fleur Azur)",
+                isPurchase = true,
+                purchaseItemId = ItemIds.AdrenalinePotion,
+                costItemIds = new[] { ItemIds.Herb, ItemIds.FlowerBlue },
+                costAmounts = new[] { 2, 1 },
             },
         };
     }
@@ -5577,6 +5746,7 @@ public static class DungeonGenerator
         public Sprite stairsCageSprite;
         public Sprite leverSprite;
         public Sprite craftingTableSprite;
+        public Sprite alchemyTableSprite;
         public Sprite projectileSprite;
         public Sprite fistVisualSprite;
         public Sprite swordVisualSprite;

@@ -286,10 +286,29 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
     // (the Marchand's visual grid, which pays the exact same way but never closes the panel).
     bool TryPayCost(DialogueOption option, out int cost, out bool isGold)
     {
+        if (option.costItemIds != null && option.costItemIds.Length > 0)
+        {
+            // All-or-nothing: check every ingredient is available before removing any of them, so
+            // a recipe missing its 3rd ingredient never partially consumes the first two.
+            isGold = false;
+            cost = 0; // no single number applies here - IsMultiCost below picks the right message
+            for (int i = 0; i < option.costItemIds.Length; i++)
+            {
+                if (playerInventory.GetCount(option.costItemIds[i]) < option.costAmounts[i]) return false;
+            }
+            for (int i = 0; i < option.costItemIds.Length; i++)
+            {
+                playerInventory.RemoveAmount(option.costItemIds[i], option.costAmounts[i]);
+            }
+            return true;
+        }
+
         isGold = option.costItemId == ItemIds.Gold;
         cost = isGold ? Mathf.RoundToInt(option.costAmount * playerStats.ShopPriceMultiplier) : option.costAmount;
         return playerInventory.GetCount(option.costItemId) >= cost && playerInventory.RemoveAmount(option.costItemId, cost);
     }
+
+    static bool IsMultiCost(DialogueOption option) => option.costItemIds != null && option.costItemIds.Length > 0;
 
     void ChooseOption(DialogueOption option)
     {
@@ -305,7 +324,9 @@ public class DialogueManager : MonoBehaviour, UIWindowStack.IWindow
             if (!TryPayCost(option, out int cost, out bool isGold))
             {
                 closing = true;
-                bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)." : "Materiaux insuffisants (" + cost + " requis).";
+                bodyText.text = isGold ? "Vous n'avez pas assez d'or (" + cost + " requis)."
+                    : IsMultiCost(option) ? "Materiaux insuffisants."
+                    : "Materiaux insuffisants (" + cost + " requis).";
                 StartCoroutine(CloseAfterDelay(1.5f));
                 return;
             }

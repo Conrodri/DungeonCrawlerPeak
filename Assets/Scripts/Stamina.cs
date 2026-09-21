@@ -16,6 +16,11 @@ public class Stamina : MonoBehaviour
     public event Action<float, float> OnStaminaChanged;
 
     float lastDrainTime = -999f;
+    // Potion d'Adrenaline (2026-09-21 request: "recupere 2x plus vite l'endurance pendant 2
+    // minutes") - same "strongest wins, duration extends" pattern as PlayerController's
+    // ApplySlow/ApplyHaste, just for regen speed instead of move speed.
+    float regenBuffMultiplier = 1f;
+    float regenBuffEndTime = -999f;
 
     void Awake()
     {
@@ -25,8 +30,15 @@ public class Stamina : MonoBehaviour
     void Update()
     {
         if (currentStamina >= maxStamina || Time.time - lastDrainTime < regenDelay) return;
-        currentStamina = Mathf.Min(maxStamina, currentStamina + regenPerSecond * Time.deltaTime);
+        float multiplier = Time.time < regenBuffEndTime ? regenBuffMultiplier : 1f;
+        currentStamina = Mathf.Min(maxStamina, currentStamina + regenPerSecond * multiplier * Time.deltaTime);
         OnStaminaChanged?.Invoke(currentStamina, maxStamina);
+    }
+
+    public void ApplyRegenBuff(float multiplier, float duration)
+    {
+        if (Time.time >= regenBuffEndTime || multiplier > regenBuffMultiplier) regenBuffMultiplier = multiplier;
+        regenBuffEndTime = Mathf.Max(regenBuffEndTime, Time.time + duration);
     }
 
     public void Drain(float amount)
