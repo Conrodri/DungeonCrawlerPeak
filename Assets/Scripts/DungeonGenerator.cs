@@ -420,6 +420,99 @@ public static class DungeonGenerator
         "       XXX",
         "        XX",
     };
+    // 2026-09-22 weapon-types request - 7 new item icon masks (Short Sword reuses SwordMask above,
+    // just re-tinted; the Shuriken launcher reuses ShurikenMask above, same reasoning).
+    static readonly string[] HalberdMask =
+    {
+        "   XXXXX  ",
+        "  XX   XX ",
+        "   XXXXX  ",
+        "    XX    ",
+        "   XXXX   ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+    };
+    static readonly string[] SpikedGlovesMask =
+    {
+        "X X X X X ",
+        "XXXXXXXXX ",
+        "XXXXXXXXX ",
+        "XXXXXXXXX ",
+        " XXXXXXX  ",
+        "  XXXXX   ",
+        "          ",
+        "          ",
+        "          ",
+        "          ",
+    };
+    static readonly string[] RapierMask =
+    {
+        "     X    ",
+        "     X    ",
+        "     X    ",
+        "     X    ",
+        "     X    ",
+        "     X    ",
+        "    XXX   ",
+        "     X    ",
+        "    XXX   ",
+        "     X    ",
+    };
+    static readonly string[] HammerMask =
+    {
+        " XXXXXXX  ",
+        " XXXXXXX  ",
+        " XXXXXXX  ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+    static readonly string[] SlingMask =
+    {
+        "XX      XX",
+        " XX    XX ",
+        "  XX  XX  ",
+        "   XXXX   ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "    XX    ",
+        "   XXXX   ",
+        "    XX    ",
+    };
+    static readonly string[] RevolverMask =
+    {
+        "XXXXXX    ",
+        "      X   ",
+        "XXXXXXX   ",
+        "X     X   ",
+        "X      X  ",
+        " X     X  ",
+        " XX    X  ",
+        "  XXXXXX  ",
+        "          ",
+        "          ",
+    };
+    static readonly string[] BowMask =
+    {
+        "   XXXXX  ",
+        "  XX    X ",
+        " XX     X ",
+        "XX      X ",
+        "XXXXXXXXXX",
+        "XX      X ",
+        " XX     X ",
+        "  XX    X ",
+        "   XXXXX  ",
+        "          ",
+    };
     // A simple diagonal handle on a wide base plate - reads as "lever/switch" at a glance instead
     // of a plain square indistinguishable from room decor (StoneBlock/WoodDebris/MetalDebris all
     // use CreateSolidSprite, no masked shape - see 2026-09-16 lever visibility rework).
@@ -2493,6 +2586,19 @@ public static class DungeonGenerator
         Sprite caillouSprite = CreateCircleSprite("Assets/Art/Items/Caillou.png", new Color(0.45f, 0.42f, 0.4f));
         Sprite batonSprite = CreateMaskedSprite("Assets/Art/Items/Baton.png", BatonMask, new Color(0.5f, 0.35f, 0.2f));
 
+        // 2026-09-22 weapon-types request - Short Sword reuses SwordMask (still a sword, just
+        // shorter/faster) and the Shuriken launcher reuses ShurikenMask (see ItemIds.ShurikenLauncher)
+        // rather than duplicating either shape, only re-tinted.
+        Sprite halberdSprite = CreateMaskedSprite("Assets/Art/Items/Halberd.png", HalberdMask, new Color(0.7f, 0.72f, 0.78f));
+        Sprite shortSwordSprite = CreateMaskedSprite("Assets/Art/Items/ShortSword.png", SwordMask, new Color(0.82f, 0.84f, 0.87f));
+        Sprite spikedGlovesSprite = CreateMaskedSprite("Assets/Art/Items/SpikedGloves.png", SpikedGlovesMask, new Color(0.35f, 0.3f, 0.28f));
+        Sprite rapierSprite = CreateMaskedSprite("Assets/Art/Items/Rapier.png", RapierMask, new Color(0.85f, 0.85f, 0.9f));
+        Sprite hammerSprite = CreateMaskedSprite("Assets/Art/Items/Hammer.png", HammerMask, new Color(0.4f, 0.38f, 0.4f));
+        Sprite slingSprite = CreateMaskedSprite("Assets/Art/Items/Sling.png", SlingMask, new Color(0.5f, 0.35f, 0.2f));
+        Sprite shurikenLauncherSprite = CreateMaskedSprite("Assets/Art/Items/ShurikenLauncher.png", ShurikenMask, new Color(0.5f, 0.5f, 0.58f));
+        Sprite revolverSprite = CreateMaskedSprite("Assets/Art/Items/Revolver.png", RevolverMask, new Color(0.25f, 0.25f, 0.28f));
+        Sprite bowSprite = CreateMaskedSprite("Assets/Art/Items/Bow.png", BowMask, new Color(0.55f, 0.4f, 0.22f));
+
         assets.fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         assets.swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
         // Electric cyan/violet, deliberately unlike the plain Projectile tint above so the orb
@@ -2526,6 +2632,37 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Equipement, 1, staffItemSprite,
             "Un baton qui canalise des projectiles magiques.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
             isWeapon: true, weaponType: PlayerController.WeaponType.Staff, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+
+        // 2026-09-22 request: 5 new melee + 4 new ranged (infinite-ammo) weapon types - same
+        // equippable-item pattern as Sword/Staff above, just their own PlayerController.WeaponType.
+        RegisterItem(itemEntries, ItemIds.Halberd, "Hallebarde", ItemCategory.Equipement, 1, halberdSprite,
+            "Lente, longue portee, coups lourds qui repoussent violemment.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Halberd, maxDurability: 50, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.ShortSword, "Epee Courte", ItemCategory.Equipement, 1, shortSwordSprite,
+            "Rapide a manier, portee courte, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.ShortSword, maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.SpikedGloves, "Gants a Pics", ItemCategory.Equipement, 1, spikedGlovesSprite,
+            "Portee minuscule, mais chaque coup repousse bien.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.SpikedGloves, maxDurability: 35, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Rapier, "Estoc", ItemCategory.Equipement, 1, rapierSprite,
+            "Une lame fine, faite pour l'estoc : longue portee, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Rapier, maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Hammer, "Marteau", ItemCategory.Equipement, 1, hammerSprite,
+            "Le plus lourd et le plus lent, mais rien ne resiste a son recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Hammer, maxDurability: 55, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Sling, "Lance-Pierre", ItemCategory.Equipement, 1, slingSprite,
+            "Munitions infinies, portee moyenne, recul moyen.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Sling, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.ShurikenLauncher, "Lanceur de Shurikens", ItemCategory.Equipement, 1, shurikenLauncherSprite,
+            "Munitions infinies, tirs rapides et legers, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Shuriken, maxDurability: 35, material: MaterialType.Metal, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Revolver, "Revolver", ItemCategory.Equipement, 1, revolverSprite,
+            "6 coups puis rechargement de 2 secondes, munitions infinies, recul enorme.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Revolver, maxDurability: 45, material: MaterialType.Metal, rarity: 3);
+        RegisterItem(itemEntries, ItemIds.Bow, "Arc", ItemCategory.Equipement, 1, bowSprite,
+            "Munitions infinies. Maintenez pour charger : plus la charge est longue, plus le tir frappe et repousse fort.",
+            isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Bow, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
 
         // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
         // never in the common LootTable drop pool.
@@ -4734,6 +4871,9 @@ public static class DungeonGenerator
     {
         ItemIds.Sword, ItemIds.Staff, ItemIds.HealthPotion, ItemIds.Gold,
         ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Bomb,
+        // 2026-09-22 weapon-types request - same treatment as Sword/Staff above.
+        ItemIds.Halberd, ItemIds.ShortSword, ItemIds.SpikedGloves, ItemIds.Rapier, ItemIds.Hammer,
+        ItemIds.Sling, ItemIds.ShurikenLauncher, ItemIds.Revolver, ItemIds.Bow,
         ItemIds.Wood, ItemIds.Metal, ItemIds.Stone,
         ItemIds.IronHelmet, ItemIds.LeatherPauldrons, ItemIds.CombatGloves, ItemIds.WalkingBoots,
         ItemIds.SimpleNecklace, ItemIds.LeatherBelt, ItemIds.LeatherKneepads, ItemIds.SimpleRing,

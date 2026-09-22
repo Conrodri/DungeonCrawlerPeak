@@ -7,7 +7,11 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(PlayerInventory))]
 public class PlayerController : MonoBehaviour
 {
-    public enum WeaponType { Fist, Sword, Staff }
+    // 2026-09-22 request: 5 new melee types (Halberd/ShortSword/SpikedGloves/Rapier/Hammer) + 4 new
+    // ranged types (Sling/Shuriken/Revolver/Bow) - see IsMeleeWeapon/KnockbackFor and the matching
+    // [Header] blocks below for their stats, and TryAttack's switch for how each one actually swings/
+    // fires.
+    public enum WeaponType { Fist, Sword, Staff, Halberd, ShortSword, SpikedGloves, Rapier, Hammer, Sling, Shuriken, Revolver, Bow }
 
     public float moveSpeed = 5f;
 
@@ -89,6 +93,54 @@ public class PlayerController : MonoBehaviour
     public float swordArcHalfDegrees = 90f;
     public float swordStaminaCost = 8f;
 
+    // 2026-09-22 request: "hallebardes (plus lent plus d'allonge plus de degats, huge push)" - same
+    // arc-sweep shape as Sword (see SwordSlash/swordArcHalfDegrees, reused rather than duplicated),
+    // just bigger radius/damage and slower on both ends (cooldown AND the visual sweep itself).
+    [Header("Halberd")]
+    public int halberdDamage = 26;
+    public float halberdRange = 0.9f;
+    public float halberdOffset = 1.3f;
+    public float halberdCooldown = 0.85f;
+    public float halberdSwingDuration = 0.65f;
+    public float halberdStaminaCost = 14f;
+
+    // "epee courte (short range, cd rapide, coup rapide low push)" - a poke like Fist (see
+    // MeleeAttack), not an arc sweep: fast and precise instead of a wide swing.
+    [Header("Short Sword")]
+    public int shortSwordDamage = 10;
+    public float shortSwordRange = 0.5f;
+    public float shortSwordOffset = 0.6f;
+    public float shortSwordCooldown = 0.28f;
+    public float shortSwordStaminaCost = 6f;
+
+    // "gants a pics (ultra short range, mid push)" - same poke shape as Short Sword, just even
+    // tighter reach.
+    [Header("Spiked Gloves")]
+    public int spikedGlovesDamage = 8;
+    public float spikedGlovesRange = 0.6f;
+    public float spikedGlovesOffset = 0.5f;
+    public float spikedGlovesCooldown = 0.3f;
+    public float spikedGlovesStaminaCost = 5f;
+
+    // "arme d'estoc" - a thrusting weapon: long reach but a narrow hit (large offset, small range),
+    // still just a poke like Fist/Short Sword/Spiked Gloves above, not a new hit shape.
+    [Header("Rapier")]
+    public int rapierDamage = 11;
+    public float rapierRange = 0.4f;
+    public float rapierOffset = 1.1f;
+    public float rapierCooldown = 0.35f;
+    public float rapierStaminaCost = 7f;
+
+    // "marteau" - heaviest melee weapon: highest damage, slowest cooldown, huge push. Arc sweep
+    // like Sword/Halberd, not a poke - a hammer swing reads as a wide blow, not a jab.
+    [Header("Hammer")]
+    public int hammerDamage = 30;
+    public float hammerRange = 0.8f;
+    public float hammerOffset = 1.0f;
+    public float hammerCooldown = 1.0f;
+    public float hammerSwingDuration = 0.75f;
+    public float hammerStaminaCost = 16f;
+
     [Header("Staff")]
     public int staffDamage = 8;
     public float staffCooldown = 0.5f;
@@ -96,6 +148,50 @@ public class PlayerController : MonoBehaviour
     // The staff isn't hitscan/infinite range: it reaches three sword-lengths out.
     public float staffRangeMultiplier = 3f;
     public float staffStaminaCost = 10f;
+
+    // 2026-09-22 request: 4 physical ranged weapons, all infinite ammo (nothing consumed from the
+    // inventory, unlike Shuriken/Caillou/Baton the throwables) - reuse LaunchProjectile exactly like
+    // Staff does, just with their own damage/speed/range/push instead of Staff's magic damage.
+    [Header("Sling")]
+    public int slingDamage = 9;
+    public float slingCooldown = 0.45f;
+    public float slingProjectileSpeed = 10f;
+    public float slingRange = 7f;
+    public float slingStaminaCost = 6f;
+
+    // "shuriken munitions infini slow push" - distinct WeaponType/item from the throwable Shuriken
+    // (ItemIds.Shuriken, a consumable stack) - this is the equippable launcher, never consumes it.
+    [Header("Shuriken Weapon")]
+    public int shurikenWeaponDamage = 7;
+    public float shurikenWeaponCooldown = 0.3f;
+    public float shurikenWeaponProjectileSpeed = 13f;
+    public float shurikenWeaponRange = 6f;
+    public float shurikenWeaponStaminaCost = 4f;
+
+    // "revolver (6 coups puis recharge 2 sec) munitions infinies huge push" - see revolverAmmo/
+    // revolverReloadEndTime below (TryAttack) for the clip/reload state machine.
+    [Header("Revolver")]
+    public int revolverDamage = 16;
+    public float revolverCooldown = 0.35f;
+    public float revolverProjectileSpeed = 16f;
+    public float revolverRange = 9f;
+    public float revolverStaminaCost = 8f;
+    public int revolverAmmoCapacity = 6;
+    public float revolverReloadDuration = 2f;
+
+    // "arc munitions infinies short push to huge push (arme avec charge possible, le push et les
+    // degats dependent de la charge)" - hold the aim direction to charge, release to fire (see
+    // UpdateBowCharge/FireBow) rather than firing on press like every other weapon.
+    [Header("Bow")]
+    public int bowMinDamage = 6;
+    public int bowMaxDamage = 22;
+    // Lockout after a shot before the NEXT charge can start - not a "rate of fire" in the normal
+    // sense since firing itself is gated by charge+release, not this cooldown alone.
+    public float bowCooldown = 0.4f;
+    public float bowProjectileSpeed = 13f;
+    public float bowRange = 10f;
+    public float bowStaminaCost = 9f;
+    public float bowMaxChargeDuration = 1.2f;
 
     [Header("Throwables")]
     public int throwDamage = 8;
@@ -160,6 +256,34 @@ public class PlayerController : MonoBehaviour
     float StaffMaxRange => SwordReach * staffRangeMultiplier;
     float ThrowMaxRange => SwordReach * throwRangeMultiplier;
 
+    // Push tiers for the 2026-09-22 weapon-types request (see Health.OnDamagedFrom/EnemyController.
+    // HandleDamagedFrom) - a multiplier on the receiving enemy's own base stagger speed, not a flat
+    // distance, so it scales naturally with however that base ever gets tuned. KnockbackNormal (1)
+    // is every weapon that existed before this request (Fist/Sword/Staff) - unchanged feel.
+    const float KnockbackNormal = 1f;
+    const float KnockbackLow = 0.6f;
+    const float KnockbackMid = 1.3f;
+    const float KnockbackHuge = 2.2f;
+
+    static bool IsMeleeWeapon(WeaponType weapon) => weapon == WeaponType.Fist || weapon == WeaponType.Sword
+        || weapon == WeaponType.Halberd || weapon == WeaponType.ShortSword || weapon == WeaponType.SpikedGloves
+        || weapon == WeaponType.Rapier || weapon == WeaponType.Hammer;
+
+    // Base push tier per weapon (Bow excluded - its push scales continuously with charge, see
+    // FireBow, instead of picking one fixed tier).
+    static float KnockbackFor(WeaponType weapon) => weapon switch
+    {
+        WeaponType.Halberd => KnockbackHuge,
+        WeaponType.ShortSword => KnockbackLow,
+        WeaponType.SpikedGloves => KnockbackMid,
+        WeaponType.Rapier => KnockbackLow,
+        WeaponType.Hammer => KnockbackHuge,
+        WeaponType.Sling => KnockbackMid,
+        WeaponType.Shuriken => KnockbackLow,
+        WeaponType.Revolver => KnockbackHuge,
+        _ => KnockbackNormal,
+    };
+
     Rigidbody2D rb;
     Health health;
     Stamina stamina;
@@ -179,6 +303,15 @@ public class PlayerController : MonoBehaviour
     float lastLightningOrbTime = -999f;
     float lastFireballTime = -999f;
     float lastFireLineTime = -999f;
+    // Revolver's 6-shot clip (see TryAttack's Revolver case) - starts negative so the very first
+    // shot ever fired always finds ammo<=0 with reloadEndTime already in the past and refills
+    // straight to full instead of forcing an idle reload wait before the player's first shot.
+    int revolverAmmo = -1;
+    float revolverReloadEndTime = -999f;
+    // Bow's hold-to-charge/release-to-fire state (see UpdateBowCharge/FireBow) - unlike every other
+    // weapon, which fires the instant the aim direction is pressed.
+    bool isBowCharging;
+    float bowChargeStartTime;
     // Small forward "step" on a melee swing (Fist/Sword, see MeleeAttack) - a plain root (velocity
     // zero for the whole attackLockEndTime window) read as the character just standing still while
     // punching, this gives the first sliver of that window a forward nudge instead so it reads as
@@ -295,7 +428,10 @@ public class PlayerController : MonoBehaviour
         else statusIcons.HideIcon(BrokenArmIconKey);
     }
 
-    void HandleDamagedFrom(Vector2 fromPosition)
+    // knockback (2nd param) is only meaningful for the player's own outgoing weapon hits (see
+    // EnemyController.HandleDamagedFrom) - whatever hit the PLAYER never sets a push tier, so it's
+    // ignored here; the player's own incoming stagger stays the fixed pop it always was.
+    void HandleDamagedFrom(Vector2 fromPosition, float knockback)
     {
         if (Time.time - lastStaggerTime < StaggerCooldown) return;
 
@@ -410,6 +546,13 @@ public class PlayerController : MonoBehaviour
             // The direction press itself is the throw, not a melee swing - TryAttack is skipped
             // entirely while something is armed (see UseItem).
             if (directionPressedThisFrame) { ThrowArmedItem(); directionConsumedByThrowOrCast = aim; }
+        }
+        else if (currentWeapon == WeaponType.Bow)
+        {
+            // Bow doesn't fire on press like every other weapon - holding the aim direction charges
+            // the shot, releasing it fires (see UpdateBowCharge/FireBow, 2026-09-22 request: "arme
+            // avec charge possible, le push et les degats dependent de la charge").
+            UpdateBowCharge(aim);
         }
         else if (aim != Vector2.zero && aim != directionConsumedByThrowOrCast)
         {
@@ -611,6 +754,7 @@ public class PlayerController : MonoBehaviour
         if (weaponLocked) return;
         currentWeapon = weapon;
         currentWeaponItemId = itemId;
+        isBowCharging = false; // switching weapons mid-charge shouldn't leave a stale draw armed
         Debug.Log("Equipped item " + itemId + " (" + weapon + ")");
     }
 
@@ -624,6 +768,7 @@ public class PlayerController : MonoBehaviour
         if (currentWeaponItemId != itemId) return;
         currentWeapon = WeaponType.Fist;
         currentWeaponItemId = null;
+        isBowCharging = false;
     }
 
     public void UnlockWeapon()
@@ -640,15 +785,61 @@ public class PlayerController : MonoBehaviour
         Debug.Log("Main d'arme : " + weaponHand);
     }
 
+    // Base (pre-multiplier) cooldown/stamina cost for every weapon - Bow excluded, since it never
+    // reaches this method (see UpdateBowCharge/FireBow, dispatched separately from Update()).
+    float BaseCooldownFor(WeaponType weapon) => weapon switch
+    {
+        WeaponType.Fist => fistCooldown,
+        WeaponType.Sword => swordCooldown,
+        WeaponType.Halberd => halberdCooldown,
+        WeaponType.ShortSword => shortSwordCooldown,
+        WeaponType.SpikedGloves => spikedGlovesCooldown,
+        WeaponType.Rapier => rapierCooldown,
+        WeaponType.Hammer => hammerCooldown,
+        WeaponType.Staff => staffCooldown,
+        WeaponType.Sling => slingCooldown,
+        WeaponType.Shuriken => shurikenWeaponCooldown,
+        WeaponType.Revolver => revolverCooldown,
+        _ => fistCooldown,
+    };
+
+    float BaseStaminaCostFor(WeaponType weapon) => weapon switch
+    {
+        WeaponType.Fist => fistStaminaCost,
+        WeaponType.Sword => swordStaminaCost,
+        WeaponType.Halberd => halberdStaminaCost,
+        WeaponType.ShortSword => shortSwordStaminaCost,
+        WeaponType.SpikedGloves => spikedGlovesStaminaCost,
+        WeaponType.Rapier => rapierStaminaCost,
+        WeaponType.Hammer => hammerStaminaCost,
+        WeaponType.Staff => staffStaminaCost,
+        WeaponType.Sling => slingStaminaCost,
+        WeaponType.Shuriken => shurikenWeaponStaminaCost,
+        WeaponType.Revolver => revolverStaminaCost,
+        _ => fistStaminaCost,
+    };
+
     void TryAttack()
     {
-        // Attack speed only affects physical weapons (Fist/Sword) - no equivalent bonus was
-        // requested for the Staff's magic cooldown. Level 5 Melee (see PlayerSkills) speeds up the
-        // same two weapons further on top of Dexterite's own AttackSpeedMultiplier.
+        // Revolver's clip (2026-09-22 request: "6 coups puis recharge 2 sec") - checked before the
+        // shared cooldown/stamina gate below so an empty clip neither drains stamina nor locks the
+        // attack while just waiting out the reload. revolverAmmo starts at -1 (see field comment) so
+        // the very first shot ever fired always finds this "empty" and refills straight to full.
+        if (currentWeapon == WeaponType.Revolver && revolverAmmo <= 0)
+        {
+            if (revolverAmmo == 0 && Time.time < revolverReloadEndTime) return;
+            revolverAmmo = revolverAmmoCapacity;
+        }
+
+        // Attack speed only affects melee weapons (Fist/Sword/Halberd/Short Sword/Spiked Gloves/
+        // Rapier/Hammer) - no equivalent bonus was requested for Staff's magic cooldown or the 4
+        // physical ranged weapons added 2026-09-22 (Sling/Shuriken/Revolver), which stay outside it
+        // for the same reason Staff always has. Level 5 Melee (see PlayerSkills) speeds up the same
+        // melee weapons further on top of Dexterite's own AttackSpeedMultiplier.
+        bool isMelee = IsMeleeWeapon(currentWeapon);
         float meleeCooldownMultiplier = skills != null ? skills.MeleeCooldownMultiplier : 1f;
-        float cooldown = (currentWeapon == WeaponType.Fist ? fistCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
-            : currentWeapon == WeaponType.Sword ? swordCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier
-            : staffCooldown) * WeaponHandCooldownMultiplier;
+        float baseCooldown = BaseCooldownFor(currentWeapon);
+        float cooldown = (isMelee ? baseCooldown / stats.AttackSpeedMultiplier * meleeCooldownMultiplier : baseCooldown) * WeaponHandCooldownMultiplier;
 
         if (Time.time - lastAttackTime < cooldown) return;
 
@@ -656,8 +847,7 @@ public class PlayerController : MonoBehaviour
         // empty stamina blocks the swing outright (same gate Update's sprint check already uses),
         // rather than letting it go through for free or drain below zero.
         if (stamina.currentStamina <= 0f) return;
-        float staminaCost = (currentWeapon == WeaponType.Fist ? fistStaminaCost
-            : currentWeapon == WeaponType.Sword ? swordStaminaCost : staffStaminaCost) * stats.AttackStaminaCostMultiplier;
+        float staminaCost = BaseStaminaCostFor(currentWeapon) * stats.AttackStaminaCostMultiplier;
         stamina.Drain(staminaCost);
 
         lastAttackTime = Time.time;
@@ -670,15 +860,50 @@ public class PlayerController : MonoBehaviour
         {
             case WeaponType.Fist:
                 if (AdvanceMeleeCombo())
-                    ComboFinisherAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
+                    ComboFinisherAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite, KnockbackNormal);
                 else
-                    MeleeAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite);
+                    MeleeAttack(fistOffset * stats.RangeMultiplier, fistRange * stats.RangeMultiplier, ScaledPhysicalDamage(fistDamage), fistVisualSprite, KnockbackNormal);
                 break;
             case WeaponType.Sword:
                 if (AdvanceMeleeCombo())
-                    ComboFinisherAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                    ComboFinisherAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite, KnockbackNormal);
                 else
-                    SwordSlash((swordOffset + swordRange) * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite);
+                    SwordSlash((swordOffset + swordRange) * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite, swordArcHalfDegrees, swordSwingDuration, KnockbackNormal);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.Halberd:
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(halberdOffset * stats.RangeMultiplier, halberdRange * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, KnockbackHuge);
+                else
+                    SwordSlash((halberdOffset + halberdRange) * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, swordArcHalfDegrees, halberdSwingDuration, KnockbackHuge);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.Hammer:
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(hammerOffset * stats.RangeMultiplier, hammerRange * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, KnockbackHuge);
+                else
+                    SwordSlash((hammerOffset + hammerRange) * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, swordArcHalfDegrees, hammerSwingDuration, KnockbackHuge);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.ShortSword:
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(shortSwordOffset * stats.RangeMultiplier, shortSwordRange * stats.RangeMultiplier, ScaledPhysicalDamage(shortSwordDamage), fistVisualSprite, KnockbackLow);
+                else
+                    MeleeAttack(shortSwordOffset * stats.RangeMultiplier, shortSwordRange * stats.RangeMultiplier, ScaledPhysicalDamage(shortSwordDamage), fistVisualSprite, KnockbackLow);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.SpikedGloves:
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(spikedGlovesOffset * stats.RangeMultiplier, spikedGlovesRange * stats.RangeMultiplier, ScaledPhysicalDamage(spikedGlovesDamage), fistVisualSprite, KnockbackMid);
+                else
+                    MeleeAttack(spikedGlovesOffset * stats.RangeMultiplier, spikedGlovesRange * stats.RangeMultiplier, ScaledPhysicalDamage(spikedGlovesDamage), fistVisualSprite, KnockbackMid);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.Rapier:
+                if (AdvanceMeleeCombo())
+                    ComboFinisherAttack(rapierOffset * stats.RangeMultiplier, rapierRange * stats.RangeMultiplier, ScaledPhysicalDamage(rapierDamage), fistVisualSprite, KnockbackLow);
+                else
+                    MeleeAttack(rapierOffset * stats.RangeMultiplier, rapierRange * stats.RangeMultiplier, ScaledPhysicalDamage(rapierDamage), fistVisualSprite, KnockbackLow);
                 DamageWeaponDurability();
                 break;
             case WeaponType.Staff:
@@ -686,7 +911,62 @@ public class PlayerController : MonoBehaviour
                 LaunchProjectile(projectileSprite, ScaledMagicDamage(staffDamage), projectileSpeed, StaffMaxRange);
                 DamageWeaponDurability();
                 break;
+            case WeaponType.Sling:
+                comboCount = 0;
+                LaunchProjectile(projectileSprite, ScaledPhysicalDamage(slingDamage), slingProjectileSpeed, slingRange * stats.RangeMultiplier, KnockbackMid);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.Shuriken:
+                comboCount = 0;
+                LaunchProjectile(projectileSprite, ScaledPhysicalDamage(shurikenWeaponDamage), shurikenWeaponProjectileSpeed, shurikenWeaponRange * stats.RangeMultiplier, KnockbackLow);
+                DamageWeaponDurability();
+                break;
+            case WeaponType.Revolver:
+                comboCount = 0;
+                revolverAmmo--;
+                if (revolverAmmo <= 0) revolverReloadEndTime = Time.time + revolverReloadDuration;
+                LaunchProjectile(projectileSprite, ScaledPhysicalDamage(revolverDamage), revolverProjectileSpeed, revolverRange * stats.RangeMultiplier, KnockbackHuge);
+                DamageWeaponDurability();
+                break;
         }
+    }
+
+    // Bow never calls TryAttack (see Update's dispatch) - holding the aim direction charges instead
+    // of firing immediately, releasing it fires via FireBow below with damage/push scaled by however
+    // long it was held (2026-09-22 request).
+    void UpdateBowCharge(Vector2 aim)
+    {
+        if (aim != Vector2.zero)
+        {
+            if (!isBowCharging && Time.time - lastAttackTime >= bowCooldown * WeaponHandCooldownMultiplier && stamina.currentStamina > 0f)
+            {
+                isBowCharging = true;
+                bowChargeStartTime = Time.time;
+            }
+            return;
+        }
+
+        if (isBowCharging)
+        {
+            isBowCharging = false;
+            FireBow();
+        }
+    }
+
+    void FireBow()
+    {
+        float chargeFraction = Mathf.Clamp01((Time.time - bowChargeStartTime) / bowMaxChargeDuration);
+        float cooldown = bowCooldown * WeaponHandCooldownMultiplier;
+        lastAttackTime = Time.time;
+        attackLockEndTime = Time.time + cooldown;
+
+        stamina.Drain(bowStaminaCost * stats.AttackStaminaCostMultiplier);
+
+        int damage = Mathf.RoundToInt(Mathf.Lerp(bowMinDamage, bowMaxDamage, chargeFraction));
+        float knockback = Mathf.Lerp(KnockbackLow, KnockbackHuge, chargeFraction);
+        comboCount = 0;
+        LaunchProjectile(projectileSprite, ScaledPhysicalDamage(damage), bowProjectileSpeed, bowRange * stats.RangeMultiplier, knockback);
+        DamageWeaponDurability();
     }
 
     // 3rd chained melee swing (Fist or Sword, see ComboWindow) becomes the finisher instead of a
@@ -926,7 +1206,7 @@ public class PlayerController : MonoBehaviour
         return damage;
     }
 
-    void MeleeAttack(float offset, float range, int damage, Sprite visualSprite)
+    void MeleeAttack(float offset, float range, int damage, Sprite visualSprite, float knockback = KnockbackNormal)
     {
         damage = PrepareMeleeDamage(damage);
 
@@ -940,7 +1220,7 @@ public class PlayerController : MonoBehaviour
         {
             if (hit.gameObject == gameObject) continue;
             Health targetHealth = hit.GetComponent<Health>();
-            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: rb.position); connected = true; }
+            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: rb.position, knockback: knockback); connected = true; }
 
             DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
             if (destructible != null) { destructible.TryDamage(damage, stats.force); connected = true; }
@@ -959,7 +1239,10 @@ public class PlayerController : MonoBehaviour
     // actually reads as a wide sweep rather than a poke. Hit detection still resolves instantly (same
     // convention as every other attack in this file) - swordSwingDuration only controls the cosmetic
     // sweep (see SpawnSwordSwingVisual), independently of swordCooldown.
-    void SwordSlash(float radius, int damage, Sprite visualSprite)
+    // arcHalfDegrees/swingDuration are per-caller now (2026-09-22: Halberd/Hammer reuse this same
+    // arc-sweep shape with their own numbers instead of duplicating the method) - Sword's own call
+    // site passes swordArcHalfDegrees/swordSwingDuration, unchanged from before.
+    void SwordSlash(float radius, int damage, Sprite visualSprite, float arcHalfDegrees, float swingDuration, float knockback = KnockbackNormal)
     {
         damage = PrepareMeleeDamage(damage);
 
@@ -974,10 +1257,10 @@ public class PlayerController : MonoBehaviour
             if (hit.gameObject == gameObject) continue;
 
             Vector2 toHit = (hit.attachedRigidbody != null ? hit.attachedRigidbody.position : (Vector2)hit.bounds.center) - origin;
-            if (toHit.sqrMagnitude > 0.0001f && Vector2.Angle(aimDirection, toHit) > swordArcHalfDegrees) continue;
+            if (toHit.sqrMagnitude > 0.0001f && Vector2.Angle(aimDirection, toHit) > arcHalfDegrees) continue;
 
             Health targetHealth = hit.GetComponent<Health>();
-            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: origin); connected = true; }
+            if (targetHealth != null) { targetHealth.TakeDamage(damage, fromPosition: origin, knockback: knockback); connected = true; }
 
             DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
             if (destructible != null) { destructible.TryDamage(damage, stats.force); connected = true; }
@@ -986,10 +1269,10 @@ public class PlayerController : MonoBehaviour
         if (weaponLocked && !connected && health != null)
             health.TakeDamage(Mathf.CeilToInt(health.maxHealth * CurseMissDamageFraction));
 
-        SpawnSwordSwingVisual(visualSprite, radius);
+        SpawnSwordSwingVisual(visualSprite, radius, arcHalfDegrees, swingDuration);
     }
 
-    void SpawnSwordSwingVisual(Sprite sprite, float radius)
+    void SpawnSwordSwingVisual(Sprite sprite, float radius, float arcHalfDegrees, float swingDuration)
     {
         if (sprite == null) return;
 
@@ -998,8 +1281,8 @@ public class PlayerController : MonoBehaviour
         swing.anchor = transform;
         swing.aimDirection = aimDirection;
         swing.radius = radius;
-        swing.halfArcDegrees = swordArcHalfDegrees;
-        swing.duration = swordSwingDuration;
+        swing.halfArcDegrees = arcHalfDegrees;
+        swing.duration = swingDuration;
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
@@ -1012,7 +1295,7 @@ public class PlayerController : MonoBehaviour
     // box, spaced no further apart than `range` so consecutive circles overlap and nothing between
     // sample points is missed; a HashSet keeps each target from being hit twice where two circles
     // overlap the same target.
-    void ComboFinisherAttack(float offset, float range, int damage, Sprite visualSprite)
+    void ComboFinisherAttack(float offset, float range, int damage, Sprite visualSprite, float knockback = KnockbackNormal)
     {
         damage = PrepareMeleeDamage(damage);
 
@@ -1032,7 +1315,7 @@ public class PlayerController : MonoBehaviour
             {
                 if (hit.gameObject == gameObject) continue;
                 Health targetHealth = hit.GetComponent<Health>();
-                if (targetHealth != null && hitHealths.Add(targetHealth)) { targetHealth.TakeDamage(damage, fromPosition: startPos); connected = true; }
+                if (targetHealth != null && hitHealths.Add(targetHealth)) { targetHealth.TakeDamage(damage, fromPosition: startPos, knockback: knockback); connected = true; }
 
                 DestructibleObject destructible = hit.GetComponent<DestructibleObject>();
                 if (destructible != null && hitDestructibles.Add(destructible)) { destructible.TryDamage(damage, stats.force); connected = true; }
@@ -1071,7 +1354,7 @@ public class PlayerController : MonoBehaviour
         renderer.sortingOrder = 1;
     }
 
-    void LaunchProjectile(Sprite sprite, int damage, float speed, float maxDistance)
+    void LaunchProjectile(Sprite sprite, int damage, float speed, float maxDistance, float knockback = KnockbackNormal)
     {
         if (skills != null)
         {
@@ -1112,6 +1395,9 @@ public class PlayerController : MonoBehaviour
         // lightning orb must not silently keep chaining on its next, completely unrelated shot.
         projectile.chainRadius = 0f;
         projectile.chainBoltSprite = null;
+        // Push tier for this shot (2026-09-22 request) - explicit every launch, same pool-hygiene
+        // reasoning as chainRadius/ignoreTag above (defaults to KnockbackNormal for Staff, unchanged).
+        projectile.knockback = knockback;
         projectile.Launch(direction);
     }
 
@@ -1163,6 +1449,10 @@ public class PlayerController : MonoBehaviour
         projectile.ignoreTag = "Player";
         projectile.chainRadius = lightningOrbChainRadius;
         projectile.chainBoltSprite = lightningBoltSprite;
+        // Pool hygiene, same reasoning as chainRadius above - a pooled instance previously fired by
+        // one of the player's ranged weapons (Sling/Shuriken/Revolver/Bow) could otherwise leak its
+        // push tier onto this spell (2026-09-22).
+        projectile.knockback = 1f;
         projectile.Launch(direction);
     }
 

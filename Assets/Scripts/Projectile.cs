@@ -21,6 +21,11 @@ public class Projectile : MonoBehaviour
     // entre tous les ennemis a moins de 2 unites de l'impact".
     public float chainRadius = 0f;
     public Sprite chainBoltSprite;
+    // Push tier for the player's ranged weapons (2026-09-22: Sling/Shuriken/Revolver/Bow) - see
+    // Health.OnDamagedFrom. 1 (no-op) by default so every other caster (Staff, boss volleys) keeps
+    // its current fixed push; explicitly reset by PlayerController.LaunchProjectile every launch,
+    // same pool-hygiene reasoning as chainRadius/chainBoltSprite above.
+    public float knockback = 1f;
 
     Rigidbody2D rb;
     Collider2D ownCollider;
@@ -75,7 +80,7 @@ public class Projectile : MonoBehaviour
         // PlayerLimbs there), and a random body-part roll + armor mitigation on the rare
         // projectile that actually lands on the player (a boss volley - see BossController).
         Health health = collision.collider.GetComponent<Health>();
-        if (health != null) health.TakeDamageFromEnemy(damage, AttackSource.Random, transform.position);
+        if (health != null) health.TakeDamageFromEnemy(damage, AttackSource.Random, transform.position, knockback);
 
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);

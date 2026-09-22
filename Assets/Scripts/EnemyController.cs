@@ -301,11 +301,15 @@ public class EnemyController : MonoBehaviour
         else statusIcons.HideIcon(BrokenArmIconKey);
     }
 
-    void HandleDamagedFrom(Vector2 fromPosition)
+    // knockback multiplier from the attacker's weapon (2026-09-22 weapon-types request: Halberd/
+    // Hammer/Revolver "huge push" vs Epee Courte/Rapier/Shuriken "low push" etc, see
+    // PlayerController's KnockbackLow/Mid/Huge and Health.OnDamagedFrom) - 1 for anything that
+    // doesn't set one (enemy contact damage, boss attacks), so this is a pure no-op there.
+    void HandleDamagedFrom(Vector2 fromPosition, float knockback)
     {
         Vector2 away = rb.position - fromPosition;
         if (away.sqrMagnitude < 0.0001f) away = UnityEngine.Random.insideUnitCircle.normalized;
-        staggerVelocity = away.normalized * StaggerSpeed;
+        staggerVelocity = away.normalized * StaggerSpeed * knockback;
         staggerEndTime = Time.time + StaggerDuration;
     }
 

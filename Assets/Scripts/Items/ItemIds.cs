@@ -12,6 +12,19 @@ public static class ItemIds
     public const string Sword = "sword";
     public const string Staff = "staff";
     public const string CursedSword = "cursed_sword";
+    // 2026-09-22 request: 5 new melee weapon types + 4 new ranged (infinite-ammo) weapon types - see
+    // PlayerController.WeaponType/DungeonGenerator's item registration for their stats/icons.
+    // ShurikenLauncher is deliberately a separate id from Shuriken above - that one stays the
+    // consumable throwable stack, this is the equippable weapon that never consumes it.
+    public const string Halberd = "halberd";
+    public const string ShortSword = "short_sword";
+    public const string SpikedGloves = "spiked_gloves";
+    public const string Rapier = "rapier";
+    public const string Hammer = "hammer";
+    public const string Sling = "sling";
+    public const string ShurikenLauncher = "shuriken_launcher";
+    public const string Revolver = "revolver";
+    public const string Bow = "bow";
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";
     public const string CerberusCollar = "cerberus_collar";

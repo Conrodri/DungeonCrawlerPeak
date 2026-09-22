@@ -24,8 +24,12 @@ public class Health : MonoBehaviour
     // Fired once a hit actually connects (post-dodge/invulnerable, whether the target is the
     // player or a plain-pool enemy) - ONLY when the caller supplies where the hit came from (see
     // TakeDamage/TakeDamageFromEnemy's fromPosition). Lets PlayerController/EnemyController react
-    // with a knockback/stagger without Health needing to know either of those types exist.
-    public event Action<Vector2> OnDamagedFrom;
+    // with a knockback/stagger without Health needing to know either of those types exist. The
+    // float is a knockback multiplier on top of the receiver's own base stagger (1 = unchanged;
+    // see PlayerController's per-weapon KnockbackLow/Mid/Huge tiers, 2026-09-22 weapon-types
+    // request) - EnemyController scales its stagger speed by it, PlayerController's own incoming-hit
+    // handler ignores it (only the player's outgoing weapon has a push tier, not whatever hit them).
+    public event Action<Vector2, float> OnDamagedFrom;
 
     bool isDead;
 
@@ -90,11 +94,11 @@ public class Health : MonoBehaviour
     // Returns whether the hit actually connected (false if dodged/invulnerable/already dead) - see
     // BossController.TryContactDamage, which must not award Vampirique lifesteal on a hit that
     // never landed.
-    public bool TakeDamageFromEnemy(int amount, AttackSource source, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
+    public bool TakeDamageFromEnemy(int amount, AttackSource source, Vector2? fromPosition = null, float knockback = 1f) => ApplyDamage(amount, source, fromPosition, knockback);
 
-    public bool TakeDamage(int amount, AttackSource source = AttackSource.Random, Vector2? fromPosition = null) => ApplyDamage(amount, source, fromPosition);
+    public bool TakeDamage(int amount, AttackSource source = AttackSource.Random, Vector2? fromPosition = null, float knockback = 1f) => ApplyDamage(amount, source, fromPosition, knockback);
 
-    bool ApplyDamage(int amount, AttackSource source, Vector2? fromPosition = null)
+    bool ApplyDamage(int amount, AttackSource source, Vector2? fromPosition = null, float knockback = 1f)
     {
         if (amount <= 0 || isDead || IsInvulnerable) return false;
 
@@ -106,7 +110,7 @@ public class Health : MonoBehaviour
             return false;
         }
 
-        if (fromPosition.HasValue) OnDamagedFrom?.Invoke(fromPosition.Value);
+        if (fromPosition.HasValue) OnDamagedFrom?.Invoke(fromPosition.Value, knockback);
 
         ILimbs limbs = Limbs;
         if (limbs != null)

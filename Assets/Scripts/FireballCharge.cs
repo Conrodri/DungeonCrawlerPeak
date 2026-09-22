@@ -66,6 +66,10 @@ public class FireballCharge : MonoBehaviour
         projectile.ignoreTag = ignoreTag;
         projectile.chainRadius = 0f;
         projectile.chainBoltSprite = null;
+        // Pool hygiene, same reasoning as chainRadius above - a pooled instance previously fired by
+        // one of the player's ranged weapons (Sling/Shuriken/Revolver/Bow) could otherwise leak its
+        // push tier onto this spell (2026-09-22).
+        projectile.knockback = 1f;
         projectile.Launch(direction);
 
         Destroy(gameObject);
