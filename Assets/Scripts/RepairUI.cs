@@ -13,7 +13,7 @@ public class RepairUI : MonoBehaviour, UIWindowStack.IWindow
     public GameObject root;
     public PlayerEquipment equipment;
     public PlayerInventory inventory;
-    public EquipmentSlotType[] slots; // fixed 8 (Weapon + 7 armor), in display order
+    public EquipmentSlotType[] slots; // fixed 7 (armor only - weapons don't carry durability), in display order
     public Text[] nameLabels;
     public Text[] durabilityLabels;
     public Button[] repairButtons;

@@ -101,8 +101,7 @@ public class PlayerEquipment : MonoBehaviour
 
     // Wears down whatever's equipped in this slot by `amount` - a no-op on a slot that's empty or
     // whose item has no durability (rings, trophies). Breaks and unequips outright at 0 (see
-    // PlayerLimbs.MitigateHit for armor, PlayerController.DamageWeaponDurability for weapons -
-    // though the latter doesn't go through here, base Sword/Staff aren't real ItemDefinitions).
+    // PlayerLimbs.MitigateHit for armor). Weapons don't carry durability (2026-09-22 removal).
     public void DamageDurability(EquipmentSlotType slot, int ringIndex, int amount)
     {
         string itemId = Get(slot, ringIndex);

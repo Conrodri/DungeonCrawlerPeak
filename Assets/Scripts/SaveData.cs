@@ -74,9 +74,8 @@ public class SaveData
     // Durability parallel to the equipped-item fields above (see PlayerEquipment) - 0 for a save
     // predating this feature reads as "fully worn out" on whatever's equipped, same tolerated
     // migration quirk already accepted for limbHealth* below (a prototype still under active
-    // development, not a shipped save format). currentWeaponDurability follows the same
-    // convention as PlayerController.currentWeaponDurability itself: 0 = infinite/untracked, so an
-    // old save defaults to a Sword/Staff that never breaks rather than one already broken.
+    // development, not a shipped save format). Weapons don't carry durability (2026-09-22 removal)
+    // so there's no weapon-side field here anymore - see PlayerController/DungeonGenerator.
     public int durabilityHead;
     public int durabilityShoulders;
     public int durabilityGloves;
@@ -86,11 +85,6 @@ public class SaveData
     public int durabilityKnees;
     public int[] durabilityRingsLeft;
     public int[] durabilityRingsRight;
-    public int durabilityWeapon;
-    // Only meaningful while weaponLocked (a forced/cursed weapon, never in the equipment slot) -
-    // see PlayerController.DamageWeaponDurability. A normal weapon's durability is durabilityWeapon
-    // above instead.
-    public int currentWeaponDurability;
 
     public int maxHealth;
     public int currentHealth;

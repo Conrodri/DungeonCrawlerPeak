@@ -41,19 +41,9 @@ public class PlayerController : MonoBehaviour
     // InventoryUI.IsOpen just below, so it needs no special-casing anywhere else: moveInput/
     // isSprinting zero out and FixedUpdate's velocity naturally follows suit.
     public bool cutsceneFrozen;
-    // Base Sword/Staff never go through ItemDatabase (see WeaponPickup - equipping one is a flat
-    // capability flip, not an inventory item), so their durability lives here as a plain pair of
-    // maxes instead of ItemDefinition.MaxDurability. 0 = infinite, matching that same convention -
-    // Fist's currentWeaponDurability is always 0, which is also why DamageWeaponDurability needs
-    // no explicit "is this Fist" check.
-    public int maxSwordDurability = 40;
-    public int maxStaffDurability = 40;
-    int currentWeaponDurability;
     // Which inventory item is currently worn in the PlayerEquipment.Weapon slot (see
     // EquipWeaponItem/UnequipToFistIfCurrent) - null for Fist or a curse-forced weapon (see
-    // ForceEquipWeapon, which never goes through the equipment slot at all). Durability for THIS
-    // case lives on equipment.GetDurability(EquipmentSlotType.Weapon) instead of
-    // currentWeaponDurability above - see DamageWeaponDurability.
+    // ForceEquipWeapon, which never goes through the equipment slot at all).
     string currentWeaponItemId;
     public Sprite projectileSprite;
     public Sprite fistVisualSprite;
@@ -690,21 +680,9 @@ public class PlayerController : MonoBehaviour
     bool weaponLocked;
     public bool WeaponLocked => weaponLocked;
 
-    public int CurrentWeaponDurability => currentWeaponDurability;
-    // SaveManager.Apply only - a plain field restore like weaponHand just below it, not a fresh
-    // equip (EquipWeapon/ForceEquipWeapon would reset this back to full instead of the saved value).
-    public void SetCurrentWeaponDurability(int value) => currentWeaponDurability = value;
-
-    int MaxDurabilityFor(WeaponType weapon) => weapon switch
-    {
-        WeaponType.Sword => maxSwordDurability,
-        WeaponType.Staff => maxStaffDurability,
-        _ => 0,
-    };
-
-    // SaveManager.Apply only (the non-cursed restore path) - a plain field restore like
-    // SetCurrentWeaponDurability above, not a fresh equip (EquipWeaponItem would reset durability
-    // to full instead of the saved, possibly worn-down value already restored on the equipment side).
+    // SaveManager.Apply only (the non-cursed restore path) - a plain field restore like weaponHand
+    // above, not a fresh equip (EquipWeaponItem has side effects like resetting isBowCharging that a
+    // pure restore shouldn't trigger).
     public void SetCurrentWeaponItem(string itemId, WeaponType weapon)
     {
         currentWeapon = weapon;
@@ -713,37 +691,15 @@ public class PlayerController : MonoBehaviour
 
     // A cursed weapon-item forces itself on and can't be swapped out until UnlockWeapon runs - never
     // goes through the equipment Weapon slot (currentWeaponItemId stays null), the curse item sits
-    // in the inventory instead, locked there via PlayerInventory.ApplyCurse/CursedItemId.
+    // in the inventory instead, locked there via PlayerInventory.ApplyCurse/CursedItemId. Weapons
+    // don't wear down (2026-09-22: durability removed), so the only way out is the NPC dialogue
+    // option that lifts the curse (see DialogueManager's removesCursedItem outcome -> UnlockWeapon).
     public void ForceEquipWeapon(WeaponType weapon)
     {
         currentWeapon = weapon;
         currentWeaponItemId = null;
         weaponLocked = true;
-        currentWeaponDurability = MaxDurabilityFor(weapon);
         Debug.Log("Cursed weapon forced on: " + weapon);
-    }
-
-    // Called only from TryAttack's Sword/Staff cases below. A normal item-based weapon (see
-    // EquipWeaponItem) delegates to PlayerEquipment.DamageDurability, whose own Set(slot, null) at
-    // 0 already cascades back into UnequipToFistIfCurrent below - a forced/cursed weapon (never in
-    // the equipment slot to begin with) keeps the old flat counter instead.
-    void DamageWeaponDurability()
-    {
-        if (weaponLocked)
-        {
-            if (currentWeaponDurability <= 0) return;
-            currentWeaponDurability--;
-            if (currentWeaponDurability <= 0)
-            {
-                Debug.Log(currentWeapon + " s'est brise !");
-                currentWeapon = WeaponType.Fist;
-                weaponLocked = false; // nothing left to force - a broken cursed sword releases its lock too
-            }
-            return;
-        }
-
-        if (equipment != null && !string.IsNullOrEmpty(currentWeaponItemId))
-            equipment.DamageDurability(EquipmentSlotType.Weapon, 0, 1);
     }
 
     // Called from PlayerEquipment.ApplyItemEffects when a real weapon item (Sword/Staff) enters the
@@ -869,64 +825,54 @@ public class PlayerController : MonoBehaviour
                     ComboFinisherAttack(swordOffset * stats.RangeMultiplier, swordRange * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite, KnockbackNormal);
                 else
                     SwordSlash((swordOffset + swordRange) * stats.RangeMultiplier, ScaledPhysicalDamage(swordDamage), swordVisualSprite, swordArcHalfDegrees, swordSwingDuration, KnockbackNormal);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Halberd:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(halberdOffset * stats.RangeMultiplier, halberdRange * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, KnockbackHuge);
                 else
                     SwordSlash((halberdOffset + halberdRange) * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, swordArcHalfDegrees, halberdSwingDuration, KnockbackHuge);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Hammer:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(hammerOffset * stats.RangeMultiplier, hammerRange * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, KnockbackHuge);
                 else
                     SwordSlash((hammerOffset + hammerRange) * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, swordArcHalfDegrees, hammerSwingDuration, KnockbackHuge);
-                DamageWeaponDurability();
                 break;
             case WeaponType.ShortSword:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(shortSwordOffset * stats.RangeMultiplier, shortSwordRange * stats.RangeMultiplier, ScaledPhysicalDamage(shortSwordDamage), fistVisualSprite, KnockbackLow);
                 else
                     MeleeAttack(shortSwordOffset * stats.RangeMultiplier, shortSwordRange * stats.RangeMultiplier, ScaledPhysicalDamage(shortSwordDamage), fistVisualSprite, KnockbackLow);
-                DamageWeaponDurability();
                 break;
             case WeaponType.SpikedGloves:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(spikedGlovesOffset * stats.RangeMultiplier, spikedGlovesRange * stats.RangeMultiplier, ScaledPhysicalDamage(spikedGlovesDamage), fistVisualSprite, KnockbackMid);
                 else
                     MeleeAttack(spikedGlovesOffset * stats.RangeMultiplier, spikedGlovesRange * stats.RangeMultiplier, ScaledPhysicalDamage(spikedGlovesDamage), fistVisualSprite, KnockbackMid);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Rapier:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(rapierOffset * stats.RangeMultiplier, rapierRange * stats.RangeMultiplier, ScaledPhysicalDamage(rapierDamage), fistVisualSprite, KnockbackLow);
                 else
                     MeleeAttack(rapierOffset * stats.RangeMultiplier, rapierRange * stats.RangeMultiplier, ScaledPhysicalDamage(rapierDamage), fistVisualSprite, KnockbackLow);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Staff:
                 comboCount = 0; // ranged/cast - doesn't continue or count toward the melee combo
                 LaunchProjectile(projectileSprite, ScaledMagicDamage(staffDamage), projectileSpeed, StaffMaxRange);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Sling:
                 comboCount = 0;
                 LaunchProjectile(projectileSprite, ScaledPhysicalDamage(slingDamage), slingProjectileSpeed, slingRange * stats.RangeMultiplier, KnockbackMid);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Shuriken:
                 comboCount = 0;
                 LaunchProjectile(projectileSprite, ScaledPhysicalDamage(shurikenWeaponDamage), shurikenWeaponProjectileSpeed, shurikenWeaponRange * stats.RangeMultiplier, KnockbackLow);
-                DamageWeaponDurability();
                 break;
             case WeaponType.Revolver:
                 comboCount = 0;
                 revolverAmmo--;
                 if (revolverAmmo <= 0) revolverReloadEndTime = Time.time + revolverReloadDuration;
                 LaunchProjectile(projectileSprite, ScaledPhysicalDamage(revolverDamage), revolverProjectileSpeed, revolverRange * stats.RangeMultiplier, KnockbackHuge);
-                DamageWeaponDurability();
                 break;
         }
     }
@@ -966,7 +912,6 @@ public class PlayerController : MonoBehaviour
         float knockback = Mathf.Lerp(KnockbackLow, KnockbackHuge, chargeFraction);
         comboCount = 0;
         LaunchProjectile(projectileSprite, ScaledPhysicalDamage(damage), bowProjectileSpeed, bowRange * stats.RangeMultiplier, knockback);
-        DamageWeaponDurability();
     }
 
     // 3rd chained melee swing (Fist or Sword, see ComboWindow) becomes the finisher instead of a

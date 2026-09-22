@@ -72,10 +72,8 @@ public static class SaveManager
             durabilityNeck = equipment != null ? equipment.GetDurability(EquipmentSlotType.Neck) : 0,
             durabilityBelt = equipment != null ? equipment.GetDurability(EquipmentSlotType.Belt) : 0,
             durabilityKnees = equipment != null ? equipment.GetDurability(EquipmentSlotType.Knees) : 0,
-            durabilityWeapon = equipment != null ? equipment.GetDurability(EquipmentSlotType.Weapon) : 0,
             durabilityRingsLeft = equipment != null ? (int[])equipment.ringsLeftDurability.Clone() : null,
             durabilityRingsRight = equipment != null ? (int[])equipment.ringsRightDurability.Clone() : null,
-            currentWeaponDurability = controller.CurrentWeaponDurability,
         };
     }
 
@@ -131,9 +129,6 @@ public static class SaveManager
         if (data.weaponLocked)
         {
             controller.ForceEquipWeapon(data.currentWeapon);
-            // Must run AFTER ForceEquipWeapon above - it resets currentWeaponDurability to full,
-            // this overwrites it with the actually-saved (possibly worn-down) value.
-            controller.SetCurrentWeaponDurability(data.currentWeaponDurability);
         }
         else
         {
@@ -188,7 +183,6 @@ public static class SaveManager
             equipment.SetDurabilityRaw(EquipmentSlotType.Neck, 0, data.durabilityNeck);
             equipment.SetDurabilityRaw(EquipmentSlotType.Belt, 0, data.durabilityBelt);
             equipment.SetDurabilityRaw(EquipmentSlotType.Knees, 0, data.durabilityKnees);
-            equipment.SetDurabilityRaw(EquipmentSlotType.Weapon, 0, data.durabilityWeapon);
             equipment.ringsLeftDurability = data.durabilityRingsLeft != null
                 ? (int[])data.durabilityRingsLeft.Clone() : new int[PlayerEquipment.RingSlotsPerHand];
             equipment.ringsRightDurability = data.durabilityRingsRight != null

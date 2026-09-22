@@ -2287,7 +2287,8 @@ public static class DungeonGenerator
 
         // --- Repair panel (opened from the Crafting Table - see RepairUI/DialogueOutcome.
         // opensRepairPanel) - same fixed-rows-live-refresh pattern as the attribute panel above,
-        // one row per durability-bearing slot (rings never carry durability).
+        // one row per durability-bearing slot (rings never carry durability, and neither does the
+        // Weapon slot since 2026-09-22 - weapons no longer wear down, see PlayerController).
         GameObject repairGO = new GameObject("RepairPanel", typeof(RectTransform), typeof(Image), typeof(RepairUI));
         repairGO.transform.SetParent(canvasGO.transform, false);
         Image repairBg = repairGO.GetComponent<Image>();
@@ -2315,7 +2316,7 @@ public static class DungeonGenerator
 
         (EquipmentSlotType slot, string label)[] repairSlotRows =
         {
-            (EquipmentSlotType.Weapon, "Arme"), (EquipmentSlotType.Head, "Tete"), (EquipmentSlotType.Shoulders, "Epaules"), (EquipmentSlotType.Gloves, "Gants"),
+            (EquipmentSlotType.Head, "Tete"), (EquipmentSlotType.Shoulders, "Epaules"), (EquipmentSlotType.Gloves, "Gants"),
             (EquipmentSlotType.Boots, "Bottes"), (EquipmentSlotType.Neck, "Cou"), (EquipmentSlotType.Belt, "Ceinture"),
             (EquipmentSlotType.Knees, "Genoux"),
         };
@@ -2628,41 +2629,41 @@ public static class DungeonGenerator
         Sprite staffItemSprite = staffPickupSprite;
         RegisterItem(itemEntries, ItemIds.Sword, "Epee", ItemCategory.Equipement, 1, swordItemSprite,
             "Une epee standard, equilibree.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Sword, maxDurability: 40, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Sword, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.Staff, "Baton Magique", ItemCategory.Equipement, 1, staffItemSprite,
             "Un baton qui canalise des projectiles magiques.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Staff, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Staff, material: MaterialType.Bois, rarity: 2);
 
         // 2026-09-22 request: 5 new melee + 4 new ranged (infinite-ammo) weapon types - same
         // equippable-item pattern as Sword/Staff above, just their own PlayerController.WeaponType.
         RegisterItem(itemEntries, ItemIds.Halberd, "Hallebarde", ItemCategory.Equipement, 1, halberdSprite,
             "Lente, longue portee, coups lourds qui repoussent violemment.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Halberd, maxDurability: 50, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Halberd, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.ShortSword, "Epee Courte", ItemCategory.Equipement, 1, shortSwordSprite,
             "Rapide a manier, portee courte, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.ShortSword, maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.ShortSword, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.SpikedGloves, "Gants a Pics", ItemCategory.Equipement, 1, spikedGlovesSprite,
             "Portee minuscule, mais chaque coup repousse bien.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.SpikedGloves, maxDurability: 35, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.SpikedGloves, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.Rapier, "Estoc", ItemCategory.Equipement, 1, rapierSprite,
             "Une lame fine, faite pour l'estoc : longue portee, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Rapier, maxDurability: 30, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Rapier, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.Hammer, "Marteau", ItemCategory.Equipement, 1, hammerSprite,
             "Le plus lourd et le plus lent, mais rien ne resiste a son recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Hammer, maxDurability: 55, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Hammer, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.Sling, "Lance-Pierre", ItemCategory.Equipement, 1, slingSprite,
             "Munitions infinies, portee moyenne, recul moyen.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Sling, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Sling, material: MaterialType.Bois, rarity: 2);
         RegisterItem(itemEntries, ItemIds.ShurikenLauncher, "Lanceur de Shurikens", ItemCategory.Equipement, 1, shurikenLauncherSprite,
             "Munitions infinies, tirs rapides et legers, faible recul.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Shuriken, maxDurability: 35, material: MaterialType.Metal, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Shuriken, material: MaterialType.Metal, rarity: 2);
         RegisterItem(itemEntries, ItemIds.Revolver, "Revolver", ItemCategory.Equipement, 1, revolverSprite,
             "6 coups puis rechargement de 2 secondes, munitions infinies, recul enorme.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Revolver, maxDurability: 45, material: MaterialType.Metal, rarity: 3);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Revolver, material: MaterialType.Metal, rarity: 3);
         RegisterItem(itemEntries, ItemIds.Bow, "Arc", ItemCategory.Equipement, 1, bowSprite,
             "Munitions infinies. Maintenez pour charger : plus la charge est longue, plus le tir frappe et repousse fort.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
-            isWeapon: true, weaponType: PlayerController.WeaponType.Bow, maxDurability: 40, material: MaterialType.Bois, rarity: 2);
+            isWeapon: true, weaponType: PlayerController.WeaponType.Bow, material: MaterialType.Bois, rarity: 2);
 
         // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
         // never in the common LootTable drop pool.
@@ -2678,7 +2679,7 @@ public static class DungeonGenerator
         RegisterItem(itemEntries, ItemIds.CursedSword, "Epee Maudite du Soldat Dechu", ItemCategory.Equipement, 1, cursedSwordSprite,
             "Une lame ancienne. Une presence malveillante semble y sommeiller.",
             isCursed: true, hasCursedWeapon: true, cursedWeaponType: PlayerController.WeaponType.Sword,
-            maxDurability: 40, material: MaterialType.Metal, rarity: 6);
+            material: MaterialType.Metal, rarity: 6);
         RegisterItem(itemEntries, ItemIds.TrapSack, "Sac Abandonne", ItemCategory.Consommable, 1, trapSackSprite,
             "Un petit sac abandonne. Qui l'aurait laisse la ?", isTrap: true, rarity: 2);
 
@@ -2809,12 +2810,12 @@ public static class DungeonGenerator
             CreateCircleSprite("Assets/Art/Items/CerberePaw.png", new Color(0.2f, 0.15f, 0.13f)),
             "Une patte griffue montee sur une garde, aussi tranchante qu'une lame.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon, isWeapon: true, weaponType: PlayerController.WeaponType.Sword,
-            maxDurability: 50, material: MaterialType.Metal, rarity: 4);
+            material: MaterialType.Metal, rarity: 4);
         RegisterItem(itemEntries, ItemIds.AnacondaFangDagger, "Dague Crochet d'Anaconda", ItemCategory.Equipement, 1,
             CreateCircleSprite("Assets/Art/Items/AnacondaFangDagger.png", new Color(0.3f, 0.55f, 0.25f)),
             "Un crochet venimeux monte en dague, toujours suintant.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon, isWeapon: true, weaponType: PlayerController.WeaponType.Sword,
-            maxDurability: 50, material: MaterialType.Metal, rarity: 4);
+            material: MaterialType.Metal, rarity: 4);
         RegisterItem(itemEntries, ItemIds.EntBarkPauldrons, "Epaulieres d'Ecorce d'Ent", ItemCategory.Equipement, 1,
             CreateCircleSprite("Assets/Art/Items/EntBarkPauldrons.png", new Color(0.35f, 0.26f, 0.15f)),
             "Protege le torse (+2 armure).", isEquipment: true, equipmentSlot: EquipmentSlotType.Shoulders, armorValue: 2,
