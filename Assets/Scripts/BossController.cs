@@ -24,12 +24,6 @@ public class BossController : MonoBehaviour
     public float volleySpreadAngle = 45f;
     public float volleyCooldown = 3.5f;
 
-    [Header("Rage")]
-    // Fraction of max HP at which the boss permanently speeds up and attacks more often.
-    public float rageHealthFraction = 0.5f;
-    public float rageSpeedMultiplier = 1.5f;
-    public float rageCooldownMultiplier = 0.6f;
-
     [Header("Combat")]
     // "lorsqu'un monstre lance une attaque, il ne peut plus se deplacer" (2026-09-15 request) -
     // every INSTANT attack (FireVolley, SpitSlobber, Golem's shockwave, Kraken's tentacle slap,
@@ -136,7 +130,6 @@ public class BossController : MonoBehaviour
     float activeChargeSpeed;
     float chargeEndTime;
     Action onChargeEnd;
-    bool enraged;
     float attackLockEndTime;
 
     // Cerbere-only state (see BossKit.Cerbere) - chainBitesLeft counts the bites still due after
@@ -165,6 +158,19 @@ public class BossController : MonoBehaviour
     // Arpenteur-only state.
     float lastTeleportTime = -999f;
 
+    // 2026-09-23 request: "combat de boss a la Dark Souls... 2 ou 3 sequences d'attaques, qui
+    // alterne entre rapide et lent" - generalizes the pattern Cerbere's chain-bite already used
+    // (chain into another attack instead of falling back to chase/cooldown) to every other kit.
+    // Unlike Cerbere's chain (same attack repeated), this queues a DIFFERENT follow-up (always the
+    // shared, fast Volley) right after a kit's own signature attack resolves, so a slow/telegraphed
+    // hit is usually immediately followed by a quick one before the boss returns to idle/chase -
+    // see QueueVolleyFollowup and its call sites in each kit's XxxFixedUpdate below.
+    [Header("Sequences d'attaque")]
+    [Range(0f, 1f)] public float sequenceFollowupChance = 0.6f;
+    public float sequenceGap = 0.35f;
+    Action pendingSequenceAttack;
+    float nextSequenceAttackTime;
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -183,8 +189,11 @@ public class BossController : MonoBehaviour
     {
         if (target == null) return;
 
-        if (!enraged && health.currentHealth <= health.maxHealth * rageHealthFraction) enraged = true;
-        float cooldownScale = enraged ? rageCooldownMultiplier : 1f;
+        // 2026-09-23 request: "retire le buff de rage, c'est impossible d'avoir assez de degats
+        // sinon" - le boss attaquait significativement plus souvent (cooldowns x0.6) des 50% HP,
+        // ce qui ne laissait plus de fenetre de riposte au joueur. cooldownScale reste en parametre
+        // de chaque XxxFixedUpdate (aucun refactor de signature) mais vaut toujours 1 desormais.
+        const float cooldownScale = 1f;
 
         if (charging)
         {
@@ -204,10 +213,28 @@ public class BossController : MonoBehaviour
 
         // Stunned (see RegisterAttack/AttacksBeforeStun) - frozen, no chase, no new attack of any
         // kit. Checked AFTER the charging block above so an already-in-progress charge/dive/lunge
-        // always finishes its motion instead of stopping the boss dead mid-air.
+        // always finishes its motion instead of stopping the boss dead mid-air. Also drops any
+        // queued sequence follow-up rather than firing it once the stun ends.
         if (IsStunned)
         {
             rb.linearVelocity = Vector2.zero;
+            pendingSequenceAttack = null;
+            return;
+        }
+
+        // A queued follow-up (see QueueVolleyFollowup) takes priority over the kit switch below -
+        // the boss holds still for sequenceGap, exactly like Cerbere already does between its own
+        // chained bites, then fires the follow-up and only resumes the normal chase/cooldown logic
+        // on the NEXT FixedUpdate tick.
+        if (pendingSequenceAttack != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= nextSequenceAttackTime)
+            {
+                Action followup = pendingSequenceAttack;
+                pendingSequenceAttack = null;
+                followup.Invoke();
+            }
             return;
         }
 
@@ -230,7 +257,7 @@ public class BossController : MonoBehaviour
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
             lastChargeTime = Time.time;
-            StartCharge(dir);
+            StartCharge(dir, QueueVolleyFollowup);
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
@@ -297,7 +324,7 @@ public class BossController : MonoBehaviour
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
             lastChargeTime = Time.time;
-            StartCharge(dirToTarget, DropPoisonPuddle);
+            StartCharge(dirToTarget, () => { DropPoisonPuddle(); QueueVolleyFollowup(); });
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
@@ -325,6 +352,7 @@ public class BossController : MonoBehaviour
                 rootTelegraphing = false;
                 ResolveAoEDamage(rootTelegraphTarget, rootDamageRadius, rootDamage);
                 LockMovement();
+                QueueVolleyFollowup();
             }
             return;
         }
@@ -355,7 +383,7 @@ public class BossController : MonoBehaviour
         if (Time.time - lastChargeTime >= chargeCooldown * cooldownScale)
         {
             lastChargeTime = Time.time;
-            StartCharge(dirToTarget, () => { ResolveAoEDamage(rb.position, shockwaveRadius, shockwaveDamage); LockMovement(); });
+            StartCharge(dirToTarget, () => { ResolveAoEDamage(rb.position, shockwaveRadius, shockwaveDamage); LockMovement(); QueueVolleyFollowup(); });
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
@@ -377,6 +405,7 @@ public class BossController : MonoBehaviour
             lastTentacleTime = Time.time;
             ResolveAoEDamage(rb.position, tentacleRange, tentacleDamage);
             LockMovement();
+            QueueVolleyFollowup();
         }
         else if (Time.time - lastVolleyTime >= volleyCooldown * cooldownScale)
         {
@@ -396,7 +425,7 @@ public class BossController : MonoBehaviour
             if (Time.time >= diveTelegraphEndTime)
             {
                 diveTelegraphing = false;
-                StartCharge(diveTelegraphDirection, diveSpeed, diveDuration);
+                StartCharge(diveTelegraphDirection, diveSpeed, diveDuration, QueueVolleyFollowup);
             }
             return;
         }
@@ -452,7 +481,7 @@ public class BossController : MonoBehaviour
         rb.position = newPos;
 
         Vector2 dirToTarget = (Vector2)target.position - newPos;
-        StartCharge(dirToTarget.sqrMagnitude > 0.0001f ? dirToTarget.normalized : Vector2.zero);
+        StartCharge(dirToTarget.sqrMagnitude > 0.0001f ? dirToTarget.normalized : Vector2.zero, QueueVolleyFollowup);
     }
 
     // Instant one-shot AoE check used by the ground-slam-style kits (Ent roots, Golem shockwave,
@@ -538,6 +567,18 @@ public class BossController : MonoBehaviour
         if (statusIcons != null && stunIconSprite != null) statusIcons.ShowIcon(StunIconKey, stunIconSprite, StunDuration);
     }
 
+    // Called from each kit's signature attack once it resolves (see field comment above) - rolls
+    // sequenceFollowupChance to chain straight into a Volley after sequenceGap instead of falling
+    // back to ChaseOrLock/the normal volleyCooldown gate, so a boss's attack "string" often reads
+    // as 2 hits (occasionally 3 for Cerbere, which keeps its own separate chain-bite mechanism)
+    // rather than always one attack at a time.
+    void QueueVolleyFollowup()
+    {
+        if (UnityEngine.Random.value > sequenceFollowupChance) return;
+        pendingSequenceAttack = () => { FireVolley(); LockMovement(); };
+        nextSequenceAttackTime = Time.time + sequenceGap;
+    }
+
     void FireVolley()
     {
         if (target == null) return;
@@ -584,6 +625,17 @@ public class BossController : MonoBehaviour
     {
         if (Time.time - lastContactTime < contactCooldown) return;
         if (!other.CompareTag("Player")) return;
+
+        // 2026-09-23 request: same "no free damage from idle contact" rule as regular enemies
+        // (see EnemyController.TryDamage) - every charge/lunge/chain-bite across every kit has no
+        // OTHER damage-dealing call (see StartCharge's own comment, "their movement IS the
+        // attack"), so it lands its damage through this same collision path while `charging` is
+        // true - that stays allowed, it's the real coup. Just chasing/touching the player between
+        // attacks no longer hurts on its own. Burning/poisoned (BurnStatus/PoisonStatus) still
+        // hurts on touch regardless, per the same request.
+        bool isRealAttack = charging;
+        bool isHazardousBody = GetComponent<BurnStatus>() != null || GetComponent<PoisonStatus>() != null;
+        if (!isRealAttack && !isHazardousBody) return;
 
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;

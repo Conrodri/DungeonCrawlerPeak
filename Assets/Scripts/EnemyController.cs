@@ -18,6 +18,21 @@ public class EnemyController : MonoBehaviour
     public int level = 1;
     public EliteModifier modifier;
     public int xpReward = 1;
+    // Shared ring sprite (DungeonGenerator.assets.outlineRingSprite) - set by RoomController.
+    // SpawnEnemies, same convention as the projectileSprite field further below. 2026-09-23 request:
+    // "affiche les zones de degats lors d'un lancement d'un coup ennemi... je ne connais pas sa
+    // range" - shown for the full cast windup of Claw/Dash below via AttackRangeTelegraph.Spawn.
+    public Sprite rangeTelegraphSprite;
+    // Directional pie-slice for the frontal Claw attack (see DungeonGenerator.coneTelegraphSprite)
+    // - the ring above stays for Dash, whose lunge threat is closer to omnidirectional "get within
+    // this distance and it can reach you" than a single frontal swipe.
+    public Sprite coneTelegraphSprite;
+    // Directional corridor for Dash - see DungeonGenerator.rectTelegraphSprite.
+    public Sprite rectTelegraphSprite;
+    static readonly Color TelegraphColor = new Color(1f, 0.25f, 0.25f, 0.55f);
+    // Fixed corridor width regardless of dashRange - matches roughly a body-width-plus-some, not
+    // meant to scale with reach (see AttackRangeTelegraph.SpawnRect).
+    const float DashTelegraphWidth = 1f;
 
     [Header("Dash Attack (tous les monstres melee sans projectile, sauf Zombie - voir Claw)")]
     // 2026-09-21 request: every regular melee monster (none of the 3 current species shoot
@@ -62,7 +77,10 @@ public class EnemyController : MonoBehaviour
     ClawState clawState;
     float clawStateEndTime;
     float lastClawTime = -999f;
-    bool UsesClaw => enemyType == EnemyType.Zombie;
+    // 2026-09-23 request: Momie partage la bande de stats "tanky/lente" du Zombie mais avait
+    // gardé le Dash generique - meme fix que le Zombie (2026-09-21) pour la meme raison (un
+    // shambler lent ne devrait pas avoir de burst de mobilite).
+    bool UsesClaw => enemyType == EnemyType.Zombie || enemyType == EnemyType.Momie;
 
     [Header("Sort a distance + IA fuyarde (Sorcier uniquement)")]
     // 2026-09-21 request: a ranged, kiting caster - the only regular monster that fires a
@@ -80,6 +98,45 @@ public class EnemyController : MonoBehaviour
     float spellStateEndTime;
     float lastSpellTime = -999f;
     bool IsSorcier => enemyType == EnemyType.Sorcier;
+
+    [Header("Crachat empoisonne (Larve uniquement)")]
+    // 2026-09-23 request: "trop de montres ont l'attaque dash... creer quelques un de plus, histoire
+    // que les mobs aient une vraie identite" - Larve trades the generic Dash for a stationary ranged
+    // spit that poisons on hit (see Projectile.poisonDuration/PoisonStatus - previously wired up for
+    // the 2026-09-23 contact-damage fix but never actually granted to anything until now). Reuses
+    // projectileSprite above (set per-species by RoomController.SpawnEnemies) for its own visual.
+    public float spitRange = 5f;
+    public float spitCastDuration = 0.5f;
+    public float spitCooldown = 2.5f;
+    public float spitProjectileSpeed = 6f;
+    public float spitPoisonDuration = 4f;
+    public int spitPoisonDamagePerTick = 2;
+    public float spitPoisonTickInterval = 1f;
+    public Sprite poisonIconSprite;
+
+    enum SpitState { None, Casting }
+    SpitState spitState;
+    float spitStateEndTime;
+    float lastSpitTime = -999f;
+    bool UsesSpit => enemyType == EnemyType.Larve;
+
+    [Header("Bond + choc au sol (Skinwalker uniquement)")]
+    // 2026-09-23 same request - Skinwalker trades Dash for a telegraphed leap onto the target's
+    // CURRENT position (snapshotted at cast start, like a boss AOE tell - see rangeTelegraphSprite/
+    // AttackRangeTelegraph.SpawnAt) followed by an area impact on landing, instead of a straight-
+    // line lunge - reads as a predator pouncing rather than a simple charge.
+    public float pounceRange = 5f;
+    public float pounceCastDuration = 0.45f;
+    public float pounceLeapDuration = 0.3f;
+    public float pounceCooldown = 3.5f;
+    public float pounceAoeRadius = 1.6f;
+
+    enum PounceState { None, Casting, Leaping }
+    PounceState pounceState;
+    float pounceStateEndTime;
+    float lastPounceTime = -999f;
+    Vector2 pounceLandingPos;
+    bool UsesPounce => enemyType == EnemyType.Skinwalker;
 
     const float BobAmplitude = 0.15f;
     const float BobSpeed = 4f;
@@ -283,6 +340,59 @@ public class EnemyController : MonoBehaviour
         projectile.Launch(dir);
     }
 
+    // Same shape as FireSpell above, minus the kiting movement (Larve stays put like a Claw user,
+    // it just hits from range instead of melee) - the poison fields are what makes this Larve's own
+    // attack instead of a copy of Sorcier's.
+    void FireSpit()
+    {
+        if (target == null) return;
+        Vector2 toTargetNow = (Vector2)target.position - rb.position;
+        Vector2 dir = toTargetNow.sqrMagnitude > 0.0001f ? toTargetNow.normalized : Vector2.up;
+
+        GameObject go = ProjectilePool.Get();
+        go.name = "LarveSpit";
+        go.transform.position = rb.position + dir * 0.6f;
+
+        SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
+        renderer.sprite = projectileSprite;
+        renderer.sortingOrder = 0;
+
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
+        body.gravityScale = 0f;
+
+        CircleCollider2D collider = go.GetComponent<CircleCollider2D>();
+        collider.radius = 0.15f;
+
+        Projectile projectile = go.GetComponent<Projectile>();
+        projectile.IgnoreCollisionWith(bodyCollider);
+        projectile.damage = EffectiveContactDamage;
+        projectile.speed = spitProjectileSpeed;
+        projectile.maxDistance = spitRange + 3f;
+        projectile.ignoreTag = "";
+        projectile.poisonDuration = spitPoisonDuration;
+        projectile.poisonDamagePerTick = spitPoisonDamagePerTick;
+        projectile.poisonTickInterval = spitPoisonTickInterval;
+        projectile.poisonIcon = poisonIconSprite;
+        projectile.Launch(dir);
+    }
+
+    // Impact at the landing spot snapshotted when the pounce was telegraphed (see the UsesPounce
+    // cast branch in FixedUpdate) - deliberately NOT re-aimed at the target's current position like
+    // BeginDash/TryClawHit/FireSpell all are, since the whole point of a boss-style AOE tell is that
+    // the ring shown during the windup IS the real hit zone; stepping out of the ring is what dodges
+    // it.
+    void ResolvePounceImpact()
+    {
+        Collider2D[] hits = Physics2D.OverlapCircleAll(pounceLandingPos, pounceAoeRadius);
+        foreach (Collider2D hit in hits)
+        {
+            if (!hit.CompareTag("Player")) continue;
+            Health targetHealth = hit.GetComponent<Health>();
+            if (targetHealth == null) continue;
+            targetHealth.TakeDamageFromEnemy(EffectiveContactDamage, AttackSourceMapping.For(enemyType), pounceLandingPos);
+        }
+    }
+
     void UpdateLimbDebuffIcons()
     {
         if (statusIcons == null) return;
@@ -355,6 +465,50 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
+        if (spitState == SpitState.Casting)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= spitStateEndTime)
+            {
+                spitState = SpitState.None;
+                lastSpitTime = Time.time;
+                FireSpit();
+                if (spriteRenderer != null) spriteRenderer.color = baseColor;
+            }
+            return;
+        }
+
+        if (pounceState == PounceState.Casting)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (Time.time >= pounceStateEndTime)
+            {
+                pounceState = PounceState.Leaping;
+                pounceStateEndTime = Time.time + pounceLeapDuration;
+                if (spriteRenderer != null) spriteRenderer.color = baseColor;
+            }
+            return;
+        }
+
+        if (pounceState == PounceState.Leaping)
+        {
+            Vector2 toLanding = pounceLandingPos - rb.position;
+            float remaining = pounceStateEndTime - Time.time;
+            // Constant velocity sized to arrive exactly at pounceLandingPos when remaining hits 0,
+            // same "committed straight line" spirit as BeginDash's fixed dashSpeed - remaining is
+            // clamped so the very last FixedUpdate step (remaining -> ~0) doesn't divide into a huge
+            // overshoot velocity.
+            rb.linearVelocity = toLanding / Mathf.Max(remaining, Time.fixedDeltaTime);
+            if (Time.time >= pounceStateEndTime)
+            {
+                pounceState = PounceState.None;
+                lastPounceTime = Time.time;
+                rb.position = pounceLandingPos;
+                ResolvePounceImpact();
+            }
+            return;
+        }
+
         if (dashState == DashState.Casting)
         {
             rb.linearVelocity = Vector2.zero;
@@ -416,6 +570,38 @@ public class EnemyController : MonoBehaviour
                 clawState = ClawState.Casting;
                 clawStateEndTime = Time.time + clawCastDuration;
                 if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+                AttackRangeTelegraph.SpawnCone(coneTelegraphSprite, transform, toTarget, clawRange, clawCastDuration, TelegraphColor);
+                rb.linearVelocity = Vector2.zero;
+                return;
+            }
+        }
+        // 2026-09-23 monster-variety request: Larve trades Dash for a stationary ranged spit (see
+        // FireSpit/UsesSpit) - no shape telegraph here, same as Sorcier below, a single-target
+        // ranged shot doesn't need one the way an AOE/melee reach does.
+        else if (UsesSpit)
+        {
+            if (distanceToTarget <= spitRange && Time.time - lastSpitTime >= spitCooldown)
+            {
+                spitState = SpitState.Casting;
+                spitStateEndTime = Time.time + spitCastDuration;
+                if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+                rb.linearVelocity = Vector2.zero;
+                return;
+            }
+        }
+        // Skinwalker trades Dash for a telegraphed leap+AOE (see ResolvePounceImpact/UsesPounce) -
+        // landing spot snapshotted HERE, at cast start, so the ring telegraph shown for the whole
+        // windup is the actual hit zone (see ResolvePounceImpact's own comment on why it doesn't
+        // re-aim at cast end like every other attack here does).
+        else if (UsesPounce)
+        {
+            if (distanceToTarget <= pounceRange && Time.time - lastPounceTime >= pounceCooldown)
+            {
+                pounceState = PounceState.Casting;
+                pounceStateEndTime = Time.time + pounceCastDuration;
+                pounceLandingPos = target.position;
+                if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+                AttackRangeTelegraph.SpawnAt(rangeTelegraphSprite, pounceLandingPos, pounceAoeRadius, pounceCastDuration, TelegraphColor);
                 rb.linearVelocity = Vector2.zero;
                 return;
             }
@@ -426,12 +612,15 @@ public class EnemyController : MonoBehaviour
         // has 2 of its 4 parts as legs, each small enough for a single fist hit to break outright,
         // so this was permanently disabling its only attack after one unlucky early hit instead of
         // just slowing it down like the rest of the broken-leg penalty already does (see
-        // EffectiveMoveSpeed, and the Dashing branch above, which now halves dash speed too).
+        // EffectiveMoveSpeed, and the Dashing branch above, which now halves dash speed too). Now
+        // only ChauveSouris/Sanglier ever reach this branch (2026-09-23) - Zombie/Momie use Claw,
+        // Larve uses Spit, Skinwalker uses Pounce, Sorcier uses its own IsSorcier branch above.
         else if (distanceToTarget <= dashRange && !WingsImpaired && Time.time - lastDashTime >= dashCooldown)
         {
             dashState = DashState.Casting;
             dashStateEndTime = Time.time + dashCastDuration;
             if (spriteRenderer != null) spriteRenderer.color = DashCastTint;
+            AttackRangeTelegraph.SpawnRect(rectTelegraphSprite, transform, toTarget, dashRange, DashTelegraphWidth, dashCastDuration, TelegraphColor);
             rb.linearVelocity = Vector2.zero;
             return;
         }
@@ -496,6 +685,18 @@ public class EnemyController : MonoBehaviour
     {
         if (Time.time - lastHitTime < contactCooldown) return;
         if (!other.CompareTag("Player")) return;
+
+        // 2026-09-23 request: "retire les degats de contact, on veut des degats uniquement avec
+        // les coups, ou des degats de contact si le monstre est enflamme ou veneneux" - plain
+        // contact from just chasing/walking into the player no longer hurts on its own. A Dash
+        // attack still lands its damage THROUGH this same collision path (see BeginDash's own
+        // comment: "the movement itself lands the hit" - unlike Claw's TryClawHit, Dash has no
+        // separate explicit damage call), so that stays allowed - it's a real telegraphed coup,
+        // not idle contact. Burning/poisoned (see BurnStatus/PoisonStatus) also stays hazardous to
+        // touch even outside an attack, per the same request.
+        bool isRealAttack = dashState == DashState.Dashing;
+        bool isHazardousBody = GetComponent<BurnStatus>() != null || GetComponent<PoisonStatus>() != null;
+        if (!isRealAttack && !isHazardousBody) return;
 
         Health targetHealth = other.GetComponent<Health>();
         if (targetHealth == null) return;
