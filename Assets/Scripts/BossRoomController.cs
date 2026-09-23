@@ -129,7 +129,16 @@ public class BossRoomController : MonoBehaviour
 
     void HandleRoomEntered(Vector2Int enteredGridPos)
     {
-        if (Array.IndexOf(memberCells, enteredGridPos) < 0 || boss == null) return;
+        if (Array.IndexOf(memberCells, enteredGridPos) < 0 || boss == null)
+        {
+            // 2026-09-23 fix: "j'ai casse la porte et quitte la salle boss, le nom/la barre de vie
+            // restait affichee" - the bar previously only hid on Health.OnDeath, so leaving the
+            // arena alive (e.g. through a broken DoorBlocker) left it stuck on screen. Any
+            // room-enter landing outside this arena hides it - harmless no-op if never shown or
+            // already hidden.
+            if (healthBarBound && !defeated && healthBar != null) healthBar.Hide();
+            return;
+        }
 
         if (!healthBarBound)
         {
@@ -142,7 +151,9 @@ public class BossRoomController : MonoBehaviour
         }
 
         // Player left this arena mid-fight (or after a resumed save skipped the intro entirely -
-        // see startDefeated) and just walked back in - re-arm engagement immediately, no cutscene.
+        // see startDefeated) and just walked back in - re-arm engagement immediately, no cutscene,
+        // and re-show the bar the branch above hid on the way out.
+        if (!defeated && healthBar != null) healthBar.Show();
         boss.SetTarget(player);
     }
 

@@ -42,8 +42,13 @@ public class BossHealthBarUI : MonoBehaviour
         }
     }
 
-    void HandleDeath()
-    {
-        if (root != null) root.SetActive(false);
-    }
+    void HandleDeath() => Hide();
+
+    // 2026-09-23 fix: "j'ai casse la porte et quitte la salle boss, le nom/la barre de vie
+    // restait affichee" - previously the only hide path was HandleDeath via target.OnDeath, so
+    // leaving the arena alive (e.g. through a broken DoorBlocker) left the bar stuck on screen.
+    // Show/Hide are plain visibility toggles, deliberately separate from Bind() so re-entering the
+    // arena mid-fight doesn't re-subscribe to target.OnDeath a second time (see Bind's own comment).
+    public void Show() { if (root != null) root.SetActive(true); }
+    public void Hide() { if (root != null) root.SetActive(false); }
 }
