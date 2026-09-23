@@ -50,10 +50,12 @@ public static class MonsterLeveling
     // ApplyLevelStats/PlayerStats.MoveSpeedMultiplierFor), off the shared BaseSpeed above - so
     // these ranges are on the PLAYER'S OWN SCALE, not an arbitrary per-species knob: 0 ties the
     // player's unbuffed walk exactly, negative is genuinely slower-than-player, positive faster.
-    // Zombie stays tanky/strong (Force 3-9, unchanged) but slow (Vitesse -30 to -10 -> 2-4 u/s,
-    // vs. the player's 5). ChauveSouris stays fast/fragile (Force 2-5, unchanged; Vitesse 30-50 ->
-    // 8-10 u/s, faster than even the player's own sprint at 8 u/s) - a real "scary flier" now
-    // instead of the old 3.2 u/s that barely out-walked the player. Larve has no stated identity
+    // Zombie stays tanky/strong (Force 3-9, unchanged) but slow (Vitesse -20 to 0, see
+    // MonsterSpeedScale below for the real u/s math - these numbers alone are pre-0.5-scale and
+    // don't reflect actual runtime speed). ChauveSouris stays fast/fragile (Force 2-5, unchanged).
+    // 2026-09-23 retune: both bands were re-tuned after playtest feedback that Zombie/Momie read
+    // as lethargic and ChauveSouris read as too close to the player's own speed - see RangeFor's
+    // own comment below for the actual resulting u/s ranges. Larve has no stated identity
     // beyond "weak swarm unit" so it sits close to the player's own pace either way (Vitesse -10
     // to 10 -> 4-5.5 u/s). Only Force/Vitesse -> the 2 stats that map to something EnemyController
     // actually models (contactDamage, moveSpeed) - Intelligence/Portee/Charisme/Endurance have no
@@ -76,9 +78,14 @@ public static class MonsterLeveling
     // while kiting, not fast enough to be unhittable.
     static StatRange RangeFor(EnemyType type) => type switch
     {
-        EnemyType.Zombie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
-        EnemyType.ChauveSouris => new StatRange { forceMin = 2, forceMax = 5, vitesseMin = 30, vitesseMax = 50 },
-        EnemyType.Momie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -30, vitesseMax = -10 },
+        // 2026-09-23 request: retuned vs the original bands above - Zombie/Momie lisaient trop
+        // lethargiques (1-2 u/s), ChauveSouris trop proche de la vitesse du joueur (4-5 u/s, quasi
+        // le sprint a 8 u/s). Zombie/Momie remontes a ~1.5-2.5 u/s (reste nettement sous le joueur,
+        // identite "lent mais lourd" intacte), ChauveSouris redescendue a ~3.25-4.1 u/s (reste le
+        // mob le plus rapide du jeu sans etre injouable).
+        EnemyType.Zombie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -20, vitesseMax = 0 },
+        EnemyType.ChauveSouris => new StatRange { forceMin = 2, forceMax = 5, vitesseMin = 15, vitesseMax = 32 },
+        EnemyType.Momie => new StatRange { forceMin = 3, forceMax = 9, vitesseMin = -20, vitesseMax = 0 },
         EnemyType.Sanglier => new StatRange { forceMin = 2, forceMax = 6, vitesseMin = 25, vitesseMax = 45 },
         EnemyType.Skinwalker => new StatRange { forceMin = 3, forceMax = 7, vitesseMin = 10, vitesseMax = 30 },
         EnemyType.Sorcier => new StatRange { forceMin = 1, forceMax = 3, vitesseMin = 10, vitesseMax = 30 },
