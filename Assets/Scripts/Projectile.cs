@@ -26,6 +26,14 @@ public class Projectile : MonoBehaviour
     // its current fixed push; explicitly reset by PlayerController.LaunchProjectile every launch,
     // same pool-hygiene reasoning as chainRadius/chainBoltSprite above.
     public float knockback = 1f;
+    // Larve's Spit (2026-09-23 monster-variety request) - 0 duration by default (no-op) like
+    // chainRadius above, so every other caster of this pooled Projectile is unaffected. Set by
+    // EnemyController.FireSpit; applies PoisonStatus (see PoisonStatus.Apply) to whatever this
+    // directly hits, never a chain like chainRadius/ChainToNearbyEnemies.
+    public float poisonDuration = 0f;
+    public int poisonDamagePerTick = 0;
+    public float poisonTickInterval = 1f;
+    public Sprite poisonIcon;
 
     Rigidbody2D rb;
     Collider2D ownCollider;
@@ -45,6 +53,21 @@ public class Projectile : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         ownCollider = GetComponent<Collider2D>();
+    }
+
+    // Called by ProjectilePool.Release - none of the optional per-cast fields above (chainRadius,
+    // knockback, poisonDuration...) get reset by Get(), and not every caster sets every one of them
+    // on every launch, so a value left over from a DIFFERENT caster's last use of this pooled
+    // instance could otherwise silently leak onto an unrelated shot (2026-09-23, found while adding
+    // poisonDuration for Larve's Spit).
+    public void ResetOptionalFields()
+    {
+        chainRadius = 0f;
+        chainBoltSprite = null;
+        knockback = 1f;
+        poisonDuration = 0f;
+        poisonDamagePerTick = 0;
+        poisonIcon = null;
     }
 
     // Every caster (PlayerController/BossController) should call this instead of
@@ -81,6 +104,7 @@ public class Projectile : MonoBehaviour
         // projectile that actually lands on the player (a boss volley - see BossController).
         Health health = collision.collider.GetComponent<Health>();
         if (health != null) health.TakeDamageFromEnemy(damage, AttackSource.Random, transform.position, knockback);
+        if (health != null && poisonDuration > 0f) PoisonStatus.Apply(collision.collider.gameObject, poisonDuration, poisonDamagePerTick, poisonTickInterval, poisonIcon);
 
         DestructibleObject destructible = collision.collider.GetComponent<DestructibleObject>();
         if (destructible != null) destructible.TryDamage(damage, attackerForce);

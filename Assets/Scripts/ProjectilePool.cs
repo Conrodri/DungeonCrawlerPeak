@@ -33,6 +33,8 @@ public static class ProjectilePool
     public static void Release(GameObject go)
     {
         if (go == null) return;
+        Projectile projectile = go.GetComponent<Projectile>();
+        if (projectile != null) projectile.ResetOptionalFields();
         go.SetActive(false);
         pool.Enqueue(go);
     }

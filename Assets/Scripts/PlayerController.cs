@@ -11,7 +11,7 @@ public class PlayerController : MonoBehaviour
     // ranged types (Sling/Shuriken/Revolver/Bow) - see IsMeleeWeapon/KnockbackFor and the matching
     // [Header] blocks below for their stats, and TryAttack's switch for how each one actually swings/
     // fires.
-    public enum WeaponType { Fist, Sword, Staff, Halberd, ShortSword, SpikedGloves, Rapier, Hammer, Sling, Shuriken, Revolver, Bow }
+    public enum WeaponType { Fist, Sword, Staff, Halberd, ShortSword, SpikedGloves, Rapier, Hammer, Sling, Shuriken, Revolver, Bow, Fouet }
 
     public float moveSpeed = 5f;
 
@@ -183,6 +183,15 @@ public class PlayerController : MonoBehaviour
     public float bowStaminaCost = 9f;
     public float bowMaxChargeDuration = 1.2f;
 
+    // "fouet en arme de distance" (2026-09-23 request) - same infinite-ammo LaunchProjectile pattern
+    // as Sling/Shuriken/Revolver, just its own damage/speed/range/push tuning (long reach, low push).
+    [Header("Fouet")]
+    public int fouetDamage = 10;
+    public float fouetCooldown = 0.5f;
+    public float fouetProjectileSpeed = 15f;
+    public float fouetRange = 8f;
+    public float fouetStaminaCost = 6f;
+
     [Header("Throwables")]
     public int throwDamage = 8;
     public float throwSpeed = 10f;
@@ -271,6 +280,7 @@ public class PlayerController : MonoBehaviour
         WeaponType.Sling => KnockbackMid,
         WeaponType.Shuriken => KnockbackLow,
         WeaponType.Revolver => KnockbackHuge,
+        WeaponType.Fouet => KnockbackLow,
         _ => KnockbackNormal,
     };
 
@@ -320,6 +330,11 @@ public class PlayerController : MonoBehaviour
     Vector2 staggerVelocity;
     float staggerEndTime = -999f;
     float lastStaggerTime = -999f;
+    // 2026-09-23 request: "poise actif" a la Dark Souls sur les armes lourdes (Halberd/Hammer) -
+    // pendant la fenetre de swing, un coup recu inflige toujours ses degats normalement (voir
+    // Health.TakeDamage, non affecte) mais ne declenche plus le stagger ci-dessus - le swing va au
+    // bout au lieu d'etre interrompu. Set par SwordSlash via son parametre hyperarmorDuration.
+    float hyperarmorEndTime = -999f;
     // Selected via the hotbar (see UseItem) but not yet thrown - the next direction key press is
     // what actually launches it (see Update's aim-key handling / ThrowArmedItem), instead of the
     // old "hotbar key = instant throw in whatever direction you already happened to be aiming".
@@ -337,8 +352,22 @@ public class PlayerController : MonoBehaviour
     // Which spell sits in each of SpellBarUI's 5 slots - lives here (not on SpellBarUI itself) so
     // the Z/X/C/V/B shortcuts below (2026-09-18 request: "il nous faut evidemment une touche
     // attribuee") and a mouse click on the bar both arm the exact same thing through ArmSpell.
-    // Only slot 0 is populated today (Orbe de Foudre); see Awake.
+    // Starts entirely empty - see knownSpells below for why (2026-09-23 fix).
     public readonly string[] spellSlots = new string[SpellBarUI.SlotCount];
+    // Which spells this run has actually learned (see LearnSpell/tome items, ItemDefinition.
+    // GrantsSpellId) - 2026-09-23 fix: "tu donnes 3 sorts de base au crawler qu'il ne devrait pas
+    // avoir". Previously every spell was just hardcoded as known-and-equipped from Awake with no
+    // way to NOT have it; now this starts empty and SpellBookUI only lists/allows equipping a spell
+    // once its id is in here.
+    public readonly HashSet<string> knownSpells = new HashSet<string>();
+
+    public bool KnowsSpell(string spellId) => !string.IsNullOrEmpty(spellId) && knownSpells.Contains(spellId);
+
+    public void LearnSpell(string spellId)
+    {
+        if (string.IsNullOrEmpty(spellId)) return;
+        knownSpells.Add(spellId);
+    }
     // See ApplySlow (e.g. BossController's Cerbere slobber puddle) - a temporary multiplier on top
     // of the normal speed calc, same "take the strongest, extend the duration" pattern as
     // ApplyMovementDebuff below.
@@ -400,9 +429,6 @@ public class PlayerController : MonoBehaviour
             UpdateLimbDebuffIcons(); // covers a restored save that loads in with a limb already broken
         }
 
-        spellSlots[0] = SpellIds.LightningOrb;
-        spellSlots[1] = SpellIds.Fireball;
-        spellSlots[2] = SpellIds.FireLine;
     }
 
     void UpdateLimbDebuffIcons()
@@ -424,6 +450,7 @@ public class PlayerController : MonoBehaviour
     void HandleDamagedFrom(Vector2 fromPosition, float knockback)
     {
         if (Time.time - lastStaggerTime < StaggerCooldown) return;
+        if (Time.time < hyperarmorEndTime) return; // poise actif - le swing en cours absorbe le stagger
 
         Vector2 away = rb.position - fromPosition;
         if (away.sqrMagnitude < 0.0001f) away = -aimDirection;
@@ -503,14 +530,23 @@ public class PlayerController : MonoBehaviour
         else if (KeyBindings.IsPressed(GameAction.AimLeft)) { aim = Vector2.left; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimLeft); }
         else if (KeyBindings.IsPressed(GameAction.AimRight)) { aim = Vector2.right; directionPressedThisFrame = KeyBindings.WasPressedThisFrame(GameAction.AimRight); }
 
-        if (aim != Vector2.zero) aimDirection = aim;
-        // The combo (see AdvanceMeleeCombo) only continues while a direction key stays held -
-        // letting go for even one frame breaks it back to hit 1, regardless of how little time has
-        // passed (2026-09-16 request: "uniquement si la touche d'attaque reste enfoncee, sinon pas
-        // de combo"). Checked every frame here rather than only when an attack actually fires, so a
-        // release mid-cooldown breaks the chain immediately instead of waiting for the next swing
-        // to notice.
-        else comboCount = 0;
+        // The combo (see AdvanceMeleeCombo) only continues while a direction key stays held, give
+        // or take a short ComboReleaseGrace (2026-09-16 request: "uniquement si la touche
+        // d'attaque reste enfoncee, sinon pas de combo" - 2026-09-23 follow-up: that instant break
+        // on a single dropped frame read as too finicky, so a brief release is now tolerated
+        // instead of resetting immediately). Checked every frame here rather than only when an
+        // attack actually fires, so a release mid-cooldown still breaks the chain once the grace
+        // window elapses, instead of waiting for the next swing to notice.
+        if (aim != Vector2.zero)
+        {
+            aimDirection = aim;
+            aimReleasedTime = -1f;
+        }
+        else
+        {
+            if (aimReleasedTime < 0f) aimReleasedTime = Time.time;
+            if (Time.time - aimReleasedTime > ComboReleaseGrace) comboCount = 0;
+        }
 
         // A direction press that just threw an item/cast a spell must not ALSO start a melee swing
         // the instant that same key is still held on the next frame (2026-09-19 bug report: "si je
@@ -756,6 +792,7 @@ public class PlayerController : MonoBehaviour
         WeaponType.Sling => slingCooldown,
         WeaponType.Shuriken => shurikenWeaponCooldown,
         WeaponType.Revolver => revolverCooldown,
+        WeaponType.Fouet => fouetCooldown,
         _ => fistCooldown,
     };
 
@@ -772,6 +809,7 @@ public class PlayerController : MonoBehaviour
         WeaponType.Sling => slingStaminaCost,
         WeaponType.Shuriken => shurikenWeaponStaminaCost,
         WeaponType.Revolver => revolverStaminaCost,
+        WeaponType.Fouet => fouetStaminaCost,
         _ => fistStaminaCost,
     };
 
@@ -830,13 +868,13 @@ public class PlayerController : MonoBehaviour
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(halberdOffset * stats.RangeMultiplier, halberdRange * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, KnockbackHuge);
                 else
-                    SwordSlash((halberdOffset + halberdRange) * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, swordArcHalfDegrees, halberdSwingDuration, KnockbackHuge);
+                    SwordSlash((halberdOffset + halberdRange) * stats.RangeMultiplier, ScaledPhysicalDamage(halberdDamage), swordVisualSprite, swordArcHalfDegrees, halberdSwingDuration, KnockbackHuge, hyperarmorDuration: halberdSwingDuration);
                 break;
             case WeaponType.Hammer:
                 if (AdvanceMeleeCombo())
                     ComboFinisherAttack(hammerOffset * stats.RangeMultiplier, hammerRange * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, KnockbackHuge);
                 else
-                    SwordSlash((hammerOffset + hammerRange) * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, swordArcHalfDegrees, hammerSwingDuration, KnockbackHuge);
+                    SwordSlash((hammerOffset + hammerRange) * stats.RangeMultiplier, ScaledPhysicalDamage(hammerDamage), swordVisualSprite, swordArcHalfDegrees, hammerSwingDuration, KnockbackHuge, hyperarmorDuration: hammerSwingDuration);
                 break;
             case WeaponType.ShortSword:
                 if (AdvanceMeleeCombo())
@@ -873,6 +911,10 @@ public class PlayerController : MonoBehaviour
                 revolverAmmo--;
                 if (revolverAmmo <= 0) revolverReloadEndTime = Time.time + revolverReloadDuration;
                 LaunchProjectile(projectileSprite, ScaledPhysicalDamage(revolverDamage), revolverProjectileSpeed, revolverRange * stats.RangeMultiplier, KnockbackHuge);
+                break;
+            case WeaponType.Fouet:
+                comboCount = 0;
+                LaunchProjectile(projectileSprite, ScaledPhysicalDamage(fouetDamage), fouetProjectileSpeed, fouetRange * stats.RangeMultiplier, KnockbackLow);
                 break;
         }
     }
@@ -922,8 +964,14 @@ public class PlayerController : MonoBehaviour
     const float ComboWindow = 1f;
     const float ComboFinisherDashDistance = 3f;
     const float ComboFinisherDashSpeed = 16f;
+    // 2026-09-23 request: the "release breaks the combo instantly" rule (see Update, aim ==
+    // Vector2.zero branch) read as too finicky/heavy - a single dropped frame on the key shouldn't
+    // undo a combo the ComboWindow above would otherwise still allow. This grace period tolerates
+    // a brief release without touching the original "you must stay engaged" intent.
+    const float ComboReleaseGrace = 0.12f;
     int comboCount;
     float lastMeleeComboTime = -999f;
+    float aimReleasedTime = -999f;
 
     bool AdvanceMeleeCombo()
     {
@@ -961,6 +1009,11 @@ public class PlayerController : MonoBehaviour
         }
 
         ItemDefinition definition = ItemDatabase.Get(itemId);
+        if (definition != null && definition.IsSpellTome)
+        {
+            UseTomeItem(itemId, definition);
+            return;
+        }
         if (definition != null && definition.IsPotion)
         {
             UsePotionItem(itemId, definition);
@@ -1041,6 +1094,15 @@ public class PlayerController : MonoBehaviour
         if (spellId == SpellIds.LightningOrb) TryCastLightningOrb();
         else if (spellId == SpellIds.Fireball) TryCastFireball();
         else if (spellId == SpellIds.FireLine) TryCastFireLine();
+    }
+
+    // Reads a tome (see ItemDefinition.GrantsSpellId) - learns the spell for good and consumes the
+    // book, same "no-op if already known" spirit as picking up a duplicate ring. No cooldown gate
+    // like UsePotionItem's throwCooldown - reading a book isn't a combat action.
+    void UseTomeItem(string itemId, ItemDefinition definition)
+    {
+        if (!inventory.TryConsume(itemId)) return;
+        LearnSpell(definition.GrantsSpellId);
     }
 
     // Applies whichever effects this potion actually has (see ItemDefinition.IsPotion) - a plain
@@ -1187,12 +1249,13 @@ public class PlayerController : MonoBehaviour
     // arcHalfDegrees/swingDuration are per-caller now (2026-09-22: Halberd/Hammer reuse this same
     // arc-sweep shape with their own numbers instead of duplicating the method) - Sword's own call
     // site passes swordArcHalfDegrees/swordSwingDuration, unchanged from before.
-    void SwordSlash(float radius, int damage, Sprite visualSprite, float arcHalfDegrees, float swingDuration, float knockback = KnockbackNormal)
+    void SwordSlash(float radius, int damage, Sprite visualSprite, float arcHalfDegrees, float swingDuration, float knockback = KnockbackNormal, float hyperarmorDuration = 0f)
     {
         damage = PrepareMeleeDamage(damage);
 
         attackLungeVelocity = aimDirection * AttackLungeSpeed;
         attackLungeEndTime = Time.time + AttackLungeDuration;
+        if (hyperarmorDuration > 0f) hyperarmorEndTime = Time.time + hyperarmorDuration;
 
         Vector2 origin = rb.position;
         Collider2D[] hits = Physics2D.OverlapCircleAll(origin, radius);

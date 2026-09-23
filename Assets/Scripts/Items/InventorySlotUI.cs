@@ -203,7 +203,7 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         if (string.IsNullOrEmpty(itemId)) return;
 
         ItemDefinition definition = ItemDatabase.Get(itemId);
-        if (definition == null || (!definition.IsThrowable && !definition.IsPotion)) return;
+        if (definition == null || (!definition.IsThrowable && !definition.IsPotion && !definition.IsSpellTome)) return;
 
         player.UseItem(itemId);
         InventoryUI.CloseIfOpen();

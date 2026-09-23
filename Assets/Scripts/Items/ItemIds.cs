@@ -25,6 +25,15 @@ public static class ItemIds
     public const string ShurikenLauncher = "shuriken_launcher";
     public const string Revolver = "revolver";
     public const string Bow = "bow";
+    // 2026-09-23 request: whip as a 5th ranged weapon type, same infinite-ammo pattern as the 4 above.
+    public const string Fouet = "fouet";
+    // 2026-09-23 fix: "tu donnes 3 sorts de base au crawler qu'il ne devrait pas avoir" -
+    // PlayerController used to auto-grant/equip all 3 spells at spawn for free (see SpellIds); each
+    // now has to actually be found/bought as a tome and used once to be learned (see
+    // ItemDefinition.GrantsSpellId/PlayerController.LearnSpell).
+    public const string TomeFoudre = "tome_foudre";
+    public const string TomeFeu = "tome_feu";
+    public const string TomeLigneDeFeu = "tome_ligne_de_feu";
     public const string TrapSack = "trap_sack";
     public const string HealthPotion = "health_potion";
     public const string CerberusCollar = "cerberus_collar";

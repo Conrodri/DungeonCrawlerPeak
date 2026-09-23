@@ -36,6 +36,7 @@ public class ItemCatalog : MonoBehaviour
         public int armorValue;
         public int maxDurability;
         public MaterialType material;
+        public string grantsSpellId;
     }
 
     public List<Entry> entries = new List<Entry>();
@@ -72,7 +73,8 @@ public class ItemCatalog : MonoBehaviour
                 RingBonusStat = entry.ringBonusStat,
                 ArmorValue = entry.armorValue,
                 MaxDurability = entry.maxDurability,
-                Material = entry.material
+                Material = entry.material,
+                GrantsSpellId = entry.grantsSpellId
             });
         }
     }

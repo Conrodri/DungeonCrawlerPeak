@@ -41,6 +41,10 @@ public class ItemDefinition
     public float StaminaRegenBuffDuration;
     // Whether this item is a "potion" for click-to-use/UseItem purposes - any of the effects above.
     public bool IsPotion => HealAmount > 0 || SpeedBuffMultiplier > 0f || StaminaRegenBuffMultiplier > 0f;
+    // Empty = not a spell tome; otherwise using it from the hotbar teaches this SpellIds entry
+    // (PlayerController.LearnSpell) instead of throwing/consuming for a buff - see TomeFoudre etc.
+    public string GrantsSpellId;
+    public bool IsSpellTome => !string.IsNullOrEmpty(GrantsSpellId);
     // No Nullable<EquipmentSlotType> here, same reason as CursedWeaponType above - a plain bool
     // flag next to a non-nullable default value survives Unity's serialization; Nullable doesn't.
     public bool IsEquipment;

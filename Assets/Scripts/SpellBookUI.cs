@@ -4,16 +4,19 @@ using UnityEngine.UI;
 // Grimoire des sorts, toggled with K - same shape as CharacterSheetUI (a recap panel, pushed on
 // UIWindowStack), plus a row of clickable spell chips (2026-09-21 request: "sorts... ajoutable a
 // la barre depuis l'interface des sorts") - clicking a spell here adds it to the first empty
-// PlayerController.spellSlots slot, or removes it if it's already on the bar. Every spell the
-// player knows is listed (see KnownSpellIds) - there's no "unlock" system today, so this is
-// currently all 3 spells that exist (SpellIds), always.
+// PlayerController.spellSlots slot, or removes it if it's already on the bar. AllSpellIds is every
+// spell that EXISTS (SpellIds) - whether the player actually KNOWS one is a separate, per-run
+// question (see PlayerController.knownSpells/KnowsSpell), 2026-09-23 fix: "tu donnes 3 sorts de
+// base au crawler qu'il ne devrait pas avoir" - a chip for an unlearned spell shows locked and
+// can't be clicked onto the bar (see ChipLockedColor/ToggleSpellOnBar).
 public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
 {
-    static readonly string[] KnownSpellIds = { SpellIds.LightningOrb, SpellIds.Fireball, SpellIds.FireLine };
-    static readonly string[] KnownSpellNames = { "Orbe de Foudre", "Boule de Feu", "Ligne de Feu" };
+    static readonly string[] AllSpellIds = { SpellIds.LightningOrb, SpellIds.Fireball, SpellIds.FireLine };
+    static readonly string[] AllSpellNames = { "Orbe de Foudre", "Boule de Feu", "Ligne de Feu" };
 
     static readonly Color ChipOnBarColor = new Color(1f, 0.85f, 0.2f, 0.9f);
     static readonly Color ChipOffBarColor = new Color(1f, 1f, 1f, 0.15f);
+    static readonly Color ChipLockedColor = new Color(0f, 0f, 0f, 0.35f);
 
     public PlayerController controller;
     public Mana mana;
@@ -70,13 +73,13 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
 
         // --- Spell chips: click to add/remove from the bar (PlayerController.spellSlots) ---
         Font chipFont = Font.CreateDynamicFontFromOSFont("Arial", 18);
-        chipBackgrounds = new Image[KnownSpellIds.Length];
+        chipBackgrounds = new Image[AllSpellIds.Length];
         float chipWidth = 220f;
         float chipSpacing = 16f;
-        float chipsTotalWidth = KnownSpellIds.Length * chipWidth + (KnownSpellIds.Length - 1) * chipSpacing;
-        for (int i = 0; i < KnownSpellIds.Length; i++)
+        float chipsTotalWidth = AllSpellIds.Length * chipWidth + (AllSpellIds.Length - 1) * chipSpacing;
+        for (int i = 0; i < AllSpellIds.Length; i++)
         {
-            string spellId = KnownSpellIds[i];
+            string spellId = AllSpellIds[i];
             GameObject chipGO = new GameObject("SpellChip" + i, typeof(Image));
             chipGO.transform.SetParent(panel.transform, false);
             Image chipBg = chipGO.GetComponent<Image>();
@@ -91,7 +94,7 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
             GameObject chipLabelGO = new GameObject("Label", typeof(Text));
             chipLabelGO.transform.SetParent(chipGO.transform, false);
             Text chipLabel = chipLabelGO.GetComponent<Text>();
-            chipLabel.text = KnownSpellNames[i];
+            chipLabel.text = AllSpellNames[i];
             chipLabel.font = chipFont;
             chipLabel.fontSize = 18;
             chipLabel.alignment = TextAnchor.MiddleCenter;
@@ -169,6 +172,7 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
 
         string text = manaLine;
 
+        bool anyKnown = false;
         if (controller != null)
         {
             float magicMultiplier = stats != null ? stats.MagicDamageMultiplier : 1f;
@@ -176,38 +180,55 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
             int fireballDamage = Mathf.RoundToInt(controller.fireballDamage * magicMultiplier);
             int burnDamage = Mathf.RoundToInt(controller.burnDamagePerTick * magicMultiplier);
 
-            text +=
-                "Orbe de Foudre [" + SlotKeyLabel(SpellIds.LightningOrb) + "]\n" +
-                "Cout : " + controller.lightningOrbManaCost + " mana\n" +
-                "Degats : " + lightningDamage + " (rebondit sur les ennemis a moins de " + controller.lightningOrbChainRadius.ToString("0.#") + "m de l'impact)\n" +
-                "Portee : " + controller.lightningOrbRange.ToString("0.#") + "\n" +
-                "Recharge : " + controller.lightningOrbCooldown.ToString("0.#") + "s\n\n" +
+            if (controller.KnowsSpell(SpellIds.LightningOrb))
+            {
+                anyKnown = true;
+                text +=
+                    "Orbe de Foudre [" + SlotKeyLabel(SpellIds.LightningOrb) + "]\n" +
+                    "Cout : " + controller.lightningOrbManaCost + " mana\n" +
+                    "Degats : " + lightningDamage + " (rebondit sur les ennemis a moins de " + controller.lightningOrbChainRadius.ToString("0.#") + "m de l'impact)\n" +
+                    "Portee : " + controller.lightningOrbRange.ToString("0.#") + "\n" +
+                    "Recharge : " + controller.lightningOrbCooldown.ToString("0.#") + "s\n\n";
+            }
 
-                "Boule de Feu [" + SlotKeyLabel(SpellIds.Fireball) + "]\n" +
-                "Cout : " + controller.fireballManaCost + " mana\n" +
-                "Degats : " + fireballDamage + " (grossit " + controller.fireballChargeDuration.ToString("0.#") + "s avant de partir)\n" +
-                "Portee : " + controller.fireballRange.ToString("0.#") + "\n" +
-                "Recharge : " + controller.fireballCooldown.ToString("0.#") + "s\n\n" +
+            if (controller.KnowsSpell(SpellIds.Fireball))
+            {
+                anyKnown = true;
+                text +=
+                    "Boule de Feu [" + SlotKeyLabel(SpellIds.Fireball) + "]\n" +
+                    "Cout : " + controller.fireballManaCost + " mana\n" +
+                    "Degats : " + fireballDamage + " (grossit " + controller.fireballChargeDuration.ToString("0.#") + "s avant de partir)\n" +
+                    "Portee : " + controller.fireballRange.ToString("0.#") + "\n" +
+                    "Recharge : " + controller.fireballCooldown.ToString("0.#") + "s\n\n";
+            }
 
-                "Ligne de Feu [" + SlotKeyLabel(SpellIds.FireLine) + "]\n" +
-                "Cout : " + controller.fireLineManaCost + " mana\n" +
-                "Laisse une trainee de feu pendant " + controller.fireLineLifetime.ToString("0.#") + "s\n" +
-                "Brulure : " + burnDamage + " degats/" + controller.burnTickInterval.ToString("0.#") + "s pendant " + controller.burnDuration.ToString("0.#") + "s (se renouvelle tant que la cible reste dans le feu)\n" +
-                "Portee : " + controller.fireLineRange.ToString("0.#") + "\n" +
-                "Recharge : " + controller.fireLineCooldown.ToString("0.#") + "s\n";
+            if (controller.KnowsSpell(SpellIds.FireLine))
+            {
+                anyKnown = true;
+                text +=
+                    "Ligne de Feu [" + SlotKeyLabel(SpellIds.FireLine) + "]\n" +
+                    "Cout : " + controller.fireLineManaCost + " mana\n" +
+                    "Laisse une trainee de feu pendant " + controller.fireLineLifetime.ToString("0.#") + "s\n" +
+                    "Brulure : " + burnDamage + " degats/" + controller.burnTickInterval.ToString("0.#") + "s pendant " + controller.burnDuration.ToString("0.#") + "s (se renouvelle tant que la cible reste dans le feu)\n" +
+                    "Portee : " + controller.fireLineRange.ToString("0.#") + "\n" +
+                    "Recharge : " + controller.fireLineCooldown.ToString("0.#") + "s\n";
+            }
         }
-        else
-        {
-            text += "Aucun sort connu.\n";
-        }
+
+        if (!anyKnown) text += "Aucun sort appris - trouvez un tome pour en apprendre un.\n";
 
         bodyText.text = text;
 
         if (chipBackgrounds != null)
         {
-            for (int i = 0; i < KnownSpellIds.Length; i++)
+            for (int i = 0; i < AllSpellIds.Length; i++)
             {
-                bool onBar = controller != null && System.Array.IndexOf(controller.spellSlots, KnownSpellIds[i]) >= 0;
+                if (controller == null || !controller.KnowsSpell(AllSpellIds[i]))
+                {
+                    chipBackgrounds[i].color = ChipLockedColor;
+                    continue;
+                }
+                bool onBar = System.Array.IndexOf(controller.spellSlots, AllSpellIds[i]) >= 0;
                 chipBackgrounds[i].color = onBar ? ChipOnBarColor : ChipOffBarColor;
             }
         }
@@ -231,7 +252,7 @@ public class SpellBookUI : MonoBehaviour, UIWindowStack.IWindow
     // (or do nothing if all 5 are full - no eviction, the player un-slots something first).
     void ToggleSpellOnBar(string spellId)
     {
-        if (controller == null) return;
+        if (controller == null || !controller.KnowsSpell(spellId)) return;
 
         for (int i = 0; i < controller.spellSlots.Length; i++)
         {
