@@ -46,6 +46,20 @@ public class RoomController : MonoBehaviour
     public Sprite speedUpBadge;
     public Sprite hpUpBadge;
     public Sprite glowSprite;
+    // Shared ring visual for EnemyController.rangeTelegraphSprite (see DungeonGenerator's
+    // outlineRingSprite) - same "set once here, applied to every spawned enemy" convention as the
+    // 3 fields above.
+    public Sprite rangeTelegraphSprite;
+    // Directional pie-slice used for frontal attacks (Claw) instead of the omnidirectional ring
+    // above - see DungeonGenerator's coneTelegraphSprite (2026-09-23 request).
+    public Sprite coneTelegraphSprite;
+    // Directional corridor used for the Dash lunge - see DungeonGenerator's rectTelegraphSprite
+    // (2026-09-23 follow-up: a straight-line lunge reads as a rectangle between attacker and
+    // target, not a big square/ring centered on the attacker).
+    public Sprite rectTelegraphSprite;
+    // Larve's Spit poison-debuff icon - see DungeonGenerator's poisonIconSprite/EnemyController.
+    // poisonIconSprite, same "set once here, applied to every spawned enemy" convention.
+    public Sprite poisonIconSprite;
     public EnemySpawn[] recipe;
     public List<GameObject> doorBlockers = new List<GameObject>();
     // This room's own door triggers (the ones sitting inside it) - switched solid while locked
@@ -209,6 +223,10 @@ public class RoomController : MonoBehaviour
             controller.contactDamage = scaledContactDamage;
             controller.isFlying = preset.isFlying;
             controller.projectileSprite = preset.projectileSprite;
+            controller.rangeTelegraphSprite = rangeTelegraphSprite;
+            controller.coneTelegraphSprite = coneTelegraphSprite;
+            controller.rectTelegraphSprite = rectTelegraphSprite;
+            controller.poisonIconSprite = poisonIconSprite;
             // Floor-scaled (see DungeonGenerator.RegionBossXpFor) - a flat reward regardless of
             // floor couldn't keep pace with a per-floor XP budget that grows several times over
             // from one floor to the next.
