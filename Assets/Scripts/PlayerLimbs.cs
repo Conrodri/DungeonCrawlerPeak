@@ -149,27 +149,38 @@ public class PlayerLimbs : MonoBehaviour, ILimbs
     }
 
     // Distributes `amount` total HP across every non-broken limb (a broken one gets nothing - "un
-    // membre a 0 PV ignore les soins de base"), one point at a time to whichever eligible limb is
-    // currently missing the most HP. Keeps a big heal (e.g. the Tavernier's full rest, or any heal
-    // amount at all now that limb pools run into the tens/hundreds) from concentrating on a
-    // near-full limb while a badly hurt one goes untouched, without needing a fixed split ratio.
+    // membre a 0 PV ignore les soins de base") SIMULTANEOUSLY rather than filling one limb before
+    // touching the next (2026-09-23 fix: the old one-point-at-a-time greedy-deficit loop below
+    // effectively dumped a whole potion into whichever single limb was worst off, which read as
+    // "only one limb got healed" for a typical potion against limb pools in the tens - not the
+    // "repartit sur tous les membres" the user wants). Splits `amount` evenly across every eligible
+    // (non-broken, not-yet-full) limb each pass, re-evaluating eligibility every pass so a limb that
+    // caps out mid-heal doesn't waste its leftover share - the remainder rolls into the next pass
+    // among the limbs still missing HP, until either amount runs out or every limb is full.
     // Called from Health.Heal whenever this component is present.
     public void HealNonBroken(int amount)
     {
         if (amount <= 0) return;
-        for (int i = 0; i < amount; i++)
+        int remaining = amount;
+        while (remaining > 0)
         {
-            BodyPart? best = null;
-            int bestDeficit = 0;
+            List<BodyPart> eligible = new List<BodyPart>();
             foreach (BodyPart part in AllParts)
             {
                 int hp = GetLimbHealth(part);
                 if (hp <= 0) continue; // broken - skip, doesn't come back from a normal heal
-                int deficit = GetMaxLimbHealth(part) - hp;
-                if (deficit > bestDeficit) { bestDeficit = deficit; best = part; }
+                if (hp < GetMaxLimbHealth(part)) eligible.Add(part);
             }
-            if (best == null) break; // every eligible limb is already full
-            limbHealth[best.Value] = GetLimbHealth(best.Value) + 1;
+            if (eligible.Count == 0) break; // every eligible limb is already full
+
+            int share = Mathf.Max(1, remaining / eligible.Count);
+            foreach (BodyPart part in eligible)
+            {
+                if (remaining <= 0) break;
+                int give = Mathf.Min(share, remaining, GetMaxLimbHealth(part) - GetLimbHealth(part));
+                limbHealth[part] = GetLimbHealth(part) + give;
+                remaining -= give;
+            }
         }
         SyncHealth();
         OnLimbsChanged?.Invoke();
