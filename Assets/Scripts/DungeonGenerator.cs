@@ -97,6 +97,11 @@ public static class DungeonGenerator
 
     // Souls-like floor progression tuning (see FloorTimer/Staircase).
     const float FloorDuration = 600f; // 10 minutes
+    // 2026-09-23 request: "retire le timer d'effondrement par etage pour l'instant, met le en
+    // standby" - single flip to fully restore later. FloorTimer itself still spawns either way
+    // (Staircase's Timed lock type depends on a non-null floorTimer to ever unlock, see
+    // Staircase.cs) - only the death consequence and its countdown UI are gated off below.
+    const bool FloorCollapseEnabled = false;
     const float TimedStairsUnlockFraction = 0.5f; // unlocks 5 of the 10 minutes in
 
     static readonly string[] SkullMask =
@@ -513,6 +518,21 @@ public static class DungeonGenerator
         "   XXXXX  ",
         "          ",
     };
+    // A zigzag lash coiling down to a handle - reads as "whip" at a glance next to the other
+    // weapon silhouettes above (2026-09-23 request: fouet as a 5th ranged weapon).
+    static readonly string[] FouetMask =
+    {
+        "X         ",
+        " X        ",
+        "  X       ",
+        "   X      ",
+        "    X     ",
+        "   X      ",
+        "  X       ",
+        " X    XX  ",
+        "X     XXX ",
+        "      XXX ",
+    };
     // A simple diagonal handle on a wide base plate - reads as "lever/switch" at a glance instead
     // of a plain square indistinguishable from room decor (StoneBlock/WoodDebris/MetalDebris all
     // use CreateSolidSprite, no masked shape - see 2026-09-16 lever visibility rework).
@@ -840,6 +860,9 @@ public static class DungeonGenerator
         Sprite doorBarrierSprite = assets.doorBarrierSprite;
         Sprite secretWallSprite = assets.secretWallSprite;
         Sprite outlineRingSprite = assets.outlineRingSprite;
+        Sprite coneTelegraphSprite = assets.coneTelegraphSprite;
+        Sprite rectTelegraphSprite = assets.rectTelegraphSprite;
+        Sprite poisonIconSprite = assets.poisonIconSprite;
         Sprite npcStrangerSprite = assets.npcStrangerSprite;
         Sprite npcElderSprite = assets.npcElderSprite;
         Sprite npcMerchantSprite = assets.npcMerchantSprite;
@@ -1136,7 +1159,7 @@ public static class DungeonGenerator
 
                 bool startCleared = memberCells.Exists(c => clearedRoomsThisFloor.Contains(c));
                 bool hasElite = SetupMonsterRoom(memberCells, originX, originY, groupSize, root.transform, player.transform,
-                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, decorSprites, floorTheme, doors, monsterRoomControllers, startCleared);
+                    enemyPresets, speedUpBadge, hpUpBadge, enemyGlowSprite, doorBarrierSprite, outlineRingSprite, coneTelegraphSprite, rectTelegraphSprite, poisonIconSprite, decorSprites, floorTheme, doors, monsterRoomControllers, startCleared);
                 if (hasElite) eliteRoomCount++;
             }
             else if (kv.Value == RoomType.Boss)
@@ -1198,8 +1221,8 @@ public static class DungeonGenerator
                                 SpawnMaterialStorageContent(roomOrigin, new Vector2(RoomWidth, RoomHeight), safeDoors, center, shopCrateSprite, wallDecorSprite, root.transform);
                                 break;
                             default:
-                                SpawnArcadeNpc(npcPos, npcStrangerSprite, npcBadgeSprite, root.transform);
-                                SpawnArcadeFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), npcPos, furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform);
+                                SpawnArcadeMachines(npcPos, furnitureWoodSprite, npcBadgeSprite, root.transform);
+                                SpawnArcadeFurniture(roomOrigin, new Vector2(RoomWidth, RoomHeight), furnitureWoodSprite, rugSprite, wallDecorSprite, root.transform);
                                 break;
                         }
                     }
@@ -1518,7 +1541,7 @@ public static class DungeonGenerator
         FloorTimer floorTimer = floorTimerGO.GetComponent<FloorTimer>();
         floorTimer.duration = FloorDuration;
         // A collapsing floor is an unavoidable death, unlike ordinary damage - bypasses dodge/i-frames.
-        floorTimer.OnCollapse += () => { Debug.Log("Le sol s'effondre !"); playerHealth.Kill(); };
+        if (FloorCollapseEnabled) floorTimer.OnCollapse += () => { Debug.Log("Le sol s'effondre !"); playerHealth.Kill(); };
 
         // Floor + biome identity, right above the countdown - a Souls-like floor should announce
         // itself the way Dungeon Crawler Carl's do (named, themed), not just be a color swap.
@@ -1536,22 +1559,25 @@ public static class DungeonGenerator
         floorInfoLabelRect.anchoredPosition = new Vector2(0f, -20f);
         floorInfoLabelRect.sizeDelta = new Vector2(320f, 30f);
 
-        GameObject floorTimerLabelGO = new GameObject("FloorTimerLabel", typeof(Text));
-        floorTimerLabelGO.transform.SetParent(canvasGO.transform, false);
-        Text floorTimerLabel = floorTimerLabelGO.GetComponent<Text>();
-        floorTimerLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 32);
-        floorTimerLabel.fontSize = 32;
-        floorTimerLabel.alignment = TextAnchor.MiddleCenter;
-        floorTimerLabel.color = Color.white;
-        RectTransform floorTimerLabelRect = floorTimerLabel.rectTransform;
-        floorTimerLabelRect.anchorMin = floorTimerLabelRect.anchorMax = new Vector2(0.5f, 1f);
-        floorTimerLabelRect.pivot = new Vector2(0.5f, 1f);
-        floorTimerLabelRect.anchoredPosition = new Vector2(0f, -54f);
-        floorTimerLabelRect.sizeDelta = new Vector2(160f, 44f);
+        if (FloorCollapseEnabled)
+        {
+            GameObject floorTimerLabelGO = new GameObject("FloorTimerLabel", typeof(Text));
+            floorTimerLabelGO.transform.SetParent(canvasGO.transform, false);
+            Text floorTimerLabel = floorTimerLabelGO.GetComponent<Text>();
+            floorTimerLabel.font = Font.CreateDynamicFontFromOSFont("Arial", 32);
+            floorTimerLabel.fontSize = 32;
+            floorTimerLabel.alignment = TextAnchor.MiddleCenter;
+            floorTimerLabel.color = Color.white;
+            RectTransform floorTimerLabelRect = floorTimerLabel.rectTransform;
+            floorTimerLabelRect.anchorMin = floorTimerLabelRect.anchorMax = new Vector2(0.5f, 1f);
+            floorTimerLabelRect.pivot = new Vector2(0.5f, 1f);
+            floorTimerLabelRect.anchoredPosition = new Vector2(0f, -54f);
+            floorTimerLabelRect.sizeDelta = new Vector2(160f, 44f);
 
-        FloorTimerUI floorTimerUI = floorTimerLabelGO.AddComponent<FloorTimerUI>();
-        floorTimerUI.target = floorTimer;
-        floorTimerUI.label = floorTimerLabel;
+            FloorTimerUI floorTimerUI = floorTimerLabelGO.AddComponent<FloorTimerUI>();
+            floorTimerUI.target = floorTimer;
+            floorTimerUI.label = floorTimerLabel;
+        }
 
         // Now that the floor's single Boss room (if any) has its controller and FloorTimer exists,
         // the staircase can wire whichever lock it rolled.
@@ -2478,6 +2504,9 @@ public static class DungeonGenerator
         Sprite skinwalkerSprite = CreateMaskedSprite("Assets/Art/Enemies/Skinwalker.png", SkinwalkerMask, new Color(0.3f, 0.24f, 0.34f));
         Sprite sorcierSprite = CreateMaskedSprite("Assets/Art/Enemies/Sorcier.png", SorcierMask, new Color(0.35f, 0.15f, 0.5f));
         Sprite sorcierProjectileSprite = CreateCircleSprite("Assets/Art/Fx/SorcierProjectile.png", new Color(0.55f, 0.85f, 0.95f));
+        // 2026-09-23 monster-variety request: Larve's Spit - a poison-green blob, distinct from
+        // Sorcier's cyan bolt above so the two ranged threats read differently at a glance.
+        Sprite larveSpitSprite = CreateCircleSprite("Assets/Art/Fx/LarveSpit.png", new Color(0.45f, 0.75f, 0.25f));
         assets.bossProjectileSprite = CreateCircleSprite("Assets/Art/Fx/BossProjectile.png", new Color(0.85f, 0.2f, 0.15f));
         assets.bossSlobberPuddleSprite = CreateCircleSprite("Assets/Art/Fx/BossSlobberPuddle.png", new Color(0.45f, 0.55f, 0.2f));
         Sprite stoneBlockSprite = CreateSolidSprite("Assets/Art/Decor/StoneBlock.png", new Color(0.42f, 0.4f, 0.38f));
@@ -2540,9 +2569,11 @@ public static class DungeonGenerator
         // Larve (fast charger, eerie hard-hitting predator) so their hit count stays deterministic.
         assets.enemyPresets = new RoomController.EnemyPresetEntry[]
         {
-            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 50, contactDamage = 12, isFlying = false, xpReward = 2 },
+            // 2026-09-23 playtest feedback: "les zombies ont trop de vie, reduit un peu" - eased
+            // again, 50 -> 38 (was already eased from 70 -> 50 before, see comment above).
+            new RoomController.EnemyPresetEntry { type = EnemyType.Zombie, sprite = zombieSprite, maxHealth = 38, contactDamage = 12, isFlying = false, xpReward = 2 },
             new RoomController.EnemyPresetEntry { type = EnemyType.ChauveSouris, sprite = chauveSourisSprite, maxHealth = 18, contactDamage = 8, isFlying = true, xpReward = 1 },
-            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 12, contactDamage = 4, isFlying = false, xpReward = 1 },
+            new RoomController.EnemyPresetEntry { type = EnemyType.Larve, sprite = larveSprite, maxHealth = 12, contactDamage = 4, isFlying = false, xpReward = 1, projectileSprite = larveSpitSprite },
             new RoomController.EnemyPresetEntry { type = EnemyType.Momie, sprite = momieSprite, maxHealth = 55, contactDamage = 13, isFlying = false, xpReward = 2 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Sanglier, sprite = sanglierSprite, maxHealth = 20, contactDamage = 10, isFlying = false, xpReward = 1 },
             new RoomController.EnemyPresetEntry { type = EnemyType.Skinwalker, sprite = skinwalkerSprite, maxHealth = 24, contactDamage = 14, isFlying = false, xpReward = 2 },
@@ -2599,6 +2630,14 @@ public static class DungeonGenerator
         Sprite shurikenLauncherSprite = CreateMaskedSprite("Assets/Art/Items/ShurikenLauncher.png", ShurikenMask, new Color(0.5f, 0.5f, 0.58f));
         Sprite revolverSprite = CreateMaskedSprite("Assets/Art/Items/Revolver.png", RevolverMask, new Color(0.25f, 0.25f, 0.28f));
         Sprite bowSprite = CreateMaskedSprite("Assets/Art/Items/Bow.png", BowMask, new Color(0.55f, 0.4f, 0.22f));
+        // 2026-09-23 request: fouet as a 5th ranged weapon, same infinite-ammo LaunchProjectile pattern.
+        Sprite fouetSprite = CreateMaskedSprite("Assets/Art/Items/Fouet.png", FouetMask, new Color(0.4f, 0.25f, 0.15f));
+        // 2026-09-23 fix: spell tomes - a plain-book placeholder icon per spell, tinted to match its
+        // own cast FX color (see assets.lightningOrbSprite/fireballSprite/fireLineSprite below) so a
+        // tome reads as "belongs to that spell" at a glance even without dedicated art.
+        Sprite tomeFoudreSprite = CreateCircleSprite("Assets/Art/Items/TomeFoudre.png", new Color(0.55f, 0.85f, 1f));
+        Sprite tomeFeuSprite = CreateCircleSprite("Assets/Art/Items/TomeFeu.png", new Color(0.95f, 0.45f, 0.1f));
+        Sprite tomeLigneDeFeuSprite = CreateCircleSprite("Assets/Art/Items/TomeLigneDeFeu.png", new Color(0.85f, 0.35f, 0.1f));
 
         assets.fistVisualSprite = CreateCircleSprite("Assets/Art/Fx/FistHit.png", new Color(0.95f, 0.95f, 0.9f));
         assets.swordVisualSprite = CreateRectSprite("Assets/Art/Fx/SwordSlash.png", new Color(0.85f, 0.9f, 0.95f));
@@ -2664,6 +2703,18 @@ public static class DungeonGenerator
             "Munitions infinies. Maintenez pour charger : plus la charge est longue, plus le tir frappe et repousse fort.",
             isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
             isWeapon: true, weaponType: PlayerController.WeaponType.Bow, material: MaterialType.Bois, rarity: 2);
+        RegisterItem(itemEntries, ItemIds.Fouet, "Fouet", ItemCategory.Equipement, 1, fouetSprite,
+            "Munitions infinies, tres longue portee, recul faible.", isEquipment: true, equipmentSlot: EquipmentSlotType.Weapon,
+            isWeapon: true, weaponType: PlayerController.WeaponType.Fouet, material: MaterialType.Tissu, rarity: 2);
+        // 2026-09-23 fix: "tu donnes 3 sorts de base au crawler qu'il ne devrait pas avoir" - each
+        // spell now has to actually be found/bought as a one-time tome instead of being known for
+        // free from the start (see PlayerController.LearnSpell/UseItem).
+        RegisterItem(itemEntries, ItemIds.TomeFoudre, "Tome : Orbe de Foudre", ItemCategory.Consommable, 1, tomeFoudreSprite,
+            "Se lit une fois pour apprendre le sort Orbe de Foudre.", rarity: 3, grantsSpellId: SpellIds.LightningOrb);
+        RegisterItem(itemEntries, ItemIds.TomeFeu, "Tome : Boule de Feu", ItemCategory.Consommable, 1, tomeFeuSprite,
+            "Se lit une fois pour apprendre le sort Boule de Feu.", rarity: 3, grantsSpellId: SpellIds.Fireball);
+        RegisterItem(itemEntries, ItemIds.TomeLigneDeFeu, "Tome : Ligne de Feu", ItemCategory.Consommable, 1, tomeLigneDeFeuSprite,
+            "Se lit une fois pour apprendre le sort Ligne de Feu.", rarity: 3, grantsSpellId: SpellIds.FireLine);
 
         // Special ground-only items showcasing weight/curse/trap - placed rarely by SpawnRoomDecor,
         // never in the common LootTable drop pool.
@@ -2943,6 +2994,13 @@ public static class DungeonGenerator
         // visual hint, on purpose (detection items are a separate future feature).
         assets.secretWallSprite = CreateSolidSprite("Assets/Art/Fx/SecretWall.png", new Color(0.10f, 0.09f, 0.11f));
         assets.outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
+        // 90 degrees total (45 either side of facing direction) - narrow enough to read as "in
+        // front of", wide enough to still cover a player standing slightly off-center.
+        assets.coneTelegraphSprite = CreateConeSprite("Assets/Art/Markers/ConeTelegraph.png", TilePixelSize, 90f, Color.white);
+        assets.rectTelegraphSprite = CreateRectTelegraphSprite("Assets/Art/Markers/RectTelegraph.png", TilePixelSize, Color.white);
+        // Larve's Spit poison debuff icon (see PoisonStatus/EnemyController.FireSpit) - same shape
+        // as burnIconSprite above, just green instead of orange.
+        assets.poisonIconSprite = CreateCircleSprite("Assets/Art/Fx/PoisonIcon.png", new Color(0.45f, 0.75f, 0.25f));
         // Real Kenney character tiles (see KenneyCharacterSlicer.SlicePlayerSprite), one per NPC
         // role, each with its own color tint applied at spawn time (SpawnExampleNpc etc. below) so
         // even a reused silhouette still reads as a distinct character - same fallback convention
@@ -3033,6 +3091,9 @@ public static class DungeonGenerator
         Sprite burnIconSprite = CreateCircleSprite("Assets/Art/Fx/BurnIcon.png", new Color(0.95f, 0.55f, 0.15f));
         Sprite npcSprite = LoadIconPackSprite("NpcGuide") ?? CreateCircleSprite("Assets/Art/Npc.png", new Color(0.35f, 0.55f, 0.75f));
         Sprite doorBarrierSprite = CreateSolidSprite("Assets/Art/Fx/DoorBarrier.png", new Color(0.6f, 0.15f, 0.15f));
+        Sprite outlineRingSprite = CreateRingSprite("Assets/Art/Markers/OutlineRing.png", TilePixelSize, 2, Color.white);
+        Sprite coneTelegraphSprite = CreateConeSprite("Assets/Art/Markers/ConeTelegraph.png", TilePixelSize, 90f, Color.white);
+        Sprite rectTelegraphSprite = CreateRectTelegraphSprite("Assets/Art/Markers/RectTelegraph.png", TilePixelSize, Color.white);
         Sprite stairsMarker = LoadIconPackSprite("Exit_Bright");
 
         GameObject existingRoot = GameObject.Find("DungeonRoot");
@@ -3282,6 +3343,9 @@ public static class DungeonGenerator
         controller.roomSize = new Vector2(TutorialRoomWidth, TutorialRoomHeight);
         controller.player = player.transform;
         controller.presets = presets;
+        controller.rangeTelegraphSprite = outlineRingSprite;
+        controller.coneTelegraphSprite = coneTelegraphSprite;
+        controller.rectTelegraphSprite = rectTelegraphSprite;
         controller.recipe = recipe;
 
         // --- The portal: physically blocked (plain solid barrier, not a DoorBlocker - a bomb
@@ -4167,7 +4231,7 @@ public static class DungeonGenerator
         // cells apart. Going second gives them first pick of the map's best-spread dead ends, while
         // the pool is still large - restaurantCell/arcadeCell record which cell is which so the
         // population pass in Build() knows which of the three to furnish differently (the first
-        // stays the Tavern - see SpawnTavernNpc/SpawnCookNpc/SpawnArcadeNpc). If a placement fails
+        // stays the Tavern - see SpawnTavernNpc/SpawnCookNpc/SpawnArcadeMachines). If a placement fails
         // (rare, no fallback - same as Treasure/Shop/Event/Gamble), PlaceSpecialRoom sets its cell to
         // default (0,0) - harmless, since every Safe-room check below also requires
         // kv.Value == RoomType.Safe and Start already owns (0,0).
@@ -4824,7 +4888,7 @@ public static class DungeonGenerator
         PlayerController.WeaponType weaponType = PlayerController.WeaponType.Fist, bool isThrowable = false, bool isTrap = false, int healAmount = 0,
         float speedBuffMultiplier = 0f, float speedBuffDuration = 0f, float staminaRegenBuffMultiplier = 0f, float staminaRegenBuffDuration = 0f,
         bool isEquipment = false, EquipmentSlotType equipmentSlot = default, StatType ringBonusStat = StatType.None, int armorValue = 0,
-        int maxDurability = 0, MaterialType material = MaterialType.None, int rarity = ItemRarity.Min)
+        int maxDurability = 0, MaterialType material = MaterialType.None, int rarity = ItemRarity.Min, string grantsSpellId = null)
     {
         // Catches the exact bug SimpleRing shipped with (registered with no ringBonusStat, so
         // equipping it did literally nothing). Scoped to ring slots only, not every equipment
@@ -4842,7 +4906,7 @@ public static class DungeonGenerator
             SpeedBuffMultiplier = speedBuffMultiplier, SpeedBuffDuration = speedBuffDuration,
             StaminaRegenBuffMultiplier = staminaRegenBuffMultiplier, StaminaRegenBuffDuration = staminaRegenBuffDuration,
             IsEquipment = isEquipment, EquipmentSlot = equipmentSlot, RingBonusStat = ringBonusStat, ArmorValue = armorValue,
-            MaxDurability = maxDurability, Material = material
+            MaxDurability = maxDurability, Material = material, GrantsSpellId = grantsSpellId
         });
         entries.Add(new ItemCatalog.Entry
         {
@@ -4852,7 +4916,7 @@ public static class DungeonGenerator
             speedBuffMultiplier = speedBuffMultiplier, speedBuffDuration = speedBuffDuration,
             staminaRegenBuffMultiplier = staminaRegenBuffMultiplier, staminaRegenBuffDuration = staminaRegenBuffDuration,
             isEquipment = isEquipment, equipmentSlot = equipmentSlot, ringBonusStat = ringBonusStat, armorValue = armorValue,
-            maxDurability = maxDurability, material = material
+            maxDurability = maxDurability, material = material, grantsSpellId = grantsSpellId
         });
     }
 
@@ -4875,6 +4939,10 @@ public static class DungeonGenerator
         // 2026-09-22 weapon-types request - same treatment as Sword/Staff above.
         ItemIds.Halberd, ItemIds.ShortSword, ItemIds.SpikedGloves, ItemIds.Rapier, ItemIds.Hammer,
         ItemIds.Sling, ItemIds.ShurikenLauncher, ItemIds.Revolver, ItemIds.Bow,
+        // 2026-09-23 request: fouet, 5th ranged weapon - same pool treatment as the others above.
+        ItemIds.Fouet,
+        // 2026-09-23 fix: spell tomes, now the only way to learn a spell - same pool treatment.
+        ItemIds.TomeFoudre, ItemIds.TomeFeu, ItemIds.TomeLigneDeFeu,
         ItemIds.Wood, ItemIds.Metal, ItemIds.Stone,
         ItemIds.IronHelmet, ItemIds.LeatherPauldrons, ItemIds.CombatGloves, ItemIds.WalkingBoots,
         ItemIds.SimpleNecklace, ItemIds.LeatherBelt, ItemIds.LeatherKneepads, ItemIds.SimpleRing,
@@ -5370,51 +5438,63 @@ public static class DungeonGenerator
         SpawnAttributeBoard(roomOrigin, roomSize, wallDecorSprite, parent);
     }
 
-    // The third Safe room's NPC (see arcadeCell in GenerateLayout) - 3 coin-operated "machines",
-    // each a stat check paid for in gold (see ArcadeOption): pay first (gold is gone either way,
-    // win or lose), then roll exactly like any free dialogue check. risk = Safe on all three - a
-    // loss never costs more than the entry fee, only a win ever changes anything.
-    static void SpawnArcadeNpc(Vector2 position, Sprite sprite, Sprite badgeSprite, Transform parent)
+    // The third Safe room's machines (see arcadeCell in GenerateLayout) - 3 coin-operated
+    // "machines", each a stat check paid for in gold (see ArcadeOption): pay first (gold is gone
+    // either way, win or lose), then roll exactly like any free dialogue check. risk = Safe on all
+    // three - a loss never costs more than the entry fee, only a win ever changes anything.
+    // 2026-09-23 request: "on joue sur les machines, pas sur le pnj" - previously a single
+    // "Bornes d'Arcade" NPC listed all 3 games in one dialogue panel; now each machine is its own
+    // inanimate interactable (same NpcInteractable/DialogueManager machinery as SpawnCraftingTable
+    // below, just visually the cabinet prop instead of a person) placed at the exact spots the
+    // purely decorative Cabinet props used to occupy in SpawnArcadeFurniture - one machine, one
+    // game, walk up and press the same interact key as any other machine in the game.
+    static readonly Color ArcadeMachineTint = new Color(0.3f, 0.2f, 0.4f);
+
+    static void SpawnArcadeMachine(string name, Vector2 position, Sprite sprite, Sprite badgeSprite, DialogueOption option, Transform parent)
     {
-        GameObject go = new GameObject("Npc", typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
+        GameObject go = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(NpcInteractable));
         go.transform.SetParent(parent);
         go.transform.position = position;
 
         SpriteRenderer renderer = go.GetComponent<SpriteRenderer>();
         renderer.sprite = sprite;
-        renderer.color = new Color(0.6f, 0.35f, 0.75f); // neon purple - distinct from the Tavernier/Cuisinier tints
+        renderer.color = ArcadeMachineTint;
         renderer.sortingOrder = 0;
         AddNpcBadge(go, badgeSprite);
 
-        go.GetComponent<CircleCollider2D>().radius = 1.5f;
+        go.GetComponent<CircleCollider2D>().radius = 0.9f;
 
-        NpcInteractable npc = go.GetComponent<NpcInteractable>();
-        npc.npcName = "Bornes d'Arcade";
-        npc.greeting = "Trois machines usees, encore allumees. Tentez votre chance.";
-        npc.options = new List<DialogueOption>
-        {
+        NpcInteractable machine = go.GetComponent<NpcInteractable>();
+        machine.npcName = name;
+        machine.greeting = "Une machine usee, encore allumee. Tentez votre chance.";
+        machine.options = new List<DialogueOption> { option };
+    }
+
+    static void SpawnArcadeMachines(Vector2 npcPos, Sprite sprite, Sprite badgeSprite, Transform parent)
+    {
+        SpawnArcadeMachine("Marteau de Force", npcPos + new Vector2(-1.6f, 0.6f), sprite, badgeSprite,
             ArcadeOption("Marteau de Force (2 or)", 2, StatType.Force, 12,
                 "Le marteau frappe fort - la machine recrache une recompense !",
                 new[] { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Baton, ItemIds.Gold }),
+            parent);
+        SpawnArcadeMachine("Jeu d'Adresse", npcPos + new Vector2(0f, 0.8f), sprite, badgeSprite,
             ArcadeOption("Jeu d'Adresse (2 or)", 2, StatType.Dexterite, 12,
                 "Un geste precis - vous decrochez le lot !",
                 new[] { ItemIds.Shuriken, ItemIds.Caillou, ItemIds.Gold }),
+            parent);
+        SpawnArcadeMachine("Machine a Sous", npcPos + new Vector2(1.6f, 0.6f), sprite, badgeSprite,
             ArcadeOption("Machine a Sous (3 or)", 3, StatType.Charisme, 14,
                 "Trois symboles s'alignent - jackpot !",
                 new[] { ItemIds.Gold, ItemIds.HealthPotion }),
-        };
+            parent);
     }
 
-    // Furniture for the Arcade room - cabinets around the machines instead of the Tavern's bar or
-    // the Restaurant's stove. No RestBed here (2026-09-16, explicit request) - see
-    // SpawnRestaurantFurniture's note, the Tavern is now the only Safe-room save/rest point.
-    static void SpawnArcadeFurniture(Vector2 roomOrigin, Vector2 roomSize, Vector2 npcPos, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
+    // Furniture for the Arcade room - table clusters/wall decor around the machines instead of the
+    // Tavern's bar or the Restaurant's stove. No RestBed here (2026-09-16, explicit request) - see
+    // SpawnRestaurantFurniture's note, the Tavern is now the only Safe-room save/rest point. The 3
+    // Cabinet props that used to sit here are now real interactables (see SpawnArcadeMachines).
+    static void SpawnArcadeFurniture(Vector2 roomOrigin, Vector2 roomSize, Sprite woodSprite, Sprite rugSprite, Sprite wallDecorSprite, Transform parent)
     {
-        Color cabinetTint = new Color(0.3f, 0.2f, 0.4f);
-        SpawnProp("Cabinet", npcPos + new Vector2(-1.6f, 0.6f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
-        SpawnProp("Cabinet", npcPos + new Vector2(0f, 0.8f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
-        SpawnProp("Cabinet", npcPos + new Vector2(1.6f, 0.6f), woodSprite, parent, new Vector2(0.9f, 1.6f), 0f, 1, true, cabinetTint);
-
         List<Vector2> corners = GenerateCornerPositions(4, roomOrigin, roomSize);
         SpawnTableCluster(corners[0], woodSprite, rugSprite, parent);
         SpawnTableCluster(corners[1], woodSprite, rugSprite, parent);
@@ -5712,7 +5792,7 @@ public static class DungeonGenerator
 
     // Same isPurchase-with-no-purchaseItemId flow as EatOption, but with a real checkStat/dc set -
     // DialogueManager.ChooseOption pays the entry fee first, then rolls exactly like a free dialogue
-    // check (see RollAndResolve). risk stays Safe (see SpawnArcadeNpc) so onFailure's content is
+    // check (see RollAndResolve). risk stays Safe (see SpawnArcadeMachines) so onFailure's content is
     // never actually shown (apply is always false at 0% malus chance - Resolve prints its own
     // generic "Rien ne se passe." instead) - it only needs to be non-null so Resolve doesn't
     // short-circuit to an instant, message-less Close().
@@ -5900,6 +5980,9 @@ public static class DungeonGenerator
         public Sprite doorBarrierSprite;
         public Sprite secretWallSprite;
         public Sprite outlineRingSprite;
+        public Sprite coneTelegraphSprite;
+        public Sprite rectTelegraphSprite;
+        public Sprite poisonIconSprite;
         public Sprite npcStrangerSprite;
         public Sprite npcElderSprite;
         public Sprite npcMerchantSprite;
@@ -6180,7 +6263,7 @@ public static class DungeonGenerator
     };
 
     static bool SetupMonsterRoom(List<Vector2Int> memberCells, int originX, int originY, Vector2 roomSize, Transform parent, Transform player,
-        RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite,
+        RoomController.EnemyPresetEntry[] presets, Sprite speedUpBadge, Sprite hpUpBadge, Sprite glowSprite, Sprite doorBarrierSprite, Sprite rangeTelegraphSprite, Sprite coneTelegraphSprite, Sprite rectTelegraphSprite, Sprite poisonIconSprite,
         DecorSprites decorSprites, EnemyType? floorTheme, List<(Vector2 pos, bool onVerticalWall)> doors, List<RoomController> controllers, bool startCleared)
     {
         Vector2Int gridPos = memberCells[0];
@@ -6248,6 +6331,10 @@ public static class DungeonGenerator
         controller.speedUpBadge = speedUpBadge;
         controller.hpUpBadge = hpUpBadge;
         controller.glowSprite = glowSprite;
+        controller.rangeTelegraphSprite = rangeTelegraphSprite;
+        controller.coneTelegraphSprite = coneTelegraphSprite;
+        controller.rectTelegraphSprite = rectTelegraphSprite;
+        controller.poisonIconSprite = poisonIconSprite;
         controller.recipe = recipe;
         controller.startCleared = startCleared;
         // Feeds a resumed save's progress back into DungeonGenerator's live tracking (see
@@ -6811,6 +6898,51 @@ public static class DungeonGenerator
         }
         tex.Apply();
         return SaveTextureAsSprite(tex, path);
+    }
+
+    // A filled pie-slice, pivoted at its own point (bottom-center) instead of its middle like every
+    // other baked sprite here - 2026-09-23 request: "pour le coup de griffe, un petit cone en face
+    // du monstre serait plus logique" (the ring telegraph reads as omnidirectional range, which
+    // doesn't match a frontal claw swipe). Drawn on a 2:1 wide:tall canvas (not square, unlike
+    // CreateRingSprite) so a wide angleDegrees never clips against the texture edge - radius 1 in
+    // this sprite's own local space always reaches the top edge running straight up, and up to +-1
+    // sideways at the equator, matching AttackRangeTelegraph.SpawnCone's Vector3.one * range scale.
+    static Sprite CreateConeSprite(string path, int size, float angleDegrees, Color color)
+    {
+        int width = size * 2;
+        int height = size;
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        Color clear = new Color(0f, 0f, 0f, 0f);
+        float halfAngleRad = angleDegrees * 0.5f * Mathf.Deg2Rad;
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                float nx = (x + 0.5f) / size - 1f;
+                float ny = (y + 0.5f) / size;
+                bool inRange = (nx * nx + ny * ny) <= 1f;
+                bool inCone = ny > 0f && Mathf.Atan2(Mathf.Abs(nx), ny) <= halfAngleRad;
+                tex.SetPixel(x, y, (inRange && inCone) ? color : clear);
+            }
+        }
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path, new Vector2(0.5f, 0f));
+    }
+
+    // Solid rectangle pivoted at its own base (not its center) - 2026-09-23 follow-up: "pour le sort
+    // dash, tu affiche un enorme carre alors qu'un rectangle entre le monstre et le crawler est plus
+    // logique". Same bottom-pivot convention as CreateConeSprite, but AttackRangeTelegraph.SpawnRect
+    // scales its width/height independently (a fixed corridor width, a length matching dashRange)
+    // rather than uniformly, so one square texture covers any width/length combination.
+    static Sprite CreateRectTelegraphSprite(string path, int size, Color color)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color[] pixels = new Color[size * size];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return SaveTextureAsSprite(tex, path, new Vector2(0.5f, 0f));
     }
 
     static Dictionary<string, Sprite> iconPackCache;
